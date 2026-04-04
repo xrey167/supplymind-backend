@@ -102,24 +102,28 @@ class WsServer {
 
   broadcast(msg: ServerMessage) {
     const data = JSON.stringify(msg);
+    const toRemove: string[] = [];
     for (const [id, client] of this.clients) {
       try { (client.ws as any).send(data); } catch (error) {
         logger.warn({ clientId: id, error: error instanceof Error ? error.message : String(error) }, 'WS broadcast failed, removing client');
-        this.clients.delete(id);
+        toRemove.push(id);
       }
     }
+    for (const id of toRemove) this.clients.delete(id);
   }
 
   broadcastToSubscribed(channel: string, msg: ServerMessage) {
     const data = JSON.stringify(msg);
+    const toRemove: string[] = [];
     for (const [id, client] of this.clients) {
       if (this.matchesSubscription(client.subscriptions, channel)) {
         try { (client.ws as any).send(data); } catch (error) {
           logger.warn({ clientId: id, error: error instanceof Error ? error.message : String(error) }, 'WS broadcastToSubscribed failed, removing client');
-          this.clients.delete(id);
+          toRemove.push(id);
         }
       }
     }
+    for (const id of toRemove) this.clients.delete(id);
   }
 
   private matchesSubscription(subs: Set<string>, channel: string): boolean {

@@ -39,6 +39,12 @@ describe('isRetryable', () => {
     const rawError = Object.assign(new Error('rate limit exceeded'), { status: 429 });
     expect(isRetryable(rawError)).toBe(true);
   });
+
+  it('returns false for named error subclasses (TypeError, RangeError, SyntaxError)', () => {
+    expect(isRetryable(new TypeError('bad type'))).toBe(false);
+    expect(isRetryable(new RangeError('out of range'))).toBe(false);
+    expect(isRetryable(new SyntaxError('bad syntax'))).toBe(false);
+  });
 });
 
 // ─── withRetry ───────────────────────────────────────────────────────────────
@@ -201,5 +207,29 @@ describe('withRetry', () => {
     );
     expect(result).toBe('recovered');
     expect(calls).toBe(3);
+  });
+
+  // 10 ─ AbortSignal fires during sleep — throws AbortError, does not retry
+  it('aborts during sleep when signal fires — throws AbortError immediately', async () => {
+    // Restore real setTimeout for this test so sleep actually waits
+    globalThis.setTimeout = originalSetTimeout;
+
+    const controller = new AbortController();
+    let calls = 0;
+
+    const promise = withRetry(
+      async () => {
+        calls++;
+        throw makeRateLimitError(); // always retryable
+      },
+      { baseDelayMs: 10_000, maxDelayMs: 10_000, signal: controller.signal },
+    );
+
+    // Abort after a short tick — while withRetry is sleeping
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    controller.abort();
+
+    await expect(promise).rejects.toBeInstanceOf(AbortError);
+    expect(calls).toBe(1); // only one attempt before abort
   });
 });

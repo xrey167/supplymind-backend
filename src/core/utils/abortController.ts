@@ -30,37 +30,32 @@ export function createChildAbortController(parent: AbortController): AbortContro
 
 /**
  * Returns a signal that fires when ANY of the inputs abort, or when the timeout elapses.
+ * Uses AbortSignal.any() for the signals part to avoid manual listener management.
  */
 export function combinedAbortSignal(
   signals: AbortSignal[],
   timeoutMs?: number,
 ): AbortSignal {
-  const controller = new AbortController();
-  const cleanup: Array<() => void> = [];
-
-  const abort = (reason?: unknown) => {
-    if (controller.signal.aborted) return;
-    controller.abort(reason);
-    for (const fn of cleanup) fn();
-  };
-
-  for (const sig of signals) {
-    if (sig.aborted) {
-      abort(sig.reason);
-      return controller.signal;
-    }
-    const fn = () => abort(sig.reason);
-    sig.addEventListener('abort', fn, { once: true });
-    cleanup.push(() => sig.removeEventListener('abort', fn));
+  if (timeoutMs === undefined) {
+    // Pure signal combination — native AbortSignal.any() avoids listener leaks
+    return AbortSignal.any(signals);
   }
 
-  if (timeoutMs !== undefined) {
-    const timer = setTimeout(
-      () => abort(new Error(`Timed out after ${timeoutMs}ms`)),
-      timeoutMs,
-    );
-    cleanup.push(() => clearTimeout(timer));
-  }
+  // With timeout: add a manual timer that aborts a controller, then combine via AbortSignal.any
+  const timeoutController = new AbortController();
+  const timer = setTimeout(
+    () => timeoutController.abort(new Error(`Timed out after ${timeoutMs}ms`)),
+    timeoutMs,
+  );
 
-  return controller.signal;
+  const combined = AbortSignal.any([...signals, timeoutController.signal]);
+
+  // Clean up the timer once the combined signal fires (prevents the timer outliving resolution)
+  combined.addEventListener(
+    'abort',
+    () => clearTimeout(timer),
+    { once: true },
+  );
+
+  return combined;
 }

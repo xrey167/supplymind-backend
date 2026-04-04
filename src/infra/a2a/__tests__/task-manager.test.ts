@@ -205,6 +205,33 @@ describe('TaskManager', () => {
       expect(taskManager.cancel('nonexistent')).toBeUndefined();
     });
 
+    test('double-cancel is idempotent — returns task without re-aborting', async () => {
+      const task = await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'double cancel' }] },
+        agentConfig: baseConfig(),
+        callerId: 'caller-1',
+      });
+
+      const first = taskManager.cancel(task.id);
+      const second = taskManager.cancel(task.id);
+      expect(first?.status.state).toBe('canceled');
+      expect(second?.status.state).toBe('canceled');
+    });
+
+    test('cancel on completed task returns task without changing state', async () => {
+      const task = await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'complete first' }] },
+        agentConfig: baseConfig(),
+        callerId: 'caller-1',
+      });
+
+      await flush();
+      expect(taskManager.get(task.id)?.status.state).toBe('completed');
+
+      const result = taskManager.cancel(task.id);
+      expect(result?.status.state).toBe('completed'); // state unchanged
+    });
+
     test('abort controller signal is aborted after cancel()', async () => {
       // Use a slow runtime so executeTask is still in-flight
       mockRun.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve({ ok: true, value: { content: 'done', stopReason: 'end_turn' } }), 500)));
@@ -298,6 +325,66 @@ describe('TaskManager', () => {
       expect(taskManager.list('ws-1').length).toBeGreaterThan(0);
       expect(taskManager.list('ws-other').length).toBe(0);
       await flush();
+    });
+  });
+
+  describe('toolIds filtering', () => {
+    test('only tools in toolIds are passed to runtime', async () => {
+      toolDefsSpy.mockImplementationOnce(() => [
+        { name: 'allowed_tool', description: 'Allowed', inputSchema: {} },
+        { name: 'blocked_tool', description: 'Blocked', inputSchema: {} },
+      ]);
+
+      await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'filter tools' }] },
+        agentConfig: { ...baseConfig(), toolIds: ['allowed_tool'] },
+        callerId: 'caller-1',
+      });
+
+      await flush();
+
+      const runCall = mockRun.mock.calls[0][0] as any;
+      expect(runCall.tools).toHaveLength(1);
+      expect(runCall.tools[0].name).toBe('allowed_tool');
+    });
+
+    test('all tools passed when toolIds is undefined', async () => {
+      toolDefsSpy.mockImplementationOnce(() => [
+        { name: 'tool_a', description: 'A', inputSchema: {} },
+        { name: 'tool_b', description: 'B', inputSchema: {} },
+      ]);
+
+      const config = baseConfig() as any;
+      delete config.toolIds; // undefined → no filtering
+
+      await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'all tools' }] },
+        agentConfig: config,
+        callerId: 'caller-1',
+      });
+
+      await flush();
+
+      const runCall = mockRun.mock.calls[0][0] as any;
+      expect(runCall.tools).toHaveLength(2);
+    });
+
+    test('empty toolIds array filters all tools out', async () => {
+      toolDefsSpy.mockImplementationOnce(() => [
+        { name: 'tool_a', description: 'A', inputSchema: {} },
+        { name: 'tool_b', description: 'B', inputSchema: {} },
+      ]);
+
+      await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'no tools' }] },
+        agentConfig: { ...baseConfig(), toolIds: [] },
+        callerId: 'caller-1',
+      });
+
+      await flush();
+
+      const runCall = mockRun.mock.calls[0][0] as any;
+      expect(runCall.tools).toHaveLength(0);
     });
   });
 

@@ -129,18 +129,13 @@ export class GoogleRawRuntime implements AgentRuntime {
       const iterator = response[Symbol.asyncIterator]();
 
       while (true) {
-        // Race: next chunk vs signal abort
-        const next = await Promise.race([
-          iterator.next(),
-          new Promise<IteratorResult<any>>((_, reject) => {
-            if (combinedSignal.aborted) {
-              reject(combinedSignal.reason ?? new Error('Aborted'));
-              return;
-            }
-            const onAbort = () => reject(combinedSignal.reason ?? new Error('Aborted'));
-            combinedSignal.addEventListener('abort', onAbort, { once: true });
-          }),
-        ]);
+        // Check abort synchronously before each chunk to avoid creating a new Promise per iteration
+        if (combinedSignal.aborted) {
+          throw combinedSignal.reason instanceof Error
+            ? combinedSignal.reason
+            : new AbortError('Aborted', 'user');
+        }
+        const next = await iterator.next();
 
         if (next.done) break;
 

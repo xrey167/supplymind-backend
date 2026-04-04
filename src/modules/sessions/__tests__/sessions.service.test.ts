@@ -43,4 +43,35 @@ describe('sessionsService', () => {
     mockLimit.mockReturnValueOnce([]);
     await expect(sessionsService.close('nonexistent')).rejects.toThrow('Session not found');
   });
+
+  test('resume throws when session is not paused', async () => {
+    // mockLimit returns active session by default (status: 'active')
+    await expect(sessionsService.resume('sess-1')).rejects.toThrow('not paused');
+  });
+
+  test('resume throws for missing session', async () => {
+    mockLimit.mockReturnValueOnce([]);
+    await expect(sessionsService.resume('nonexistent')).rejects.toThrow('Session not found');
+  });
+
+  test('addMessage throws for closed session', async () => {
+    mockLimit.mockReturnValueOnce([{ id: 'sess-1', workspaceId: 'ws-1', status: 'closed', metadata: {}, tokenCount: 0, createdAt: new Date(), updatedAt: new Date() }]);
+    await expect(
+      sessionsService.addMessage('sess-1', { role: 'user', content: 'hi' }),
+    ).rejects.toThrow('Session is closed');
+  });
+
+  test('addMessage throws for expired session', async () => {
+    mockLimit.mockReturnValueOnce([{ id: 'sess-1', workspaceId: 'ws-1', status: 'expired', metadata: {}, tokenCount: 0, createdAt: new Date(), updatedAt: new Date() }]);
+    await expect(
+      sessionsService.addMessage('sess-1', { role: 'user', content: 'hi' }),
+    ).rejects.toThrow('Session is expired');
+  });
+
+  test('addMessage throws for missing session', async () => {
+    mockLimit.mockReturnValueOnce([]);
+    await expect(
+      sessionsService.addMessage('nonexistent', { role: 'user', content: 'hi' }),
+    ).rejects.toThrow('Session not found');
+  });
 });

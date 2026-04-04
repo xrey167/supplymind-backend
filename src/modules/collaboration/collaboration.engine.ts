@@ -16,12 +16,15 @@ async function queryAgents(
     agents.map(async (agent) => {
       const start = Date.now();
       try {
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
         const result = await Promise.race([
           dispatch(agent, { query }),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), timeoutMs),
-          ),
-        ]);
+          new Promise<never>((_, reject) => {
+            timeoutHandle = setTimeout(() => reject(new Error('timeout')), timeoutMs);
+          }),
+        ]).finally(() => {
+          clearTimeout(timeoutHandle);
+        });
         return { agent, result, durationMs: Date.now() - start };
       } catch (err) {
         return {
@@ -114,7 +117,7 @@ async function consensus(
   try {
     const judgeResult = await dispatch(judge, { query: judgePrompt });
     const parsed = JSON.parse(judgeResult);
-    bestIdx = typeof parsed.bestId === 'number' ? parsed.bestId : 0;
+    bestIdx = typeof parsed.bestId === 'number' && parsed.bestId >= 0 && parsed.bestId < successResponses.length ? parsed.bestId : 0;
     agreement = typeof parsed.agreement === 'number' ? parsed.agreement : undefined;
     if (Array.isArray(parsed.scores)) {
       for (const s of parsed.scores) {

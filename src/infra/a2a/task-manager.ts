@@ -13,6 +13,8 @@ import { AbortError } from '../../core/errors';
 import { toolRegistry } from '../../modules/tools/tools.registry';
 import { contextService } from '../../modules/context/context.service';
 import { taskRepo } from './task-repo';
+import { logger } from '../../config/logger';
+import { captureException } from '../observability/sentry';
 
 const MAX_TOOL_CALL_ITERATIONS = 10;
 
@@ -48,17 +50,21 @@ class TaskManager {
       agentId: config.id,
       status: 'submitted',
       input: params.message ?? {},
-    }).catch(() => {}); // best-effort
+    }).catch((error: unknown) => {
+      logger.error({ taskId, error }, 'Failed to persist task to DB');
+    });
 
     eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'submitted', workspaceId: config.workspaceId });
 
     // Run async -- don't block the response
     this.executeTask(taskId, params, config).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
+      logger.error({ taskId, error }, 'executeTask threw unexpectedly');
+      captureException(error, { taskId, workspaceId: config.workspaceId });
       try {
         this.updateStatus(taskId, 'failed', message);
-      } catch {
-        // Last-resort: updateStatus itself failed — nothing more we can do
+      } catch (updateError) {
+        logger.error({ taskId, error: updateError }, 'updateStatus failed in executeTask error handler');
       }
     });
 
@@ -79,9 +85,11 @@ class TaskManager {
 
       const runtime = this.resolveRuntime(config.provider, config.mode);
 
-      // Get tools from skill registry, optionally filtered by agent's toolIds
+      // Get tools from skill registry, filtered by agent's toolIds
+      // When toolIds is defined (even if empty), only those tools are allowed
+      // When toolIds is undefined/null, all tools are available
       let tools = skillsRegistryModule.skillRegistry.toToolDefinitions();
-      if (config.toolIds && config.toolIds.length > 0) {
+      if (config.toolIds) {
         const allowed = new Set(config.toolIds);
         tools = tools.filter(t => allowed.has(t.name));
       }
@@ -134,6 +142,13 @@ class TaskManager {
             agentId: config.id,
           },
         });
+
+        if (signal.aborted) {
+          if (record.task.status.state !== 'canceled') {
+            this.updateStatus(taskId, 'canceled', 'Aborted after context preparation');
+          }
+          return;
+        }
 
         const input: RunInput = {
           messages: context.messages,
@@ -245,7 +260,9 @@ class TaskManager {
           currentRecord.task.status = { state: 'completed' };
         }
 
-        taskRepo.updateStatus(taskId, 'completed', runResult.content, currentRecord?.task.artifacts).catch(() => {}); // best-effort
+        taskRepo.updateStatus(taskId, 'completed', runResult.content, currentRecord?.task.artifacts).catch((error: unknown) => {
+          logger.error({ taskId, error }, 'Failed to update task status to completed in DB');
+        });
         eventBus.publish(Topics.TASK_COMPLETED, { taskId, output: runResult.content });
         eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'completed', workspaceId: config.workspaceId });
         return;
@@ -255,7 +272,7 @@ class TaskManager {
       this.updateStatus(taskId, 'failed', 'Max tool call iterations reached');
     } finally {
       // Schedule cleanup after callers have had time to read final state
-      setTimeout(() => this.tasks.delete(taskId), 5_000);
+      setTimeout(() => this.tasks.delete(taskId), 60_000);
     }
   }
 
@@ -314,7 +331,9 @@ class TaskManager {
       output: resultValue,
       durationMs: Date.now() - toolCallStart,
       error: toolResult.ok ? undefined : String(resultValue),
-    }).catch(() => {}); // best-effort
+    }).catch((error: unknown) => {
+      logger.error({ taskId, toolName: toolCall.name, error }, 'Failed to log tool call to DB');
+    });
 
     eventBus.publish(Topics.TASK_TOOL_CALL, {
       taskId,
@@ -333,7 +352,9 @@ class TaskManager {
     if (record) {
       record.task.status = { state, message };
       eventBus.publish(Topics.TASK_STATUS, { taskId, status: state, workspaceId: record.workspaceId, message });
-      taskRepo.updateStatus(taskId, state, undefined, undefined).catch(() => {}); // best-effort
+      taskRepo.updateStatus(taskId, state, undefined, undefined).catch((error: unknown) => {
+        logger.error({ taskId, state, error }, 'Failed to update task status in DB');
+      });
     }
   }
 
@@ -348,8 +369,9 @@ class TaskManager {
   cancel(taskId: string): A2ATask | undefined {
     const record = this.tasks.get(taskId);
     if (!record) return undefined;
-    if (record.task.status.state === 'canceled') {
-      return record.task; // already canceled, no-op
+    const terminalStates = new Set(['canceled', 'completed', 'failed']);
+    if (terminalStates.has(record.task.status.state)) {
+      return record.task; // already in terminal state, no-op
     }
     record.controller.abort(new AbortError('Task canceled by user', 'user'));
     record.task.status = { state: 'canceled' };

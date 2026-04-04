@@ -37,14 +37,19 @@ export function isRetryable(error: unknown): boolean {
 
 const sleep = (ms: number, signal?: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(resolve, ms);
-    if (signal) {
-      const onAbort = () => {
-        clearTimeout(timer);
-        reject(new AbortError('Retry aborted', 'user'));
-      };
-      signal.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) {
+      reject(new AbortError('Retry aborted', 'user'));
+      return;
     }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new AbortError('Retry aborted', 'user'));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
   });
 
 export async function withRetry<T>(

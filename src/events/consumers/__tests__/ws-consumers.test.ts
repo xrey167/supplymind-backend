@@ -85,13 +85,40 @@ describe('ws-consumers', () => {
       cancelSpy.mockRestore();
     });
 
-    test('handles missing taskId gracefully', async () => {
+    test('handles missing taskId gracefully — does not call cancel', async () => {
       const cancelSpy = spyOn(taskManager, 'cancel');
 
       await eventBus.publish('ws.task.cancel', { clientId: 'client-1' });
       await new Promise((r) => setTimeout(r, 50));
 
       expect(cancelSpy).not.toHaveBeenCalled();
+      cancelSpy.mockRestore();
+    });
+  });
+
+  describe('ws.task.cancel error feedback', () => {
+    test('publishes error event when taskId is missing', async () => {
+      const errorEvents: any[] = [];
+      eventBus.subscribe('task.error', (e) => { errorEvents.push(e.data); });
+
+      await eventBus.publish('ws.task.cancel', { clientId: 'c1' });
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(errorEvents.length).toBeGreaterThan(0);
+      expect(errorEvents[0].error).toContain('taskId');
+    });
+
+    test('publishes error event when task is not found', async () => {
+      const errorEvents: any[] = [];
+      eventBus.subscribe('task.error', (e) => { errorEvents.push(e.data); });
+
+      const cancelSpy = spyOn(taskManager, 'cancel').mockReturnValue(undefined);
+
+      await eventBus.publish('ws.task.cancel', { clientId: 'c1', taskId: 'missing-task' });
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(errorEvents.length).toBeGreaterThan(0);
+      expect(errorEvents[0].error).toContain('missing-task');
       cancelSpy.mockRestore();
     });
   });
@@ -230,33 +257,57 @@ describe('ws-consumers', () => {
   });
 
   describe('ws.session.resume', () => {
-    test('logs warning and returns when sessionId is missing', async () => {
-      // Should not throw — handler guards against missing sessionId
+    test('publishes error event when sessionId is missing', async () => {
+      const errorEvents: any[] = [];
+      eventBus.subscribe('task.error', (e) => { errorEvents.push(e.data); });
+
       await eventBus.publish('ws.session.resume', { clientId: 'c1' });
       await new Promise((r) => setTimeout(r, 50));
+
+      expect(errorEvents.length).toBeGreaterThan(0);
+      expect(errorEvents[0].error).toContain('sessionId');
+      expect(errorEvents[0].clientId).toBe('c1');
     });
 
-    test('catches and logs errors when sessionsService throws', async () => {
-      // sessionId present but service unavailable — should not throw
+    test('publishes error event when sessionsService throws', async () => {
+      const errorEvents: any[] = [];
+      eventBus.subscribe('task.error', (e) => { errorEvents.push(e.data); });
+
+      // sessionId present but sessions module will throw (not found in test env)
       await eventBus.publish('ws.session.resume', { clientId: 'c1', sessionId: 'sess-1' });
       await new Promise((r) => setTimeout(r, 100));
-      // Handler swallows the error — no throw expected
+
+      // Handler publishes error and doesn't throw
+      expect(errorEvents.length).toBeGreaterThan(0);
+      expect(errorEvents[0].clientId).toBe('c1');
     });
   });
 
   describe('ws.memory.approve', () => {
-    test('logs warning and returns when proposalId is missing', async () => {
+    test('publishes error event when proposalId is missing', async () => {
+      const errorEvents: any[] = [];
+      eventBus.subscribe('task.error', (e) => { errorEvents.push(e.data); });
+
       await eventBus.publish('ws.memory.approve', { clientId: 'c1' });
       await new Promise((r) => setTimeout(r, 50));
-      // No assertion needed — just verifying it doesn't throw
+
+      expect(errorEvents.length).toBeGreaterThan(0);
+      expect(errorEvents[0].error).toContain('proposalId');
+      expect(errorEvents[0].clientId).toBe('c1');
     });
   });
 
   describe('ws.memory.reject', () => {
-    test('logs warning and returns when proposalId is missing', async () => {
+    test('publishes error event when proposalId is missing', async () => {
+      const errorEvents: any[] = [];
+      eventBus.subscribe('task.error', (e) => { errorEvents.push(e.data); });
+
       await eventBus.publish('ws.memory.reject', { clientId: 'c1' });
       await new Promise((r) => setTimeout(r, 50));
-      // No assertion needed — just verifying it doesn't throw
+
+      expect(errorEvents.length).toBeGreaterThan(0);
+      expect(errorEvents[0].error).toContain('proposalId');
+      expect(errorEvents[0].clientId).toBe('c1');
     });
   });
 

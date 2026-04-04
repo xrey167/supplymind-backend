@@ -9,6 +9,8 @@ import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
 import { withSpan } from '../../infra/observability/otel';
 import { hooksRegistry } from '../tools/tools.hooks';
+import { logger } from '../../config/logger';
+import { captureException } from '../../infra/observability/sentry';
 
 export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
   if (context.signal?.aborted) {
@@ -56,7 +58,7 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
 
     // Execute with concurrency control
     const start = Date.now();
-    const result = await skillExecutor.execute(skillId, () => skillRegistry.invoke(skillId, args));
+    const result = await skillExecutor.execute(skillId, () => skillRegistry.invoke(skillId, args, context));
     const durationMs = Date.now() - start;
 
     span.setAttribute('duration_ms', durationMs);
@@ -83,8 +85,9 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
         workspaceId: context.workspaceId,
         traceId: context.traceId,
       };
-      await hooks.afterExecute(args, result, hookCtx).catch(() => {
-        // afterExecute errors must never propagate
+      await hooks.afterExecute(args, result, hookCtx).catch((hookError: unknown) => {
+        logger.error({ skillId, error: hookError }, 'afterExecute hook threw — swallowed');
+        captureException(hookError, { skillId, callerId: context.callerId });
       });
     }
 

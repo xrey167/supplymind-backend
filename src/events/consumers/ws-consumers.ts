@@ -49,7 +49,7 @@ async function handleWsTaskSend(event: BusEvent): Promise<void> {
       provider: 'anthropic' as const,
       mode: 'raw' as const,
       model: 'claude-sonnet-4-20250514',
-      workspaceId: 'default',
+      workspaceId: data.workspaceId ?? 'default',
       toolIds: [],
     };
 
@@ -78,6 +78,7 @@ async function handleWsTaskCancel(event: BusEvent): Promise<void> {
 
     if (!taskId) {
       logger.warn({ clientId }, 'ws.task.cancel missing taskId');
+      await eventBus.publish('task.error', { clientId, error: 'Missing taskId in cancel request' });
       return;
     }
 
@@ -87,10 +88,12 @@ async function handleWsTaskCancel(event: BusEvent): Promise<void> {
       logger.info({ taskId, clientId, status: result.status.state }, 'Task canceled from WebSocket');
     } else {
       logger.warn({ taskId, clientId }, 'Task not found for cancellation');
+      await eventBus.publish('task.error', { clientId, taskId, error: `Task not found: ${taskId}` });
     }
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error({ clientId: data.clientId, taskId: data.taskId, error: err.message }, 'Failed to cancel task');
+    await eventBus.publish('task.error', { clientId: data.clientId, taskId: data.taskId, error: err.message });
   }
 }
 
@@ -111,6 +114,7 @@ async function handleWsSessionResume(event: BusEvent): Promise<void> {
     const { clientId, sessionId, input } = data;
     if (!sessionId) {
       logger.warn({ clientId }, 'ws.session.resume missing sessionId');
+      await eventBus.publish('task.error', { clientId, error: 'Missing sessionId in session resume request' });
       return;
     }
     const { sessionsService } = await import('../../modules/sessions/sessions.service');
@@ -125,6 +129,7 @@ async function handleWsSessionResume(event: BusEvent): Promise<void> {
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error({ clientId: data.clientId, error: err.message }, 'Failed to resume session');
+    await eventBus.publish('task.error', { clientId: data.clientId, error: err.message });
   }
 }
 
@@ -134,6 +139,7 @@ async function handleWsMemoryApprove(event: BusEvent): Promise<void> {
     const { clientId, proposalId } = data;
     if (!proposalId) {
       logger.warn({ clientId }, 'ws.memory.approve missing proposalId');
+      await eventBus.publish('task.error', { clientId, error: 'Missing proposalId in memory approve request' });
       return;
     }
     const { memoryService } = await import('../../modules/memory/memory.service');
@@ -142,6 +148,7 @@ async function handleWsMemoryApprove(event: BusEvent): Promise<void> {
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error({ clientId: data.clientId, error: err.message }, 'Failed to approve memory proposal');
+    await eventBus.publish('task.error', { clientId: data.clientId, error: err.message });
   }
 }
 
@@ -151,6 +158,7 @@ async function handleWsMemoryReject(event: BusEvent): Promise<void> {
     const { clientId, proposalId, reason } = data;
     if (!proposalId) {
       logger.warn({ clientId }, 'ws.memory.reject missing proposalId');
+      await eventBus.publish('task.error', { clientId, error: 'Missing proposalId in memory reject request' });
       return;
     }
     const { memoryService } = await import('../../modules/memory/memory.service');
@@ -159,6 +167,7 @@ async function handleWsMemoryReject(event: BusEvent): Promise<void> {
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error({ clientId: data.clientId, error: err.message }, 'Failed to reject memory proposal');
+    await eventBus.publish('task.error', { clientId: data.clientId, error: err.message });
   }
 }
 
@@ -220,7 +229,7 @@ async function handleWsSkillInvoke(event: BusEvent): Promise<void> {
 
     const ctx: DispatchContext = {
       callerId: clientId,
-      workspaceId: 'default', // TODO: extract from WS auth context
+      workspaceId: data.workspaceId ?? 'default', // TODO: extract from WS auth context
       callerRole: 'operator',
       traceId: requestId,
     };

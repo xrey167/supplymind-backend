@@ -8,6 +8,7 @@ import { withRetry, isRetryable } from '../../core/utils/withRetry';
 import { classifyAIError } from '../../core/errors';
 import { err } from '../../core/result';
 import type { Result } from '../../core/result';
+import { captureException } from '../observability/sentry';
 
 export function withRetryRuntime(runtime: AgentRuntime): AgentRuntime {
   return {
@@ -25,7 +26,15 @@ export function withRetryRuntime(runtime: AgentRuntime): AgentRuntime {
             return isRetryable(error);
           },
         },
-      ).catch((error: unknown) => err(classifyAIError(error)));
+      ).catch((error: unknown) => {
+        captureException(error, { provider: 'runtime', signal_aborted: input.signal?.aborted });
+        const classified = classifyAIError(error);
+        // Preserve original stack by setting cause
+        if (error instanceof Error && !(classified instanceof Error && classified.stack?.includes(error.stack ?? ''))) {
+          (classified as any).cause = error;
+        }
+        return err(classified);
+      });
     },
     // stream() is NOT wrapped — it has its own watchdog
     stream: runtime.stream.bind(runtime),
