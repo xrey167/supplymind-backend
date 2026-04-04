@@ -2,6 +2,7 @@ import { GoogleGenAI } from '@google/genai';
 import { nanoid } from 'nanoid';
 import { ok, err } from '../../core/result';
 import { AbortError } from '../../core/errors';
+import { combinedAbortSignal } from '../../core/utils/abortController';
 import { toGoogleTools, toGoogleToolConfig } from './tool-format';
 import type { AgentRuntime, RunInput, RunResult, StreamEvent } from './types';
 import type { Result } from '../../core/result';
@@ -77,7 +78,24 @@ export class GoogleRawRuntime implements AgentRuntime {
   }
 
   async *stream(input: RunInput): AsyncIterable<StreamEvent> {
+    const watchdogMs = parseInt(process.env.STREAM_WATCHDOG_MS ?? '90000', 10);
+    const watchdogController = new AbortController();
+    let watchdogTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const kick = () => {
+      if (watchdogTimer !== undefined) clearTimeout(watchdogTimer);
+      watchdogTimer = setTimeout(() => {
+        watchdogController.abort(new Error(`Stream watchdog: no chunk received for ${watchdogMs}ms`));
+      }, watchdogMs);
+    };
+
+    const combinedSignal = combinedAbortSignal(
+      [watchdogController.signal, ...(input.signal ? [input.signal] : [])],
+    );
+
     try {
+      kick();
+
       const contents = this.convertMessages(input);
 
       const config: Record<string, unknown> = {};
@@ -89,25 +107,27 @@ export class GoogleRawRuntime implements AgentRuntime {
         config.toolConfig = toGoogleToolConfig(input.toolChoice);
       }
 
+      // Google GenAI does not accept a signal natively; use Promise.race for abort support
       const streamCall = this.ai.models.generateContentStream({
         model: input.model,
         contents,
         config,
       });
-      const response = await (input.signal
-        ? Promise.race([
-            streamCall,
-            new Promise<never>((_, reject) =>
-              input.signal!.addEventListener(
-                'abort',
-                () => reject(new AbortError('Aborted', 'user')),
-                { once: true },
-              ),
-            ),
-          ])
-        : streamCall);
+      const response = await Promise.race([
+        streamCall,
+        new Promise<never>((_, reject) =>
+          combinedSignal.addEventListener(
+            'abort',
+            () => reject(combinedSignal.reason instanceof Error
+              ? combinedSignal.reason
+              : new AbortError('Aborted', 'user')),
+            { once: true },
+          ),
+        ),
+      ]);
 
       for await (const chunk of response) {
+        kick();
         if (chunk.text) {
           yield { type: 'text_delta', data: { text: chunk.text } };
         }
@@ -122,8 +142,14 @@ export class GoogleRawRuntime implements AgentRuntime {
       }
 
       yield { type: 'done', data: {} };
-    } catch (error) {
-      yield { type: 'error', data: { error: error instanceof Error ? error.message : String(error) } };
+    } catch (err) {
+      if (watchdogController.signal.aborted) {
+        yield { type: 'error', data: { error: `Stream watchdog timeout after ${watchdogMs}ms` } };
+      } else {
+        yield { type: 'error', data: { error: err instanceof Error ? err.message : String(err) } };
+      }
+    } finally {
+      if (watchdogTimer !== undefined) clearTimeout(watchdogTimer);
     }
   }
 

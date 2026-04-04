@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { ok, err } from '../../core/result';
+import { combinedAbortSignal } from '../../core/utils/abortController';
 import { toOpenAITools, toOpenAIToolChoice } from './tool-format';
 import type { AgentRuntime, RunInput, RunResult, StreamEvent } from './types';
 import type { Result } from '../../core/result';
@@ -105,7 +106,24 @@ export class OpenAIRawRuntime implements AgentRuntime {
   }
 
   async *stream(input: RunInput): AsyncIterable<StreamEvent> {
+    const watchdogMs = parseInt(process.env.STREAM_WATCHDOG_MS ?? '90000', 10);
+    const watchdogController = new AbortController();
+    let watchdogTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const kick = () => {
+      if (watchdogTimer !== undefined) clearTimeout(watchdogTimer);
+      watchdogTimer = setTimeout(() => {
+        watchdogController.abort(new Error(`Stream watchdog: no chunk received for ${watchdogMs}ms`));
+      }, watchdogMs);
+    };
+
+    const combinedSignal = combinedAbortSignal(
+      [watchdogController.signal, ...(input.signal ? [input.signal] : [])],
+    );
+
     try {
+      kick();
+
       const messages: OpenAI.ChatCompletionMessageParam[] = [];
       if (input.systemPrompt) messages.push({ role: 'system', content: input.systemPrompt });
       for (const msg of input.messages) {
@@ -130,11 +148,12 @@ export class OpenAIRawRuntime implements AgentRuntime {
         (params as any).parallel_tool_calls = false;
       }
 
-      const stream = await this.client.chat.completions.create(params);
+      const stream = await this.client.chat.completions.create(params, { signal: combinedSignal });
 
       const toolCallAccumulators = new Map<number, { id: string; name: string; argsJson: string }>();
 
       for await (const chunk of stream as AsyncIterable<OpenAI.ChatCompletionChunk>) {
+        kick();
         const delta = chunk.choices[0]?.delta;
         if (!delta) continue;
 
@@ -167,8 +186,14 @@ export class OpenAIRawRuntime implements AgentRuntime {
           yield { type: 'done', data: {} };
         }
       }
-    } catch (error) {
-      yield { type: 'error', data: { error: error instanceof Error ? error.message : String(error) } };
+    } catch (err) {
+      if (watchdogController.signal.aborted) {
+        yield { type: 'error', data: { error: `Stream watchdog timeout after ${watchdogMs}ms` } };
+      } else {
+        yield { type: 'error', data: { error: err instanceof Error ? err.message : String(err) } };
+      }
+    } finally {
+      if (watchdogTimer !== undefined) clearTimeout(watchdogTimer);
     }
   }
 }
