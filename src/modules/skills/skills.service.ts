@@ -2,6 +2,8 @@ import { ok, err } from '../../core/result';
 import type { Result } from '../../core/result';
 import { skillRegistry } from './skills.registry';
 import { BuiltinSkillProvider } from './providers/builtin.provider';
+import { CollaborationSkillProvider } from './providers/collaboration.provider';
+import { WorkflowSkillProvider } from './providers/workflow.provider';
 import { skillsRepo } from './skills.repo';
 import { toolsService } from '../tools/tools.service';
 import { dispatchSkill } from './skills.dispatch';
@@ -11,7 +13,9 @@ export class SkillsService {
   async loadSkills(): Promise<void> {
     // Load builtin skills
     const builtinProvider = new BuiltinSkillProvider();
-    await skillRegistry.loadFromProviders([builtinProvider]);
+    const collaborationProvider = new CollaborationSkillProvider();
+    const workflowProvider = new WorkflowSkillProvider();
+    await skillRegistry.loadFromProviders([builtinProvider, collaborationProvider, workflowProvider]);
 
     // Load DB-persisted skills and register as placeholder skills
     const globalDefs = await skillsRepo.findGlobal();
