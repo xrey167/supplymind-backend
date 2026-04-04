@@ -6,6 +6,13 @@ import { contextService } from '../../../modules/context/context.service';
 import { taskManager } from '../task-manager';
 import { eventBus } from '../../../events/bus';
 import { toolRegistry } from '../../../modules/tools/tools.registry';
+import { taskRepo } from '../task-repo';
+
+// Mock taskRepo so DB calls don't block (no live DB in tests)
+const taskRepoCreateSpy = spyOn(taskRepo, 'create').mockResolvedValue(undefined as any);
+const taskRepoGetBlockersSpy = spyOn(taskRepo, 'getBlockers').mockResolvedValue([]);
+const taskRepoUpdateStatusSpy = spyOn(taskRepo, 'updateStatus').mockResolvedValue(undefined as any);
+const taskRepoLogToolCallSpy = spyOn(taskRepo, 'logToolCall').mockResolvedValue(undefined as any);
 
 // Mock createRuntime via spyOn so it's properly restored and doesn't bleed
 const mockRun = mock(() => Promise.resolve({ ok: true, value: { content: 'done', stopReason: 'end_turn' } }));
@@ -37,6 +44,10 @@ afterAll(() => {
   dispatchSpy.mockRestore();
   toolDefsSpy.mockRestore();
   contextSpy.mockRestore();
+  taskRepoCreateSpy.mockRestore();
+  taskRepoGetBlockersSpy.mockRestore();
+  taskRepoUpdateStatusSpy.mockRestore();
+  taskRepoLogToolCallSpy.mockRestore();
 });
 
 function baseConfig() {

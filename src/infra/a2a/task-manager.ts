@@ -43,16 +43,18 @@ class TaskManager {
     const record: TaskRecord = { task, agentId: config.id, workspaceId: config.workspaceId, controller };
     this.tasks.set(taskId, record);
 
-    // Persist to DB (best-effort — don't fail the task if DB write fails)
-    taskRepo.create({
-      id: taskId,
-      workspaceId: config.workspaceId,
-      agentId: config.id,
-      status: 'submitted',
-      input: params.message ?? {},
-    }).catch((error: unknown) => {
+    // Persist to DB — awaited so the row exists before getBlockers queries it
+    try {
+      await taskRepo.create({
+        id: taskId,
+        workspaceId: config.workspaceId,
+        agentId: config.id,
+        status: 'submitted',
+        input: params.message ?? {},
+      });
+    } catch (error: unknown) {
       logger.error({ taskId, error }, 'Failed to persist task to DB');
-    });
+    }
 
     eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'submitted', workspaceId: config.workspaceId });
 

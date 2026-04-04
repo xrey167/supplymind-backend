@@ -89,8 +89,8 @@ export const a2aTasks = pgTable('a2a_tasks', {
 });
 
 export const taskDependencies = pgTable('task_dependencies', {
-  taskId: text('task_id').notNull().references(() => a2aTasks.id, { onDelete: 'cascade' }),
-  dependsOnTaskId: text('depends_on_task_id').notNull().references(() => a2aTasks.id, { onDelete: 'cascade' }),
+  taskId: uuid('task_id').notNull().references(() => a2aTasks.id, { onDelete: 'cascade' }),
+  dependsOnTaskId: uuid('depends_on_task_id').notNull().references(() => a2aTasks.id, { onDelete: 'cascade' }),
 }, (t) => [
   primaryKey({ columns: [t.taskId, t.dependsOnTaskId] }),
 ]);
