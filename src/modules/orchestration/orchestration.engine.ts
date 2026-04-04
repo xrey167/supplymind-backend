@@ -1,6 +1,6 @@
 import type { OrchestrationDefinition, OrchestrationStep, StepResult, OrchestrationResult } from './orchestration.types';
 import { resolveTemplate, evaluateCondition } from './orchestration.templates';
-import { dispatchSkill } from '../skills/skills.dispatch';
+import * as skillsDispatch from '../skills/skills.dispatch';
 import { emitStepCompleted, emitGateWaiting } from './orchestration.events';
 
 const DEFAULT_MAX_CONCURRENCY = 5;
@@ -38,7 +38,7 @@ async function executeStep(
           const args = step.args
             ? JSON.parse(resolveTemplate(JSON.stringify(step.args), stepResults, input))
             : {};
-          const skillResult = await dispatchSkill(step.skillId!, args, {
+          const skillResult = await skillsDispatch.dispatchSkill(step.skillId!, args, {
             callerId: 'orchestration',
             workspaceId,
             callerRole: 'system',
