@@ -2,12 +2,12 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
 import { wsServer } from '../infra/realtime/ws-server';
-import { initEventConsumers } from '../events/consumers';
 import { errorHandler } from '../api/middlewares/error-handler';
 import { publicRoutes } from '../api/routes/public';
 import { workspaceRoutes } from '../api/routes/workspace';
+import { initSubsystems, destroySubsystems } from './bootstrap';
 
-export function createApp() {
+export async function createApp() {
   const app = new OpenAPIHono();
 
   // Global middleware
@@ -26,12 +26,13 @@ export function createApp() {
   // Workspace-scoped routes (auth required): /api/v1/workspaces/:workspaceId/*
   app.route('/api/v1/workspaces/:workspaceId', workspaceRoutes);
 
-  // Initialize subsystems
-  wsServer.init();
-  initEventConsumers();
+  // Initialize all subsystems (skills, WS, event consumers, Redis, MCP)
+  await initSubsystems();
 
   return app;
 }
+
+export { destroySubsystems };
 
 // Bun.serve WebSocket handlers — used in src/index.ts
 export function getBunWebSocketHandlers() {

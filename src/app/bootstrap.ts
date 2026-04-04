@@ -7,6 +7,7 @@ import { mcpClientPool } from '../infra/mcp/client-pool';
 import { createRedisPair } from '../infra/redis/client';
 import { RedisPubSub } from '../infra/redis/pubsub';
 import { initEventConsumers } from '../events/consumers';
+import { initWsConsumers } from '../events/consumers/ws-consumers';
 
 let redisPubSub: RedisPubSub | null = null;
 
@@ -31,6 +32,7 @@ export async function initSubsystems(): Promise<void> {
 
   // Step 3: Event consumers (logging + WS handlers)
   initEventConsumers();
+  initWsConsumers();
   logger.info('Event consumers initialized');
 
   // Step 4: Redis pub/sub bridge (non-critical — warn on failure)
