@@ -1,7 +1,9 @@
 import { db } from '../db/client';
-import { a2aTasks, toolCallLogs } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { a2aTasks, taskDependencies, toolCallLogs } from '../db/schema';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { A2ATask } from './types';
+
+const TERMINAL_STATES = new Set(['completed', 'failed', 'canceled']);
 
 export const taskRepo = {
   async create(data: {
@@ -63,6 +65,45 @@ export const taskRepo = {
       artifacts: (row.artifacts as A2ATask['artifacts']) ?? [],
       history: (row.history as A2ATask['history']) ?? [],
     }));
+  },
+
+  async addDependency(taskId: string, dependsOnTaskId: string): Promise<void> {
+    await db.insert(taskDependencies).values({ taskId, dependsOnTaskId });
+  },
+
+  async removeDependency(taskId: string, dependsOnTaskId: string): Promise<void> {
+    await db.delete(taskDependencies).where(
+      and(
+        eq(taskDependencies.taskId, taskId),
+        eq(taskDependencies.dependsOnTaskId, dependsOnTaskId),
+      ),
+    );
+  },
+
+  async getDependencies(taskId: string): Promise<{ blockedBy: string[]; blocks: string[] }> {
+    const [blockedByRows, blocksRows] = await Promise.all([
+      db.select().from(taskDependencies).where(eq(taskDependencies.taskId, taskId)),
+      db.select().from(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, taskId)),
+    ]);
+    return {
+      blockedBy: blockedByRows.map(r => r.dependsOnTaskId),
+      blocks: blocksRows.map(r => r.taskId),
+    };
+  },
+
+  async getBlockers(taskId: string): Promise<string[]> {
+    // Find tasks that taskId depends on (blockedBy)
+    const depRows = await db.select().from(taskDependencies).where(eq(taskDependencies.taskId, taskId));
+    if (depRows.length === 0) return [];
+
+    const depIds = depRows.map(r => r.dependsOnTaskId);
+    const taskRows = await db.select({ id: a2aTasks.id, status: a2aTasks.status })
+      .from(a2aTasks)
+      .where(inArray(a2aTasks.id, depIds));
+
+    return taskRows
+      .filter(r => !TERMINAL_STATES.has(r.status ?? ''))
+      .map(r => r.id);
   },
 
   async logToolCall(data: {

@@ -9,6 +9,7 @@ import {
   real,
   timestamp,
   customType,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
 
 const vector = customType<{ data: number[]; driverParam: string }>({
@@ -86,6 +87,13 @@ export const a2aTasks = pgTable('a2a_tasks', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
+
+export const taskDependencies = pgTable('task_dependencies', {
+  taskId: text('task_id').notNull().references(() => a2aTasks.id, { onDelete: 'cascade' }),
+  dependsOnTaskId: text('depends_on_task_id').notNull().references(() => a2aTasks.id, { onDelete: 'cascade' }),
+}, (t) => [
+  primaryKey({ columns: [t.taskId, t.dependsOnTaskId] }),
+]);
 
 export const toolCallLogs = pgTable('tool_call_logs', {
   id: uuid('id').primaryKey().defaultRandom(),

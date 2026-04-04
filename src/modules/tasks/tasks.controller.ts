@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import { tasksService } from './tasks.service';
-import { taskSendSchema, taskIdParamSchema, listTasksQuerySchema } from './tasks.schemas';
+import { taskSendSchema, taskIdParamSchema, listTasksQuerySchema, addDependencySchema, dependencyParamSchema } from './tasks.schemas';
 import { taskEventStream } from '../../infra/realtime/sse-stream';
 
 export const tasksController = {
@@ -41,5 +41,28 @@ export const tasksController = {
   streamTaskEvents(c: Context) {
     const { id } = taskIdParamSchema.parse(c.req.param());
     return taskEventStream(c, id);
+  },
+
+  async addDependency(c: Context) {
+    const { id } = taskIdParamSchema.parse(c.req.param());
+    const body = await c.req.json();
+    const { dependsOnTaskId } = addDependencySchema.parse(body);
+    const result = await tasksService.addDependency(id, dependsOnTaskId);
+    if (!result.ok) return c.json({ error: result.error.message }, 409);
+    return c.json({}, 201);
+  },
+
+  async removeDependency(c: Context) {
+    const { id, depId } = dependencyParamSchema.parse(c.req.param());
+    const result = await tasksService.removeDependency(id, depId);
+    if (!result.ok) return c.json({ error: result.error.message }, 400);
+    return c.body(null, 204);
+  },
+
+  async getDependencies(c: Context) {
+    const { id } = taskIdParamSchema.parse(c.req.param());
+    const result = await tasksService.getDependencies(id);
+    if (!result.ok) return c.json({ error: result.error.message }, 500);
+    return c.json(result.value);
   },
 };

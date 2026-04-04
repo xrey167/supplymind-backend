@@ -56,6 +56,21 @@ class TaskManager {
 
     eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'submitted', workspaceId: config.workspaceId });
 
+    // Check blockers before running — if blocked, stay submitted and skip executeTask.
+    // Use a short timeout so a slow/unavailable DB doesn't delay task start.
+    const blockersTimeout = new Promise<string[]>((resolve) => setTimeout(() => resolve([]), 500));
+    const blockers = await Promise.race([
+      taskRepo.getBlockers(taskId).catch(() => [] as string[]),
+      blockersTimeout,
+    ]);
+    if (blockers.length > 0) {
+      task.status = { state: 'submitted', message: `Blocked by tasks: ${blockers.join(', ')}` };
+      taskRepo.updateStatus(taskId, 'submitted').catch((error: unknown) => {
+        logger.error({ taskId, error }, 'Failed to update blocked task status in DB');
+      });
+      return task;
+    }
+
     // Run async -- don't block the response
     this.executeTask(taskId, params, config).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
