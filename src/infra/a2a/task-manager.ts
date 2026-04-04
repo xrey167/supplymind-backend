@@ -1,9 +1,5 @@
 import { nanoid } from 'nanoid';
-import { AnthropicRawRuntime } from '../ai/anthropic';
-import { OpenAIRawRuntime } from '../ai/openai';
-import { GoogleRawRuntime } from '../ai/google';
-import { AnthropicAgentSdkRuntime } from '../ai/anthropic-agent-sdk';
-import { OpenAIAgentSdkRuntime } from '../ai/openai-agents';
+import { createRuntime } from '../ai/runtime-factory';
 import type { AgentRuntime, AIProvider, AgentMode } from '../ai/types';
 import { skillRegistry } from '../../modules/skills/skills.registry';
 import { dispatchSkill } from '../../modules/skills/skills.dispatch';
@@ -151,15 +147,7 @@ class TaskManager {
   }
 
   private resolveRuntime(provider: AIProvider, mode: AgentMode): AgentRuntime {
-    if (mode === 'agent-sdk') {
-      if (provider === 'anthropic') return new AnthropicAgentSdkRuntime() as any;
-      if (provider === 'openai') return new OpenAIAgentSdkRuntime() as any;
-      throw new Error(`No agent-sdk runtime for provider: ${provider}`);
-    }
-    if (provider === 'anthropic') return new AnthropicRawRuntime();
-    if (provider === 'openai') return new OpenAIRawRuntime();
-    if (provider === 'google') return new GoogleRawRuntime();
-    throw new Error(`No raw runtime for provider: ${provider}`);
+    return createRuntime(provider, mode);
   }
 
   get(taskId: string): A2ATask | undefined {
