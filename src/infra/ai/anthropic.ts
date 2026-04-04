@@ -142,18 +142,20 @@ export class AnthropicRawRuntime implements AgentRuntime {
 
       // Track tool_use blocks for tool_call_end
       const toolBlocks = new Map<number, { id: string; name: string; argsJson: string }>();
-      let doneUsage: { inputTokens: number; outputTokens: number } | undefined;
+      let doneUsage = { inputTokens: 0, outputTokens: 0 };
       let doneStopReason: string | undefined;
 
       for await (const event of stream) {
         kick();
-        if (event.type === 'message_delta') {
+        if (event.type === 'message_start') {
+          const msgStart = event as any;
+          if (msgStart.message?.usage?.input_tokens !== undefined) {
+            doneUsage.inputTokens = msgStart.message.usage.input_tokens;
+          }
+        } else if (event.type === 'message_delta') {
           const msgDelta = event as any;
-          if (msgDelta.usage) {
-            doneUsage = {
-              inputTokens: msgDelta.usage.input_tokens ?? 0,
-              outputTokens: msgDelta.usage.output_tokens ?? 0,
-            };
+          if (msgDelta.usage?.output_tokens !== undefined) {
+            doneUsage.outputTokens = msgDelta.usage.output_tokens;
           }
           if (msgDelta.delta?.stop_reason) {
             const sr = msgDelta.delta.stop_reason as string;

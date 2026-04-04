@@ -185,7 +185,7 @@ class TaskManager {
 
         let accumulatedContent = '';
         const streamToolCalls: Array<{ id: string; name: string; args: unknown }> = [];
-        let streamUsage = { inputTokens: 0, outputTokens: 0 };
+        let streamUsage: { inputTokens: number; outputTokens: number } | undefined;
         let streamStopReason: RunResult['stopReason'] = 'end_turn';
         let streamError: string | null = null;
 
@@ -203,9 +203,13 @@ class TaskManager {
               streamToolCalls.push({ id: event.data.id, name: event.data.name, args: event.data.args });
               break;
             case 'done': {
-              const doneData = event.data as { usage?: { inputTokens: number; outputTokens: number }; stopReason?: RunResult['stopReason'] };
-              if (doneData.usage) streamUsage = doneData.usage;
-              if (doneData.stopReason) streamStopReason = doneData.stopReason;
+              const { usage, stopReason: sr } = event.data;
+              if (usage) streamUsage = usage;
+              if (sr === 'tool_use' || sr === 'max_tokens' || sr === 'pause_turn') {
+                streamStopReason = sr;
+              } else if (sr) {
+                streamStopReason = 'end_turn';
+              }
               break;
             }
             case 'error':

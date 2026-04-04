@@ -140,6 +140,7 @@ export class OpenAIRawRuntime implements AgentRuntime {
         model: input.model,
         messages,
         stream: true,
+        stream_options: { include_usage: true },
       };
       if (input.temperature !== undefined) params.temperature = input.temperature;
       if (input.tools?.length) params.tools = toOpenAITools(input.tools);
