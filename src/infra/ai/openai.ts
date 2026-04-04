@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { ok, err } from '../../core/result';
-import { toOpenAITools } from './tool-format';
+import { toOpenAITools, toOpenAIToolChoice } from './tool-format';
 import type { AgentRuntime, RunInput, RunResult, StreamEvent } from './types';
 import type { Result } from '../../core/result';
 
@@ -56,6 +56,12 @@ export class OpenAIRawRuntime implements AgentRuntime {
 
       if (input.temperature !== undefined) params.temperature = input.temperature;
       if (input.tools?.length) params.tools = toOpenAITools(input.tools);
+      if (input.toolChoice && input.tools?.length) {
+        params.tool_choice = toOpenAIToolChoice(input.toolChoice) as any;
+      }
+      if (input.disableParallelToolUse) {
+        (params as any).parallel_tool_calls = false;
+      }
 
       // Use max_completion_tokens for newer models, max_tokens for older
       if (input.maxTokens) {
@@ -117,6 +123,12 @@ export class OpenAIRawRuntime implements AgentRuntime {
       };
       if (input.temperature !== undefined) params.temperature = input.temperature;
       if (input.tools?.length) params.tools = toOpenAITools(input.tools);
+      if (input.toolChoice && input.tools?.length) {
+        (params as any).tool_choice = toOpenAIToolChoice(input.toolChoice);
+      }
+      if (input.disableParallelToolUse) {
+        (params as any).parallel_tool_calls = false;
+      }
 
       const stream = await this.client.chat.completions.create(params);
 
