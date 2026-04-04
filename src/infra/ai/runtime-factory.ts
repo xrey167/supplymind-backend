@@ -2,6 +2,8 @@ import type { AgentRuntime, AIProvider, AgentMode } from './types';
 import { AnthropicRawRuntime } from './anthropic';
 import { OpenAIRawRuntime } from './openai';
 import { GoogleRawRuntime } from './google';
+import { AnthropicAgentSdkRuntime } from './anthropic-agent-sdk';
+import { OpenAIAgentSdkRuntime } from './openai-agents';
 
 export interface RuntimeOptions {
   apiKey?: string;
@@ -14,7 +16,10 @@ const rawRuntimes: Record<AIProvider, new (apiKey?: string) => AgentRuntime> = {
 };
 
 // agent-sdk runtimes will be added in Phase 8
-const agentSdkRuntimes: Partial<Record<AIProvider, new (apiKey?: string) => AgentRuntime>> = {};
+const agentSdkRuntimes: Partial<Record<AIProvider, new (apiKey?: string) => AgentRuntime>> = {
+  anthropic: AnthropicAgentSdkRuntime as any,
+  openai: OpenAIAgentSdkRuntime as any,
+};
 
 export function createRuntime(
   provider: AIProvider,
