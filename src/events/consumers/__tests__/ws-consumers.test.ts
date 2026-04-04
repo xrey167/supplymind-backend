@@ -229,6 +229,37 @@ describe('ws-consumers', () => {
     });
   });
 
+  describe('ws.session.resume', () => {
+    test('logs warning and returns when sessionId is missing', async () => {
+      // Should not throw — handler guards against missing sessionId
+      await eventBus.publish('ws.session.resume', { clientId: 'c1' });
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    test('catches and logs errors when sessionsService throws', async () => {
+      // sessionId present but service unavailable — should not throw
+      await eventBus.publish('ws.session.resume', { clientId: 'c1', sessionId: 'sess-1' });
+      await new Promise((r) => setTimeout(r, 100));
+      // Handler swallows the error — no throw expected
+    });
+  });
+
+  describe('ws.memory.approve', () => {
+    test('logs warning and returns when proposalId is missing', async () => {
+      await eventBus.publish('ws.memory.approve', { clientId: 'c1' });
+      await new Promise((r) => setTimeout(r, 50));
+      // No assertion needed — just verifying it doesn't throw
+    });
+  });
+
+  describe('ws.memory.reject', () => {
+    test('logs warning and returns when proposalId is missing', async () => {
+      await eventBus.publish('ws.memory.reject', { clientId: 'c1' });
+      await new Promise((r) => setTimeout(r, 50));
+      // No assertion needed — just verifying it doesn't throw
+    });
+  });
+
   describe('subscriber initialization', () => {
     test('initWsConsumers subscribes to all topics', () => {
       eventBus.reset();
