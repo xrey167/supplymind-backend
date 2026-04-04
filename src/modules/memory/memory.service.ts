@@ -5,11 +5,32 @@ import type { AgentMemory, MemoryProposal, SaveMemoryInput, ProposeMemoryInput, 
 export const memoryService = {
   async save(input: SaveMemoryInput): Promise<AgentMemory> {
     const memory = await memoryRepo.save(input);
+    // Generate embedding async (best-effort)
+    try {
+      const { getEmbeddingProvider } = await import('./memory.embedding');
+      const { PgVectorMemoryStore } = await import('./memory.store');
+      const provider = getEmbeddingProvider();
+      const embedding = await provider.embed(`${input.title}: ${input.content}`);
+      const store = new PgVectorMemoryStore();
+      await store.upsert(memory.id, memory.content, embedding, memory.metadata);
+    } catch {
+      // Embedding generation failed — memory saved without vector
+    }
     emitMemorySaved(memory.id, memory.workspaceId);
     return memory;
   },
 
   async recall(input: RecallInput): Promise<AgentMemory[]> {
+    try {
+      const { hybridSearch } = await import('./memory.search');
+      const results = await hybridSearch(input.query, input.workspaceId, input.agentId, input.limit ?? 5);
+      if (results.length > 0) {
+        const memories = await Promise.all(results.map((r) => memoryRepo.get(r.id)));
+        return memories.filter((m): m is AgentMemory => m !== undefined);
+      }
+    } catch {
+      // Hybrid search failed — fall back to text-only
+    }
     return memoryRepo.search(input.query, input.workspaceId, input.agentId, input.limit ?? 5);
   },
 

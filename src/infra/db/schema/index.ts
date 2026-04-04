@@ -8,7 +8,14 @@ import {
   integer,
   real,
   timestamp,
+  customType,
 } from 'drizzle-orm/pg-core';
+
+const vector = customType<{ data: number[]; driverParam: string }>({
+  dataType(config) { return `vector(${(config as any)?.dimensions ?? 1536})`; },
+  toDriver(value) { return `[${value.join(',')}]`; },
+  fromDriver(value) { return JSON.parse(value as string); },
+});
 
 // Enums
 export const aiProviderEnum = pgEnum('ai_provider', ['anthropic', 'openai', 'google']);
@@ -137,6 +144,7 @@ export const agentMemories = pgTable('agent_memories', {
   confidence: real('confidence').default(1.0),
   source: memorySourceEnum('source').notNull(),
   metadata: jsonb('metadata').default({}),
+  embedding: vector('embedding', { dimensions: 1536 } as any),
   expiresAt: timestamp('expires_at'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
