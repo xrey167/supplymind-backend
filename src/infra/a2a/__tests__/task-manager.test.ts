@@ -593,6 +593,117 @@ describe('TaskManager', () => {
     });
   });
 
+  describe('round IDs', () => {
+    test('each iteration gets a unique roundId in task history', async () => {
+      let callCount = 0;
+      mockRun.mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            value: {
+              content: 'calling tool',
+              stopReason: 'tool_use',
+              toolCalls: [{ id: 'tc-round-1', name: 'echo', args: {} }],
+            },
+          };
+        }
+        return { ok: true, value: { content: 'final', stopReason: 'end_turn' } };
+      });
+
+      const task = await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'round ids' }] },
+        agentConfig: baseConfig(),
+        callerId: 'caller-1',
+      });
+
+      await flush(200);
+
+      const completed = taskManager.get(task.id);
+      expect(completed?.status.state).toBe('completed');
+      const history = completed?.history ?? [];
+      expect(history.length).toBeGreaterThan(0);
+
+      // Collect all roundIds
+      const roundIds = history.map(h => h.roundId).filter(Boolean);
+      expect(roundIds.length).toBeGreaterThan(0);
+
+      // Messages from different iterations must have different roundIds
+      const uniqueRoundIds = new Set(roundIds);
+      expect(uniqueRoundIds.size).toBeGreaterThan(1);
+    });
+
+    test('TASK_ROUND_COMPLETED event is emitted with correct taskId and iterationIndex', async () => {
+      const roundEvents: any[] = [];
+      eventBus.subscribe('task.round.completed', (e) => roundEvents.push(e.data));
+
+      let callCount = 0;
+      mockRun.mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            value: {
+              content: 'calling tool',
+              stopReason: 'tool_use',
+              toolCalls: [{ id: 'tc-event-1', name: 'echo', args: {} }],
+            },
+          };
+        }
+        return { ok: true, value: { content: 'final', stopReason: 'end_turn' } };
+      });
+
+      const task = await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'round events' }] },
+        agentConfig: baseConfig(),
+        callerId: 'caller-1',
+      });
+
+      await flush(200);
+
+      expect(roundEvents.length).toBeGreaterThan(0);
+      expect(roundEvents[0].taskId).toBe(task.id);
+      expect(roundEvents[0].iterationIndex).toBe(0);
+    });
+
+    test('all messages in an iteration share the same roundId', async () => {
+      let callCount = 0;
+      mockRun.mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            value: {
+              content: 'calling tool',
+              stopReason: 'tool_use',
+              toolCalls: [{ id: 'tc-shared-1', name: 'echo', args: {} }],
+            },
+          };
+        }
+        return { ok: true, value: { content: 'final', stopReason: 'end_turn' } };
+      });
+
+      const task = await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'shared round id' }] },
+        agentConfig: baseConfig(),
+        callerId: 'caller-1',
+      });
+
+      await flush(200);
+
+      const completed = taskManager.get(task.id);
+      const history = completed?.history ?? [];
+
+      // Find all entries from iteration 0 (they should share the same roundId)
+      const firstRoundId = history[0]?.roundId;
+      expect(firstRoundId).toBeDefined();
+
+      // All messages in iteration 0 should share the same roundId
+      const iter0Messages = history.filter(h => h.roundId === firstRoundId);
+      expect(iter0Messages.length).toBeGreaterThanOrEqual(2); // assistant + tool result
+    });
+  });
+
   describe('events', () => {
     test('publishes TASK_STATUS and TASK_COMPLETED events', async () => {
       const statusEvents: any[] = [];

@@ -52,6 +52,8 @@ class ToolRegistry {
         beforeExecute: tool.beforeExecute,
         afterExecute: tool.afterExecute,
       });
+    } else {
+      hooksRegistry.delete(tool.name); // clear stale hooks from any prior registration
     }
 
     // Auto-sync to SkillRegistry if enabled

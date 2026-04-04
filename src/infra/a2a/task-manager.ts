@@ -7,7 +7,7 @@ import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
 import type { Message, RunInput } from '../ai/types';
 import type { DispatchContext } from '../../modules/skills/skills.types';
-import type { A2ATask, TaskState, TaskSendParams } from './types';
+import type { A2ATask, TaskState, TaskSendParams, A2AMessage } from './types';
 import type { AgentConfig } from './coordinator-config';
 import { AbortError } from '../../core/errors';
 import { toolRegistry } from '../../modules/tools/tools.registry';
@@ -75,12 +75,20 @@ class TaskManager {
         tools = tools.filter(t => allowed.has(t.name));
       }
 
+      interface TaggedMessage {
+        message: Message;
+        roundId: string;
+        iterationIndex: number;
+      }
+
       // Build initial messages
       const messages: Message[] = [];
       if (params.message) {
         const text = params.message.parts.filter(p => p.kind === 'text').map(p => (p as any).text).join('\n');
         messages.push({ role: 'user', content: text });
       }
+
+      const taggedHistory: TaggedMessage[] = [];
 
       const dispatchCtx: DispatchContext = {
         callerId: config.id,
@@ -98,6 +106,12 @@ class TaskManager {
           }
           return;
         }
+
+        const roundId = nanoid(8);
+        const pushMsg = (msg: Message) => {
+          messages.push(msg);
+          taggedHistory.push({ message: msg, roundId, iterationIndex: i });
+        };
 
         const input: RunInput = {
           messages,
@@ -129,7 +143,7 @@ class TaskManager {
         // If there are tool calls, execute them
         if (runResult.stopReason === 'tool_use' && runResult.toolCalls?.length) {
           // Add assistant message with tool calls
-          messages.push({ role: 'assistant', content: runResult.content || '' });
+          pushMsg({ role: 'assistant', content: runResult.content || '' });
 
           const batches = this.partitionToolCalls(runResult.toolCalls);
 
@@ -149,10 +163,10 @@ class TaskManager {
               for (let idx = 0; idx < results.length; idx++) {
                 const r = results[idx];
                 if (r.status === 'fulfilled') {
-                  messages.push(r.value);
+                  pushMsg(r.value);
                 } else {
                   // Tool threw — push an error message so the model knows
-                  messages.push({
+                  pushMsg({
                     role: 'tool',
                     content: `Error: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`,
                     toolCallId: batch.calls[idx].id,
@@ -169,23 +183,43 @@ class TaskManager {
                   return;
                 }
                 const msg = await this.executeToolCall(tc, taskId, dispatchCtx);
-                messages.push(msg);
+                pushMsg(msg);
               }
             }
           }
+          eventBus.publish(Topics.TASK_ROUND_COMPLETED, {
+            taskId,
+            roundId,
+            iterationIndex: i,
+            toolCallCount: runResult.toolCalls?.length ?? 0,
+          });
           continue; // Loop again with tool results
         }
 
         // pause_turn — server tool paused, continue the loop
         if (runResult.stopReason === 'pause_turn') {
-          messages.push({ role: 'assistant', content: runResult.content || '' });
+          pushMsg({ role: 'assistant', content: runResult.content || '' });
+          eventBus.publish(Topics.TASK_ROUND_COMPLETED, {
+            taskId,
+            roundId,
+            iterationIndex: i,
+            toolCallCount: 0,
+          });
           continue;
         }
 
         // No tool calls -- we're done
+        // Tag the final assistant message so it appears in history with its own roundId
+        pushMsg({ role: 'assistant', content: runResult.content || '' });
+
         const currentRecord = this.tasks.get(taskId);
         if (currentRecord) {
           currentRecord.task.artifacts = [{ parts: [{ kind: 'text', text: runResult.content }] }];
+          currentRecord.task.history = taggedHistory.map(t => ({
+            role: (t.message.role === 'assistant' ? 'agent' : 'user') as A2AMessage['role'],
+            parts: [{ kind: 'text' as const, text: typeof t.message.content === 'string' ? t.message.content : JSON.stringify(t.message.content) }],
+            roundId: t.roundId,
+          }));
           currentRecord.task.status = { state: 'completed' };
         }
 

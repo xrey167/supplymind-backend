@@ -47,6 +47,7 @@ export type Part =
 export interface A2AMessage {
   role: 'user' | 'agent';
   parts: Part[];
+  roundId?: string;  // which iteration of the tool-call loop produced this message
 }
 
 // JSON-RPC 2.0

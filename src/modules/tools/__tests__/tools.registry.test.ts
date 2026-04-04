@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { toolRegistry } from '../tools.registry';
 import { skillRegistry } from '../../skills/skills.registry';
+import { hooksRegistry } from '../tools.hooks';
 import { ok } from '../../../core/result';
 import type { RegisteredTool, ToolPlugin } from '../tools.registry';
 
@@ -136,5 +137,29 @@ describe('ToolRegistry', () => {
     const skill = skillRegistry.get('test_tool');
     expect(skill?.toolHints?.strict).toBe(true);
     expect(skill?.toolHints?.cacheable).toBe(true);
+  });
+
+  test('stale hooks cleared when tool re-registered without hooks', () => {
+    const beforeHook = async () => ({ allow: true });
+
+    // Register tool WITH a beforeExecute hook
+    toolRegistry.register(makeTool({
+      priority: 10,
+      beforeExecute: beforeHook,
+    }));
+
+    expect(hooksRegistry.get('test_tool')).toBeDefined();
+    expect(hooksRegistry.get('test_tool')?.beforeExecute).toBe(beforeHook);
+
+    // Re-register the same tool name at higher priority WITHOUT any hooks
+    toolRegistry.register(makeTool({
+      id: 'tool-2',
+      priority: 20,
+      beforeExecute: undefined,
+      afterExecute: undefined,
+    }));
+
+    // Verify stale hooks are cleared
+    expect(hooksRegistry.get('test_tool')).toBeUndefined();
   });
 });
