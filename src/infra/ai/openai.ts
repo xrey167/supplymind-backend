@@ -185,7 +185,14 @@ export class OpenAIRawRuntime implements AgentRuntime {
             yield { type: 'tool_call_end', data: { id: acc.id, name: acc.name, args } };
           }
           toolCallAccumulators.clear();
-          yield { type: 'done', data: {} };
+          const fr = chunk.choices[0].finish_reason;
+          const stopReason = fr === 'tool_calls' ? 'tool_use'
+            : fr === 'length' ? 'max_tokens'
+            : 'end_turn';
+          const usage = (chunk as any).usage
+            ? { inputTokens: (chunk as any).usage.prompt_tokens as number, outputTokens: (chunk as any).usage.completion_tokens as number }
+            : undefined;
+          yield { type: 'done', data: { usage, stopReason } };
         }
       }
     } catch (err) {

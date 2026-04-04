@@ -196,6 +196,9 @@ class TaskManager {
               accumulatedContent += event.data.text;
               eventBus.publish(Topics.TASK_TEXT_DELTA, { taskId, delta: event.data.text });
               break;
+            case 'thinking_delta':
+              eventBus.publish(Topics.TASK_THINKING_DELTA, { taskId, thinking: event.data.thinking });
+              break;
             case 'tool_call_end':
               streamToolCalls.push({ id: event.data.id, name: event.data.name, args: event.data.args });
               break;
