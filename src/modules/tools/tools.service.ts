@@ -1,11 +1,9 @@
 import { ok, err } from '../../core/result';
 import type { Result } from '../../core/result';
-import { eventBus } from '../../events/bus';
-import { Topics } from '../../events/topics';
 import { toolsRepo } from './tools.repo';
 import { toToolDef } from './tools.mapper';
+import { toolRegistry } from './tools.registry';
 import type { ToolDef, CreateToolInput, UpdateToolInput } from './tools.types';
-import type { Skill } from '../skills/skills.types';
 
 export class ToolsService {
   async list(workspaceId?: string): Promise<ToolDef[]> {
@@ -22,11 +20,21 @@ export class ToolsService {
   async create(input: CreateToolInput): Promise<Result<ToolDef>> {
     const row = await toolsRepo.create(input);
     const tool = toToolDef(row);
-    eventBus.publish(Topics.SKILL_REGISTERED, {
-      toolId: tool.id,
-      workspaceId: tool.workspaceId,
+
+    // Register in ToolRegistry (auto-syncs to SkillRegistry)
+    toolRegistry.register({
+      id: tool.id,
       name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+      source: 'db',
+      priority: tool.priority,
+      enabled: tool.enabled,
+      handler: async (_args) => {
+        return err(new Error(`Handler not implemented for provider type: ${tool.providerType}`));
+      },
     });
+
     return ok(tool);
   }
 
@@ -34,28 +42,51 @@ export class ToolsService {
     const row = await toolsRepo.update(id, input);
     if (!row) return err(new Error(`Tool not found: ${id}`));
     const tool = toToolDef(row);
+
+    // Re-register with updated definition
+    toolRegistry.register({
+      id: tool.id,
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+      source: 'db',
+      priority: tool.priority,
+      enabled: tool.enabled,
+      handler: async (_args) => {
+        return err(new Error(`Handler not implemented for provider type: ${tool.providerType}`));
+      },
+    });
+
     return ok(tool);
   }
 
   async remove(id: string): Promise<void> {
+    // Find tool name before removing from DB
+    const row = await toolsRepo.findById(id);
+    if (row) {
+      toolRegistry.unregister(row.name);
+    }
     await toolsRepo.remove(id);
   }
 
-  toSkill(def: ToolDef): Skill {
-    return {
-      id: def.id,
-      name: def.name,
-      description: def.description,
-      inputSchema: def.inputSchema,
-      providerType: def.providerType as Skill['providerType'],
-      priority: def.priority,
-      handler: async (_args) => {
-        if (def.providerType === 'builtin') {
-          return err(new Error(`Builtin tool ${def.name} should be loaded via BuiltinSkillProvider`));
-        }
-        return err(new Error(`Handler not implemented for provider type: ${def.providerType}`));
-      },
-    };
+  /** Load all tools from DB into the ToolRegistry */
+  async loadToolsFromDb(workspaceId?: string): Promise<void> {
+    const tools = await this.list(workspaceId);
+    for (const tool of tools) {
+      if (!tool.enabled) continue;
+      toolRegistry.register({
+        id: tool.id,
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        source: 'db',
+        priority: tool.priority,
+        enabled: tool.enabled,
+        handler: async (_args) => {
+          return err(new Error(`Handler not implemented for provider type: ${tool.providerType}`));
+        },
+      });
+    }
   }
 }
 
