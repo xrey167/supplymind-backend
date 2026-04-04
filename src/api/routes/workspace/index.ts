@@ -5,6 +5,8 @@ import { AgentsRoutes } from '../../../modules/agents';
 import { ToolsRoutes } from '../../../modules/tools';
 import { SkillsRoutes } from '../../../modules/skills';
 import { TasksRoutes } from '../../../modules/tasks';
+import { CollaborationRoutes } from '../../../modules/collaboration/collaboration.routes';
+import { WorkflowRoutes } from '../../../modules/workflows/workflows.routes';
 
 const workspaceRoutes = new OpenAPIHono();
 
@@ -17,5 +19,7 @@ workspaceRoutes.route('/agents', AgentsRoutes);
 workspaceRoutes.route('/tools', ToolsRoutes);
 workspaceRoutes.route('/skills', SkillsRoutes);
 workspaceRoutes.route('/tasks', TasksRoutes);
+workspaceRoutes.route('/collaboration', CollaborationRoutes);
+workspaceRoutes.route('/workflows', WorkflowRoutes);
 
 export { workspaceRoutes };

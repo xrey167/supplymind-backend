@@ -20,6 +20,18 @@ export const Topics = {
   MCP_CONNECTED: 'mcp:connected',
   MCP_DISCONNECTED: 'mcp:disconnected',
   MCP_TOOLS_DISCOVERED: 'mcp:tools:discovered',
+  // Collaboration
+  COLLAB_STARTED: 'collaboration.started',
+  COLLAB_COMPLETED: 'collaboration.completed',
+  // Workflows
+  WORKFLOW_STARTED: 'workflow.started',
+  WORKFLOW_STEP_COMPLETED: 'workflow.step.completed',
+  WORKFLOW_COMPLETED: 'workflow.completed',
+  WORKFLOW_FAILED: 'workflow.failed',
+  // TODO: Domain events — deferred (build general base first)
+  // DOMAIN_ENTITY_CREATED: 'ontology.entity.created',
+  // TODO: Supply chain alerts — deferred
+  // SC_ALERT_CRITICAL: 'supply-chain.alert.critical',
   // System
   HEARTBEAT: 'system:heartbeat',
 } as const;
