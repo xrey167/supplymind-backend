@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { ok, err } from '../../core/result';
-import { toOpenAITools } from './tool-format';
+import { toOpenAITools, toOpenAIToolChoice } from './tool-format';
 import type { AgentRuntime, RunInput, RunResult, StreamEvent } from './types';
 import type { Result } from '../../core/result';
 
@@ -41,6 +41,8 @@ export class OpenAIAgentSdkRuntime implements AgentRuntime {
           max_completion_tokens: input.maxTokens,
           messages,
           tools: tools?.length ? tools : undefined,
+          ...(input.toolChoice && input.tools?.length ? { tool_choice: toOpenAIToolChoice(input.toolChoice) as any } : {}),
+          ...(input.disableParallelToolUse ? { parallel_tool_calls: false } : {}),
         });
 
         const choice = response.choices[0];

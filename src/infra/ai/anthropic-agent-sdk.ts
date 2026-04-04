@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ok, err } from '../../core/result';
-import { toAnthropicTools } from './tool-format';
+import { toAnthropicTools, toAnthropicToolChoice } from './tool-format';
 import type { AgentRuntime, RunInput, RunResult, StreamEvent } from './types';
 import type { Result } from '../../core/result';
 
@@ -42,7 +42,14 @@ export class AnthropicAgentSdkRuntime implements AgentRuntime {
           system: input.systemPrompt,
           messages,
           tools: tools as any,
-        });
+          ...(input.toolChoice && input.tools?.length ? { tool_choice: toAnthropicToolChoice(input.toolChoice) } : {}),
+          ...(input.disableParallelToolUse !== undefined ? {
+            tool_choice: {
+              ...(input.toolChoice ? toAnthropicToolChoice(input.toolChoice) : { type: 'auto' }),
+              disable_parallel_tool_use: input.disableParallelToolUse,
+            },
+          } : {}),
+        } as any);
 
         const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');
 
@@ -80,7 +87,11 @@ export class AnthropicAgentSdkRuntime implements AgentRuntime {
             inputTokens: response.usage.input_tokens,
             outputTokens: response.usage.output_tokens,
           },
-          stopReason: response.stop_reason === 'end_turn' ? 'end_turn' : response.stop_reason === 'max_tokens' ? 'max_tokens' : 'end_turn',
+          stopReason: response.stop_reason === 'end_turn' ? 'end_turn'
+            : response.stop_reason === 'tool_use' ? 'tool_use'
+            : response.stop_reason === 'max_tokens' ? 'max_tokens'
+            : (response.stop_reason as string) === 'pause_turn' ? 'pause_turn'
+            : 'end_turn',
         });
       }
 
