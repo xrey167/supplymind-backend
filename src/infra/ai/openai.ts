@@ -73,7 +73,7 @@ export class OpenAIRawRuntime implements AgentRuntime {
         }
       }
 
-      const response = await this.client.chat.completions.create(params);
+      const response = await this.client.chat.completions.create(params, { signal: input.signal });
       const choice = response.choices[0];
       if (!choice) return err(new Error('No choices in OpenAI response'));
 

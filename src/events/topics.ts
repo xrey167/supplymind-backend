@@ -11,6 +11,7 @@ export const Topics = {
   TASK_ARTIFACT: 'task.artifact',
   TASK_ERROR: 'task.error',
   TASK_COMPLETED: 'task.completed',
+  TASK_CANCELED: 'task.canceled',
   // Agents
   AGENT_CREATED: 'agent.created',
   AGENT_UPDATED: 'agent.updated',

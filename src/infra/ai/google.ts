@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { nanoid } from 'nanoid';
 import { ok, err } from '../../core/result';
+import { AbortError } from '../../core/errors';
 import { toGoogleTools, toGoogleToolConfig } from './tool-format';
 import type { AgentRuntime, RunInput, RunResult, StreamEvent } from './types';
 import type { Result } from '../../core/result';
@@ -25,11 +26,23 @@ export class GoogleRawRuntime implements AgentRuntime {
         config.toolConfig = toGoogleToolConfig(input.toolChoice);
       }
 
-      const response = await this.ai.models.generateContent({
+      const generateCall = this.ai.models.generateContent({
         model: input.model,
         contents,
         config,
       });
+      const response = await (input.signal
+        ? Promise.race([
+            generateCall,
+            new Promise<never>((_, reject) =>
+              input.signal!.addEventListener(
+                'abort',
+                () => reject(new AbortError('Aborted', 'user')),
+                { once: true },
+              ),
+            ),
+          ])
+        : generateCall);
 
       const content = response.text ?? '';
       const toolCalls: RunResult['toolCalls'] = [];
@@ -76,11 +89,23 @@ export class GoogleRawRuntime implements AgentRuntime {
         config.toolConfig = toGoogleToolConfig(input.toolChoice);
       }
 
-      const response = await this.ai.models.generateContentStream({
+      const streamCall = this.ai.models.generateContentStream({
         model: input.model,
         contents,
         config,
       });
+      const response = await (input.signal
+        ? Promise.race([
+            streamCall,
+            new Promise<never>((_, reject) =>
+              input.signal!.addEventListener(
+                'abort',
+                () => reject(new AbortError('Aborted', 'user')),
+                { once: true },
+              ),
+            ),
+          ])
+        : streamCall);
 
       for await (const chunk of response) {
         if (chunk.text) {

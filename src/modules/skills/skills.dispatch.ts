@@ -1,6 +1,7 @@
 import type { DispatchContext, DispatchFn } from './skills.types';
 import type { Result } from '../../core/result';
 import { err } from '../../core/result';
+import { AbortError } from '../../core/errors';
 import { skillRegistry } from './skills.registry';
 import { skillExecutor } from './skills.executor';
 import { skillCache } from './skills.cache';
@@ -9,6 +10,9 @@ import { Topics } from '../../events/topics';
 import { withSpan } from '../../infra/observability/otel';
 
 export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
+  if (context.signal?.aborted) {
+    return err(new AbortError('Skill dispatch aborted', 'system'));
+  }
   return withSpan('skill.dispatch', {
     'skill.name': skillId,
     'caller.id': context.callerId,

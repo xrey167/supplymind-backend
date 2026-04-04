@@ -51,6 +51,7 @@ export interface RunInput {
   maxTokens?: number;
   toolChoice?: ToolChoice;
   disableParallelToolUse?: boolean;
+  signal?: AbortSignal;
 }
 
 export interface RunResult {

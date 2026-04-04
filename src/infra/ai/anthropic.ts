@@ -54,7 +54,7 @@ export class AnthropicRawRuntime implements AgentRuntime {
         };
       }
 
-      const response = await this.client.messages.create(params);
+      const response = await this.client.messages.create(params, { signal: input.signal });
 
       let content = '';
       const toolCalls: RunResult['toolCalls'] = [];
@@ -118,7 +118,7 @@ export class AnthropicRawRuntime implements AgentRuntime {
         };
       }
 
-      const stream = this.client.messages.stream(params);
+      const stream = this.client.messages.stream(params, { signal: input.signal });
 
       // Track tool_use blocks for tool_call_end
       const toolBlocks = new Map<number, { id: string; name: string; argsJson: string }>();

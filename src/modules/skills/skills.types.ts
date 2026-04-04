@@ -32,6 +32,7 @@ export interface DispatchContext {
   workspaceId: string;
   callerRole: string;
   traceId?: string;
+  signal?: AbortSignal;
 }
 
 export type DispatchFn = (

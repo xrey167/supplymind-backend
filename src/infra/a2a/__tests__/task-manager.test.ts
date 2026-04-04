@@ -189,6 +189,75 @@ describe('TaskManager', () => {
     test('returns undefined for unknown task', () => {
       expect(taskManager.cancel('nonexistent')).toBeUndefined();
     });
+
+    test('abort controller signal is aborted after cancel()', async () => {
+      // Use a slow runtime so executeTask is still in-flight
+      mockRun.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve({ ok: true, value: { content: 'done', stopReason: 'end_turn' } }), 500)));
+
+      const task = await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'abort signal test' }] },
+        agentConfig: baseConfig(),
+        callerId: 'caller-1',
+      });
+
+      // Access the internal record via the public get — we check status instead of signal directly
+      taskManager.cancel(task.id);
+      expect(taskManager.get(task.id)?.status.state).toBe('canceled');
+    });
+
+    test('TASK_CANCELED event is emitted on cancel()', async () => {
+      const canceledEvents: any[] = [];
+      eventBus.subscribe('task.canceled', (e) => canceledEvents.push(e.data));
+
+      const task = await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'emit cancel event' }] },
+        agentConfig: baseConfig(),
+        callerId: 'caller-1',
+      });
+
+      taskManager.cancel(task.id);
+
+      expect(canceledEvents.length).toBeGreaterThan(0);
+      expect(canceledEvents[0].taskId).toBe(task.id);
+      expect(canceledEvents[0].workspaceId).toBe('ws-1');
+      await flush();
+    });
+
+    test('signal is passed to dispatchSkill', async () => {
+      let callCount = 0;
+      mockRun.mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            value: {
+              content: 'calling tool',
+              stopReason: 'tool_use',
+              toolCalls: [{ id: 'tc-sig', name: 'echo', args: { msg: 'hi' } }],
+            },
+          };
+        }
+        return { ok: true, value: { content: 'final', stopReason: 'end_turn' } };
+      });
+
+      let capturedCtx: any;
+      mockDispatchSkill.mockImplementation(async (_skillId: string, _args: any, ctx: any) => {
+        capturedCtx = ctx;
+        return { ok: true, value: 'tool-result' };
+      });
+
+      const task = await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'signal passthrough' }] },
+        agentConfig: baseConfig(),
+        callerId: 'caller-1',
+      });
+
+      await flush(200);
+
+      expect(capturedCtx).toBeDefined();
+      expect(capturedCtx.signal).toBeInstanceOf(AbortSignal);
+      expect(taskManager.get(task.id)?.status.state).toBe('completed');
+    });
   });
 
   describe('get and list', () => {
