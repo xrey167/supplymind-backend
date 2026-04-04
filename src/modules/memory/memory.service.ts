@@ -1,4 +1,5 @@
 import { memoryRepo } from './memory.repo';
+import { logger } from '../../config/logger';
 import { emitMemorySaved, emitMemoryProposal, emitMemoryApproved, emitMemoryRejected } from './memory.events';
 import type { AgentMemory, MemoryProposal, SaveMemoryInput, ProposeMemoryInput, RecallInput } from './memory.types';
 
@@ -13,8 +14,8 @@ export const memoryService = {
       const embedding = await provider.embed(`${input.title}: ${input.content}`);
       const store = new PgVectorMemoryStore();
       await store.upsert(memory.id, memory.content, embedding, memory.metadata);
-    } catch {
-      // Embedding generation failed — memory saved without vector
+    } catch (err) {
+      logger.error({ memoryId: memory.id, workspaceId: input.workspaceId, error: err instanceof Error ? err.message : String(err) }, 'Embedding generation failed, memory saved without vector');
     }
     emitMemorySaved(memory.id, memory.workspaceId);
     return memory;
@@ -28,8 +29,8 @@ export const memoryService = {
         const memories = await Promise.all(results.map((r) => memoryRepo.get(r.id)));
         return memories.filter((m): m is AgentMemory => m !== undefined);
       }
-    } catch {
-      // Hybrid search failed — fall back to text-only
+    } catch (err) {
+      logger.warn({ query: input.query, workspaceId: input.workspaceId, error: err instanceof Error ? err.message : String(err) }, 'Hybrid search failed, falling back to text-only');
     }
     return memoryRepo.search(input.query, input.workspaceId, input.agentId, input.limit ?? 5);
   },

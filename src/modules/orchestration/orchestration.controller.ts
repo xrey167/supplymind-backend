@@ -1,5 +1,8 @@
 import type { Context } from 'hono';
 import { orchestrationService } from './orchestration.service';
+import { logger } from '../../config/logger';
+import { eventBus } from '../../events/bus';
+import { Topics } from '../../events/topics';
 
 export const orchestrationController = {
   async create(c: Context) {
@@ -18,7 +21,11 @@ export const orchestrationController = {
     const definition = orch.definition as any;
     const input = (orch.input as Record<string, unknown>) ?? {};
 
-    orchestrationService.run(id, workspaceId, definition, input).catch(() => {});
+    orchestrationService.run(id, workspaceId, definition, input).catch((error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.error({ orchestrationId: id, workspaceId, error: msg }, 'Orchestration run failed');
+      eventBus.publish(Topics.ORCHESTRATION_FAILED, { orchestrationId: id, workspaceId, error: msg });
+    });
     return c.json({ orchestrationId: id, status: 'running' });
   },
 

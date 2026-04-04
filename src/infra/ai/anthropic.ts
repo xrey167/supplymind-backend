@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { logger } from '../../config/logger';
 import { ok, err } from '../../core/result';
 import { combinedAbortSignal } from '../../core/utils/abortController';
 import { toAnthropicTools, toAnthropicToolChoice } from './tool-format';
@@ -162,7 +163,7 @@ export class AnthropicRawRuntime implements AgentRuntime {
           const tracked = toolBlocks.get((event as any).index);
           if (tracked) {
             let args: unknown = {};
-            try { args = JSON.parse(tracked.argsJson); } catch {}
+            try { args = JSON.parse(tracked.argsJson); } catch { logger.warn({ toolCallId: tracked.id, toolName: tracked.name, rawArgs: tracked.argsJson.slice(0, 500) }, 'Failed to parse tool call args from stream, using empty args'); }
             yield { type: 'tool_call_end', data: { id: tracked.id, name: tracked.name, args } };
             toolBlocks.delete((event as any).index);
           }

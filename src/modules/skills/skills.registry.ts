@@ -1,7 +1,7 @@
 import { err } from '../../core/result';
 import type { Result } from '../../core/result';
 import type { ToolDefinition } from '../../infra/ai/types';
-import type { Skill, SkillProvider } from './skills.types';
+import type { Skill, SkillProvider, DispatchContext } from './skills.types';
 
 export class SkillRegistry {
   private skills: Map<string, Skill> = new Map();
@@ -30,13 +30,13 @@ export class SkillRegistry {
     return Array.from(this.skills.values());
   }
 
-  async invoke(name: string, args: unknown): Promise<Result<unknown>> {
+  async invoke(name: string, args: unknown, context?: DispatchContext): Promise<Result<unknown>> {
     const skill = this.skills.get(name);
     if (!skill) {
       return err(new Error(`Skill not found: ${name}`));
     }
     try {
-      return await skill.handler(args);
+      return await skill.handler(args, context);
     } catch (error) {
       return err(error instanceof Error ? error : new Error(String(error)));
     }

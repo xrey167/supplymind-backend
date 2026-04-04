@@ -48,8 +48,9 @@ export class MemoryCache implements CacheProvider {
       this.data.clear();
       return;
     }
+    const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(
-      '^' + pattern.replace(/\*/g, '.*').replace(/\?/g, '.') + '$',
+      '^' + escaped.replace(/\*/g, '.*').replace(/\?/g, '.') + '$',
     );
     for (const k of this.data.keys()) {
       if (regex.test(k)) this.data.delete(k);

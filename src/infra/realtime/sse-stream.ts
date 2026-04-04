@@ -1,4 +1,5 @@
 import type { Context } from 'hono';
+import { logger } from '../../config/logger';
 import { eventBus } from '../../events/bus';
 
 export function sseResponse(
@@ -11,10 +12,10 @@ export function sseResponse(
       const send = (event: string, data: unknown) => {
         try {
           controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-        } catch {}
+        } catch (err) { logger.warn({ event, error: err instanceof Error ? err.message : String(err) }, 'SSE send failed, stream likely closed'); }
       };
       const close = () => {
-        try { controller.close(); } catch {}
+        try { controller.close(); } catch { /* already closed */ }
       };
       // Heartbeat
       const hb = setInterval(() => send('heartbeat', {}), 30_000);

@@ -14,6 +14,8 @@ export class RedisPubSub {
   /** Forward events matching a bus pattern to Redis channels */
   bridgeToRedis(pattern: string): string {
     const id = this.bus.subscribe(pattern, async (event) => {
+      // Skip events that came from Redis to prevent infinite re-broadcast
+      if (event.source.startsWith('redis:')) return;
       const message = JSON.stringify({
         id: event.id,
         topic: event.topic,

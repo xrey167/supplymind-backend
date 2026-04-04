@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { logger } from '../../config/logger';
 import { ok, err } from '../../core/result';
 import { combinedAbortSignal } from '../../core/utils/abortController';
 import { toOpenAITools, toOpenAIToolChoice } from './tool-format';
@@ -179,7 +180,7 @@ export class OpenAIRawRuntime implements AgentRuntime {
           // Flush any accumulated tool calls
           for (const [idx, acc] of toolCallAccumulators) {
             let args: unknown = {};
-            try { args = JSON.parse(acc.argsJson); } catch {}
+            try { args = JSON.parse(acc.argsJson); } catch { logger.warn({ toolCallId: acc.id, toolName: acc.name, rawArgs: acc.argsJson.slice(0, 500) }, 'Failed to parse tool call args from stream, using empty args'); }
             yield { type: 'tool_call_end', data: { id: acc.id, name: acc.name, args } };
           }
           toolCallAccumulators.clear();

@@ -70,8 +70,9 @@ export class MemoryStateStore implements StateStore {
   }
 
   async keys(pattern: string): Promise<string[]> {
+    const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(
-      '^' + pattern.replace(/\*/g, '.*').replace(/\?/g, '.') + '$',
+      '^' + escaped.replace(/\*/g, '.*').replace(/\?/g, '.') + '$',
     );
     const result: string[] = [];
     for (const [k] of this.data) {

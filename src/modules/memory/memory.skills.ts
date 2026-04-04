@@ -1,7 +1,7 @@
 import { skillRegistry } from '../skills/skills.registry';
 import { memoryService } from './memory.service';
 import { ok, err } from '../../core/result';
-import type { Skill } from '../skills/skills.types';
+import type { Skill, DispatchContext } from '../skills/skills.types';
 
 const memorySkills: Skill[] = [
   {
@@ -20,13 +20,13 @@ const memorySkills: Skill[] = [
     },
     providerType: 'builtin',
     priority: 50,
-    handler: async (args: unknown) => {
+    handler: async (args: unknown, context?: DispatchContext) => {
       try {
         const { title, content, type, shared } = args as any;
+        const workspaceId = context?.workspaceId ?? 'default';
+        const agentId = shared ? undefined : context?.callerId;
         const memory = await memoryService.save({
-          workspaceId: 'default',
-          agentId: shared ? undefined : undefined,
-          type, title, content,
+          workspaceId, agentId, type, title, content,
         });
         return ok({ memoryId: memory.id, title: memory.title });
       } catch (error) {
@@ -48,10 +48,12 @@ const memorySkills: Skill[] = [
     },
     providerType: 'builtin',
     priority: 50,
-    handler: async (args: unknown) => {
+    handler: async (args: unknown, context?: DispatchContext) => {
       try {
         const { query, limit } = args as any;
-        const memories = await memoryService.recall({ query, workspaceId: 'default', limit: limit ?? 5 });
+        const workspaceId = context?.workspaceId ?? 'default';
+        const agentId = context?.callerId;
+        const memories = await memoryService.recall({ query, workspaceId, agentId, limit: limit ?? 5 });
         return ok(memories.map((m) => ({ title: m.title, content: m.content, type: m.type, confidence: m.confidence })));
       } catch (error) {
         return err(error instanceof Error ? error : new Error(String(error)));
@@ -74,11 +76,13 @@ const memorySkills: Skill[] = [
     },
     providerType: 'builtin',
     priority: 50,
-    handler: async (args: unknown) => {
+    handler: async (args: unknown, context?: DispatchContext) => {
       try {
         const { title, content, type, evidence } = args as any;
+        const workspaceId = context?.workspaceId ?? 'default';
+        const agentId = context?.callerId ?? 'default';
         const proposal = await memoryService.propose({
-          workspaceId: 'default', agentId: 'default', type, title, content, evidence,
+          workspaceId, agentId, type, title, content, evidence,
         });
         return ok({ proposalId: proposal.id, status: 'pending', message: 'Memory proposed — awaiting human approval' });
       } catch (error) {
