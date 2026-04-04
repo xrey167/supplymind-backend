@@ -28,12 +28,13 @@ async function executeStep(
   dispatch: WorkflowDispatchFn,
   stepResults: Map<string, StepResult>,
   stepStatuses: Map<string, string>,
+  input?: Record<string, unknown>,
 ): Promise<StepResult> {
   const start = performance.now();
 
   // Evaluate when condition
   if (step.when !== undefined) {
-    const shouldRun = evaluateWhen(step.when, stepResults, stepStatuses);
+    const shouldRun = evaluateWhen(step.when, stepResults, stepStatuses, input);
     if (!shouldRun) {
       const dur = performance.now() - start;
       return { stepId: step.id, status: 'skipped', durationMs: dur };
@@ -49,10 +50,10 @@ async function executeStep(
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const text = step.message
-        ? resolveTemplate(step.message, stepResults, undefined, step.skillId)
+        ? resolveTemplate(step.message, stepResults, input, step.skillId)
         : '';
       const args = step.args ? JSON.parse(
-        resolveTemplate(JSON.stringify(step.args), stepResults, undefined, step.skillId),
+        resolveTemplate(JSON.stringify(step.args), stepResults, input, step.skillId),
       ) : {};
 
       const result = await dispatch(step.skillId, args, text);
@@ -85,6 +86,7 @@ async function executeStep(
 export async function executeWorkflow(
   workflow: WorkflowDefinition,
   dispatch: WorkflowDispatchFn,
+  input?: Record<string, unknown>,
 ): Promise<WorkflowResult> {
   const start = performance.now();
   const maxConcurrency = workflow.maxConcurrency ?? DEFAULT_MAX_CONCURRENCY;
@@ -143,7 +145,7 @@ export async function executeWorkflow(
     }
 
     const batchResults = await Promise.all(
-      batch.map((step) => executeStep(step, dispatch, stepResults, stepStatuses)),
+      batch.map((step) => executeStep(step, dispatch, stepResults, stepStatuses, input)),
     );
 
     for (const sr of batchResults) {

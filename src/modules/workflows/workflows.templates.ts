@@ -82,7 +82,7 @@ export function resolveTemplate(
 export function evaluateWhen(
   expr: string,
   stepResults: Map<string, StepResult>,
-  stepStatuses: Map<string, string>,
+  _stepStatuses?: Map<string, string>,
   input?: Record<string, unknown>,
 ): boolean {
   // Resolve template references in the expression
