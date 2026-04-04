@@ -63,7 +63,7 @@ export const skillDefinitions = pgTable('skill_definitions', {
 
 export const mcpServerConfigs = pgTable('mcp_server_configs', {
   id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: uuid('workspace_id').notNull(),
+  workspaceId: uuid('workspace_id'),   // nullable — null means global server
   name: text('name').notNull(),
   transport: mcpTransportEnum('transport'),
   url: text('url'),
