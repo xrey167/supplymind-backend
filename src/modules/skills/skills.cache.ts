@@ -1,8 +1,8 @@
+import { getCacheProvider } from '../../infra/cache';
+
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
 
 export class SkillCache {
-  maxSize = 500;
-  private cache: Map<string, { result: unknown; timestamp: number }> = new Map();
   private hits = 0;
   private misses = 0;
 
@@ -12,42 +12,33 @@ export class SkillCache {
     for (let i = 0; i < raw.length; i++) {
       hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
     }
-    return `${skillId}:${hash}`;
+    return `skill:${skillId}:${hash}`;
   }
 
-  get(skillId: string, args: unknown): unknown | undefined {
+  async get(skillId: string, args: unknown): Promise<unknown | undefined> {
     const key = this.getCacheKey(skillId, args);
-    const entry = this.cache.get(key);
-    if (!entry) {
-      this.misses++;
-      return undefined;
-    }
-    if (Date.now() - entry.timestamp > DEFAULT_TTL_MS) {
-      this.cache.delete(key);
+    const result = await getCacheProvider().get(key);
+    if (result === undefined) {
       this.misses++;
       return undefined;
     }
     this.hits++;
-    return entry.result;
+    return result;
   }
 
-  set(skillId: string, args: unknown, result: unknown): void {
+  async set(skillId: string, args: unknown, result: unknown): Promise<void> {
     const key = this.getCacheKey(skillId, args);
-    if (this.cache.size >= this.maxSize && !this.cache.has(key)) {
-      const oldest = this.cache.keys().next().value!;
-      this.cache.delete(oldest);
-    }
-    this.cache.set(key, { result, timestamp: Date.now() });
+    await getCacheProvider().set(key, result, DEFAULT_TTL_MS);
   }
 
-  clear(): void {
-    this.cache.clear();
+  async clear(): Promise<void> {
+    await getCacheProvider().clear('skill:*');
     this.hits = 0;
     this.misses = 0;
   }
 
-  stats(): { size: number; hits: number; misses: number } {
-    return { size: this.cache.size, hits: this.hits, misses: this.misses };
+  stats(): { hits: number; misses: number } {
+    return { hits: this.hits, misses: this.misses };
   }
 }
 

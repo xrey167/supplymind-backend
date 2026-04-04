@@ -48,7 +48,7 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
     }
 
     // Check cache
-    const cached = skillCache.get(skillId, args);
+    const cached = await skillCache.get(skillId, args);
     if (cached !== undefined) {
       span.setAttribute('cache.hit', true);
       return { ok: true, value: cached } as Result<unknown>;
@@ -64,7 +64,7 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
 
     // Cache on success
     if (result.ok) {
-      skillCache.set(skillId, args, result.value);
+      await skillCache.set(skillId, args, result.value);
     }
 
     // Emit event
