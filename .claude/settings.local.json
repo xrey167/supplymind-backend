@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(bun run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(GIT_SEQUENCE_EDITOR=true git rebase:*)",
+      "Bash(git stash:*)",
+      "Bash(bun test:*)",
+      "Bash(gh pr create --title 'feat: agent collaboration layer — Claude Code pattern adaptations' --body ':*)",
+      "Bash(xargs grep:*)",
+      "Skill(pr-review-toolkit:review-pr)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(grep -E \"\\\\.test\\\\.ts$\")",
+      "Bash(grep -l \"memory.repo\\\\|memory.search\\\\|memory.service\" src/modules/context/__tests__/*.ts)",
+      "Bash(grep -l \"memory\" src/modules/collaboration/__tests__/*.ts)"
+    ]
+  }
+}

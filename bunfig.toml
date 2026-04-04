@@ -1,0 +1,4 @@
+[test]
+# Run each test file in its own isolated worker to prevent module mock pollution
+# from spyOn calls in test files that share the same Bun worker process.
+smol = false

@@ -11,8 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "test": "vitest",
-    "test:run": "vitest run",
+    "test": "bun test",
+    "test:run": "bun test",
     "seed": "bun run scripts/seed.ts"
   },
   "dependencies": {
@@ -34,7 +34,6 @@
     "bullmq": "^5.73.0",
     "dotenv": "^17.4.0",
     "drizzle-orm": "^0.45.2",
-    "eventemitter3": "^5.0.4",
     "hono": "^4.12.10",
     "ioredis": "^5.10.1",
     "jose": "^6.2.2",
