@@ -5,6 +5,8 @@ import { skillRegistry } from '../skills/skills.registry';
 import type { Skill, SkillToolHints } from '../skills/skills.types';
 import type { Result } from '../../core/result';
 import { ok, err } from '../../core/result';
+import { hooksRegistry } from './tools.hooks';
+import type { BeforeExecuteHook, AfterExecuteHook } from './tools.hooks';
 
 export type ToolSource = 'builtin' | 'db' | 'plugin' | 'mcp' | 'inline';
 
@@ -22,6 +24,8 @@ export interface RegisteredTool {
   metadata?: Record<string, unknown>;
   isConcurrencySafe?: boolean;  // safe to run alongside other tools
   isReadOnly?: boolean;         // does not mutate shared state — can run in parallel
+  beforeExecute?: BeforeExecuteHook;
+  afterExecute?: AfterExecuteHook;
 }
 
 export interface ToolPlugin {
@@ -41,6 +45,14 @@ class ToolRegistry {
       return; // higher priority wins
     }
     this.tools.set(tool.name, tool);
+
+    // Sync hooks to hooksRegistry
+    if (tool.beforeExecute || tool.afterExecute) {
+      hooksRegistry.set(tool.name, {
+        beforeExecute: tool.beforeExecute,
+        afterExecute: tool.afterExecute,
+      });
+    }
 
     // Auto-sync to SkillRegistry if enabled
     if (tool.enabled) {
@@ -62,6 +74,7 @@ class ToolRegistry {
     if (!tool) return;
     this.tools.delete(name);
     skillRegistry.unregister(name);
+    hooksRegistry.delete(name);
     logger.debug({ name, source: tool.source }, 'Tool unregistered');
   }
 
@@ -158,6 +171,7 @@ class ToolRegistry {
     }
     this.tools.clear();
     this.plugins.clear();
+    hooksRegistry.clear();
   }
 }
 

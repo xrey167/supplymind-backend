@@ -8,6 +8,7 @@ import { skillCache } from './skills.cache';
 import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
 import { withSpan } from '../../infra/observability/otel';
+import { hooksRegistry } from '../tools/tools.hooks';
 
 export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
   if (context.signal?.aborted) {
@@ -27,6 +28,23 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
     // Verify skill exists
     if (!skillRegistry.has(skillId)) {
       return err(new Error(`Skill not found: ${skillId}`));
+    }
+
+    // beforeExecute hook
+    const hooks = hooksRegistry.get(skillId);
+    if (hooks?.beforeExecute) {
+      const hookCtx = {
+        callerId: context.callerId,
+        workspaceId: context.workspaceId,
+        traceId: context.traceId,
+      };
+      const hookResult = await hooks.beforeExecute(args, hookCtx);
+      if (!hookResult.allow) {
+        return err(new Error(hookResult.reason ?? `Tool ${skillId} blocked by beforeExecute hook`));
+      }
+      if (hookResult.modifiedArgs !== undefined) {
+        args = hookResult.modifiedArgs as Record<string, unknown>;
+      }
     }
 
     // Check cache
@@ -57,6 +75,18 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
       workspaceId: context.workspaceId,
       callerId: context.callerId,
     });
+
+    // afterExecute hook — errors swallowed
+    if (hooks?.afterExecute) {
+      const hookCtx = {
+        callerId: context.callerId,
+        workspaceId: context.workspaceId,
+        traceId: context.traceId,
+      };
+      await hooks.afterExecute(args, result, hookCtx).catch(() => {
+        // afterExecute errors must never propagate
+      });
+    }
 
     return result;
   });
