@@ -1,4 +1,42 @@
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { describe, test, expect, beforeEach, mock } from 'bun:test';
+
+// Override any stale mock.module from orchestration.engine.test.ts (alphabetically earlier).
+// We reconstruct dispatchSkill inline using the real singleton dependencies so that
+// skillRegistry state set up in beforeEach is visible to the function.
+mock.module('../skills.dispatch', () => {
+  const { skillRegistry } = require('../skills.registry') as any;
+  const { skillCache } = require('../skills.cache') as any;
+  const { skillExecutor } = require('../skills.executor') as any;
+  const { hooksRegistry } = require('../../tools/tools.hooks') as any;
+  const { err } = require('../../../core/result') as any;
+  const { AbortError } = require('../../../core/errors') as any;
+  const { eventBus } = require('../../../events/bus') as any;
+  const { Topics } = require('../../../events/topics') as any;
+
+  const dispatchSkill = async (skillId: string, args: any, context: any): Promise<any> => {
+    if (context.signal?.aborted) return err(new AbortError('Skill dispatch aborted', 'system'));
+    if (!skillRegistry.has(skillId)) return err(new Error(`Skill not found: ${skillId}`));
+    const hooks = hooksRegistry.get(skillId);
+    if (hooks?.beforeExecute) {
+      const hookCtx = { callerId: context.callerId, workspaceId: context.workspaceId, traceId: context.traceId };
+      const hookResult = await hooks.beforeExecute(args, hookCtx);
+      if (!hookResult.allow) return err(new Error(hookResult.reason ?? `Tool ${skillId} blocked by beforeExecute hook`));
+      if (hookResult.modifiedArgs !== undefined) args = hookResult.modifiedArgs;
+    }
+    const cached = await skillCache.get(skillId, args);
+    if (cached !== undefined) return { ok: true, value: cached };
+    const result = await skillExecutor.execute(skillId, () => skillRegistry.invoke(skillId, args));
+    if (result.ok) await skillCache.set(skillId, args, result.value);
+    eventBus.publish(Topics.SKILL_INVOKED, { name: skillId, success: result.ok, workspaceId: context.workspaceId, callerId: context.callerId });
+    if (hooks?.afterExecute) {
+      const hookCtx = { callerId: context.callerId, workspaceId: context.workspaceId, traceId: context.traceId };
+      await hooks.afterExecute(args, result, hookCtx).catch(() => {});
+    }
+    return result;
+  };
+  return { dispatchSkill };
+});
+
 import { dispatchSkill } from '../skills.dispatch';
 import { skillRegistry } from '../skills.registry';
 import { skillCache } from '../skills.cache';

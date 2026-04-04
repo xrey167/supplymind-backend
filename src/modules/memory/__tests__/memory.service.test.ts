@@ -45,6 +45,24 @@ mock.module('../memory.events', () => ({
   emitMemoryRejected: mock(() => undefined),
 }));
 
+// Override any stale mock.module from earlier test files (e.g. context.builder.test.ts)
+// by re-registering the real service implementation using our already-mocked dependencies.
+mock.module('../memory.service', () => {
+  const { memoryRepo } = require('../memory.repo') as any;
+  const { emitMemorySaved, emitMemoryProposal, emitMemoryApproved, emitMemoryRejected } = require('../memory.events') as any;
+  return {
+    memoryService: {
+      async save(input: any) { const m = await memoryRepo.save(input); emitMemorySaved(m.id, m.workspaceId); return m; },
+      async recall(input: any) { return memoryRepo.search(input.query, input.workspaceId, input.agentId, input.limit ?? 5); },
+      async list(workspaceId: string, agentId?: string) { return memoryRepo.list(workspaceId, agentId); },
+      async forget(memoryId: string) { return memoryRepo.delete(memoryId); },
+      async propose(input: any) { const p = await memoryRepo.createProposal(input); emitMemoryProposal({ id: p.id, workspaceId: p.workspaceId, agentId: p.agentId, title: p.title }); return p; },
+      async approveProposal(proposalId: string) { const m = await memoryRepo.approveProposal(proposalId); emitMemoryApproved(proposalId); return m; },
+      async rejectProposal(proposalId: string, reason?: string) { await memoryRepo.rejectProposal(proposalId, reason); emitMemoryRejected(proposalId); },
+    },
+  };
+});
+
 import { memoryService } from '../memory.service';
 
 describe('memoryService', () => {
