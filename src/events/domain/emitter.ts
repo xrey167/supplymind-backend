@@ -5,8 +5,8 @@ import { orderStrategy } from './strategies/order.strategy';
 import { logisticsStrategy } from './strategies/logistics.strategy';
 import { forecastStrategy } from './strategies/forecast.strategy';
 
-// TODO: Replace with new EventBus once collaboration layer is implemented
-// (currently uses EventEmitter3 via eventBus — will switch to wildcard-capable bus)
+// TODO: Wire to EventBus (custom bus with wildcard topics, dead letters, replay)
+// See src/events/bus.ts for the implementation
 
 const strategyMap: Record<EntityType, DomainEventStrategy<any>> = {
   supplier: supplierStrategy,
