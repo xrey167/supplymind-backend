@@ -5,7 +5,7 @@ import * as skillsRegistryModule from '../../modules/skills/skills.registry';
 import * as skillsDispatch from '../../modules/skills/skills.dispatch';
 import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
-import type { Message, RunInput } from '../ai/types';
+import type { Message, RunInput, RunResult } from '../ai/types';
 import type { DispatchContext } from '../../modules/skills/skills.types';
 import type { A2ATask, TaskState, TaskSendParams, A2AMessage } from './types';
 import type { AgentConfig } from './coordinator-config';
@@ -183,9 +183,36 @@ class TaskManager {
           signal,
         };
 
-        const result = await runtime.run(input);
-        if (!result.ok) {
-          this.updateStatus(taskId, 'failed', result.error.message);
+        let accumulatedContent = '';
+        const streamToolCalls: Array<{ id: string; name: string; args: unknown }> = [];
+        let streamUsage = { inputTokens: 0, outputTokens: 0 };
+        let streamStopReason: RunResult['stopReason'] = 'end_turn';
+        let streamError: string | null = null;
+
+        for await (const event of runtime.stream(input)) {
+          if (signal.aborted) break;
+          switch (event.type) {
+            case 'text_delta':
+              accumulatedContent += event.data.text;
+              eventBus.publish(Topics.TASK_TEXT_DELTA, { taskId, delta: event.data.text });
+              break;
+            case 'tool_call_end':
+              streamToolCalls.push({ id: event.data.id, name: event.data.name, args: event.data.args });
+              break;
+            case 'done': {
+              const doneData = event.data as { usage?: { inputTokens: number; outputTokens: number }; stopReason?: RunResult['stopReason'] };
+              if (doneData.usage) streamUsage = doneData.usage;
+              if (doneData.stopReason) streamStopReason = doneData.stopReason;
+              break;
+            }
+            case 'error':
+              streamError = event.data.error;
+              break;
+          }
+        }
+
+        if (streamError) {
+          this.updateStatus(taskId, 'failed', streamError);
           return;
         }
 
@@ -196,7 +223,12 @@ class TaskManager {
           return;
         }
 
-        const runResult = result.value;
+        const runResult: RunResult = {
+          content: accumulatedContent,
+          toolCalls: streamToolCalls.length > 0 ? streamToolCalls : undefined,
+          usage: streamUsage,
+          stopReason: streamStopReason,
+        };
 
         const usage = runResult.usage ?? { inputTokens: 0, outputTokens: 0 };
         record.totalTokens.input += usage.inputTokens;
@@ -287,8 +319,8 @@ class TaskManager {
             roundId: t.roundId,
           }));
           currentRecord.task.status = { state: 'completed' };
-          (currentRecord.task as any).metadata = {
-            ...(currentRecord.task as any).metadata,
+          currentRecord.task.metadata = {
+            ...currentRecord.task.metadata,
             totalTokens: currentRecord.totalTokens,
           };
         }

@@ -26,6 +26,16 @@ class WsServer {
       });
     }
 
+    // Forward TASK_THINKING_DELTA to subscribed clients
+    eventBus.subscribe(Topics.TASK_THINKING_DELTA, (event) => {
+      const data = event.data as any;
+      this.broadcastToSubscribed(`task:${data.taskId}`, {
+        type: 'task:thinking_delta',
+        taskId: data.taskId,
+        thinking: data.thinking,
+      });
+    });
+
     // Forward TASK_ROUND_COMPLETED with token usage to subscribed clients
     eventBus.subscribe(Topics.TASK_ROUND_COMPLETED, (event) => {
       const data = event.data as any;
