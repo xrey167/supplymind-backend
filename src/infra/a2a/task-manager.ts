@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 import { createRuntime } from '../ai/runtime-factory';
-import type { AgentRuntime, AIProvider, AgentMode } from '../ai/types';
+import type { AgentRuntime, AIProvider, AgentMode, ToolChoice } from '../ai/types';
 import { skillRegistry } from '../../modules/skills/skills.registry';
 import { dispatchSkill } from '../../modules/skills/skills.dispatch';
 import { eventBus } from '../../events/bus';
@@ -20,7 +20,7 @@ interface TaskRecord {
 class TaskManager {
   private tasks = new Map<string, TaskRecord>();
 
-  async send(params: TaskSendParams & { agentConfig: { id: string; provider: AIProvider; mode: 'raw' | 'agent-sdk'; model: string; systemPrompt?: string; temperature?: number; maxTokens?: number; toolIds?: string[]; workspaceId: string }; callerId: string }): Promise<A2ATask> {
+  async send(params: TaskSendParams & { agentConfig: { id: string; provider: AIProvider; mode: 'raw' | 'agent-sdk'; model: string; systemPrompt?: string; temperature?: number; maxTokens?: number; toolIds?: string[]; workspaceId: string; toolChoice?: ToolChoice; disableParallelToolUse?: boolean }; callerId: string }): Promise<A2ATask> {
     const taskId = params.id ?? nanoid();
     const config = params.agentConfig;
 
@@ -47,7 +47,7 @@ class TaskManager {
   private async executeTask(
     taskId: string,
     params: TaskSendParams,
-    config: { id: string; provider: AIProvider; mode: 'raw' | 'agent-sdk'; model: string; systemPrompt?: string; temperature?: number; maxTokens?: number; toolIds?: string[]; workspaceId: string },
+    config: { id: string; provider: AIProvider; mode: 'raw' | 'agent-sdk'; model: string; systemPrompt?: string; temperature?: number; maxTokens?: number; toolIds?: string[]; workspaceId: string; toolChoice?: ToolChoice; disableParallelToolUse?: boolean },
   ) {
     this.updateStatus(taskId, 'working');
 
@@ -83,6 +83,8 @@ class TaskManager {
         model: config.model,
         temperature: config.temperature,
         maxTokens: config.maxTokens,
+        toolChoice: config.toolChoice,
+        disableParallelToolUse: config.disableParallelToolUse,
       };
 
       const result = await runtime.run(input);
@@ -120,6 +122,12 @@ class TaskManager {
           });
         }
         continue; // Loop again with tool results
+      }
+
+      // pause_turn — server tool paused, continue the loop
+      if (runResult.stopReason === 'pause_turn') {
+        messages.push({ role: 'assistant', content: runResult.content || '' });
+        continue;
       }
 
       // No tool calls -- we're done
