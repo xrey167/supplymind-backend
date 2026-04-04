@@ -8,6 +8,7 @@ export type ServerMessage =
   | { type: 'task:error'; taskId: string; error: string }
   | { type: 'event'; topic: string; data: unknown; timestamp: string }
   | { type: 'mcp:progress'; toolName: string; progress: unknown }
+  | { type: 'skill:result'; requestId: string; name: string; ok: boolean; result?: unknown; error?: string; durationMs: number }
   | { type: 'heartbeat' }
   | { type: 'error'; message: string };
 
@@ -18,6 +19,7 @@ export type ClientMessage =
   | { type: 'subscribe'; channels: string[] }
   | { type: 'unsubscribe'; channels: string[] }
   | { type: 'a2a:send'; agentUrl: string; skillId: string; args: unknown }
+  | { type: 'skill:invoke'; name: string; args?: Record<string, unknown>; requestId?: string }
   | { type: 'ping' };
 
 export interface WsClient {

@@ -2,6 +2,8 @@ import { logger } from '../../config/logger';
 import { eventBus } from '../bus';
 import { taskManager } from '../../infra/a2a/task-manager';
 import { workerRegistry } from '../../infra/a2a/worker-registry';
+import { dispatchSkill } from '../../modules/skills/skills.dispatch';
+import type { DispatchContext } from '../../modules/skills/skills.types';
 import type { BusEvent } from '../bus';
 
 export function initWsConsumers(): void {
@@ -16,6 +18,9 @@ export function initWsConsumers(): void {
 
   // Subscribe to ws.a2a.send — delegates to external agent
   eventBus.subscribe('ws.a2a.send', handleWsA2aSend, { name: 'ws:a2a:send' });
+
+  // Subscribe to ws.skill.invoke — direct skill invocation from UI
+  eventBus.subscribe('ws.skill.invoke', handleWsSkillInvoke, { name: 'ws:skill:invoke' });
 }
 
 async function handleWsTaskSend(event: BusEvent): Promise<void> {
@@ -127,5 +132,48 @@ async function handleWsA2aSend(event: BusEvent): Promise<void> {
       clientId: data.clientId,
       error: err.message,
     });
+  }
+}
+
+async function handleWsSkillInvoke(event: BusEvent): Promise<void> {
+  const data = event.data as any;
+
+  try {
+    const { clientId, name, args, requestId } = data;
+
+    if (!name) {
+      logger.warn({ clientId }, 'ws.skill.invoke missing skill name');
+      return;
+    }
+
+    const ctx: DispatchContext = {
+      callerId: clientId,
+      workspaceId: 'default', // TODO: extract from WS auth context
+      callerRole: 'operator',
+      traceId: requestId,
+    };
+
+    const start = Date.now();
+    const result = await dispatchSkill(name, args ?? {}, ctx);
+    const durationMs = Date.now() - start;
+
+    // Send result back via WS to the specific client
+    const response = {
+      type: 'skill:result' as const,
+      requestId: requestId ?? name,
+      name,
+      ok: result.ok,
+      result: result.ok ? result.value : undefined,
+      error: result.ok ? undefined : (result.error as Error).message,
+      durationMs,
+    };
+
+    // Publish to event bus so ws-server can route to the right client
+    eventBus.publish('ws.skill.result', { clientId, message: response });
+
+    logger.info({ clientId, name, ok: result.ok, durationMs }, 'Skill invoked from WebSocket');
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error({ clientId: data.clientId, name: data.name, error: err.message }, 'Failed to invoke skill from WebSocket');
   }
 }

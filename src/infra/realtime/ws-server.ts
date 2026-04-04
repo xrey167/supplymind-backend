@@ -32,6 +32,15 @@ class WsServer {
         type: 'event', topic: Topics.SKILL_INVOKED, data: event.data, timestamp: new Date().toISOString(),
       });
     });
+
+    // Route skill:result back to the requesting WS client
+    eventBus.subscribe('ws.skill.result', (event) => {
+      const data = event.data as any;
+      const client = this.clients.get(data.clientId);
+      if (client) {
+        this.send(client, data.message);
+      }
+    });
   }
 
   handleOpen(ws: any): string {
@@ -67,6 +76,9 @@ class WsServer {
           break;
         case 'a2a:send':
           eventBus.publish('ws.a2a.send', { clientId, ...msg });
+          break;
+        case 'skill:invoke':
+          eventBus.publish('ws.skill.invoke', { clientId, ...msg });
           break;
       }
     } catch (err) {

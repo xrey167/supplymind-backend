@@ -159,11 +159,11 @@ describe('ws-consumers', () => {
   });
 
   describe('subscriber initialization', () => {
-    test('initWsConsumers subscribes to all four topics', () => {
+    test('initWsConsumers subscribes to all topics', () => {
       eventBus.reset();
       const before = eventBus.getStats().subscriptions;
       initWsConsumers();
-      expect(eventBus.getStats().subscriptions).toBe(before + 4);
+      expect(eventBus.getStats().subscriptions).toBe(before + 5);
     });
   });
 });
