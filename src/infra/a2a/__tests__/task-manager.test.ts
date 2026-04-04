@@ -1,31 +1,31 @@
-import { describe, test, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, afterAll, mock, spyOn } from 'bun:test';
+import * as runtimeFactory from '../../../infra/ai/runtime-factory';
+import * as skillsDispatch from '../../../modules/skills/skills.dispatch';
+import * as skillsRegistryModule from '../../../modules/skills/skills.registry';
 import { taskManager } from '../task-manager';
 import { eventBus } from '../../../events/bus';
 import { toolRegistry } from '../../../modules/tools/tools.registry';
 
-// Mock createRuntime
+// Mock createRuntime via spyOn so it's properly restored and doesn't bleed
 const mockRun = mock(() => Promise.resolve({ ok: true, value: { content: 'done', stopReason: 'end_turn' } }));
 const mockStream = mock(() => (async function* () {})());
 const mockRuntime = { run: mockRun, stream: mockStream };
 
-mock.module('../../../infra/ai/runtime-factory', () => ({
-  createRuntime: () => mockRuntime,
-}));
+spyOn(runtimeFactory, 'createRuntime').mockImplementation(() => mockRuntime as any);
 
-// Mock dispatchSkill
+// Mock dispatchSkill via spyOn
 const mockDispatchSkill = mock(() => Promise.resolve({ ok: true, value: 'tool-result' }));
-mock.module('../../../modules/skills/skills.dispatch', () => ({
-  dispatchSkill: mockDispatchSkill,
-}));
+spyOn(skillsDispatch, 'dispatchSkill').mockImplementation(mockDispatchSkill as any);
 
-// Mock skillRegistry
-mock.module('../../../modules/skills/skills.registry', () => ({
-  skillRegistry: {
-    toToolDefinitions: () => [{ name: 'echo', description: 'Echo', inputSchema: {} }],
-    register: () => {},
-    unregister: () => {},
-  },
-}));
+// Mock skillRegistry.toToolDefinitions via spyOn
+spyOn(skillsRegistryModule.skillRegistry, 'toToolDefinitions').mockImplementation(
+  () => [{ name: 'echo', description: 'Echo', inputSchema: {} }],
+);
+
+// Restore all spies after this file so they don't bleed into other test files
+afterAll(() => {
+  mock.restore();
+});
 
 function baseConfig() {
   return {

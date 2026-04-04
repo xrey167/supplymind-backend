@@ -1,8 +1,8 @@
 import { nanoid } from 'nanoid';
-import { createRuntime } from '../ai/runtime-factory';
+import * as runtimeFactory from '../ai/runtime-factory';
 import type { AgentRuntime, AIProvider, AgentMode } from '../ai/types';
-import { skillRegistry } from '../../modules/skills/skills.registry';
-import { dispatchSkill } from '../../modules/skills/skills.dispatch';
+import * as skillsRegistryModule from '../../modules/skills/skills.registry';
+import * as skillsDispatch from '../../modules/skills/skills.dispatch';
 import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
 import type { Message, RunInput } from '../ai/types';
@@ -79,7 +79,7 @@ class TaskManager {
       const runtime = this.resolveRuntime(config.provider, config.mode);
 
       // Get tools from skill registry, optionally filtered by agent's toolIds
-      let tools = skillRegistry.toToolDefinitions();
+      let tools = skillsRegistryModule.skillRegistry.toToolDefinitions();
       if (config.toolIds && config.toolIds.length > 0) {
         const allowed = new Set(config.toolIds);
         tools = tools.filter(t => allowed.has(t.name));
@@ -286,7 +286,7 @@ class TaskManager {
     });
 
     const toolCallStart = Date.now();
-    const toolResult = await dispatchSkill(
+    const toolResult = await skillsDispatch.dispatchSkill(
       toolCall.name,
       (toolCall.args ?? {}) as Record<string, unknown>,
       dispatchCtx,
@@ -326,7 +326,7 @@ class TaskManager {
   }
 
   private resolveRuntime(provider: AIProvider, mode: AgentMode): AgentRuntime {
-    return createRuntime(provider, mode);
+    return runtimeFactory.createRuntime(provider, mode);
   }
 
   get(taskId: string): A2ATask | undefined {
