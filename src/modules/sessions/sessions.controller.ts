@@ -33,7 +33,7 @@ export const sessionsController = {
     const workspaceId = c.get('workspaceId') as string | undefined;
 
     const session = await sessionsService.get(id);
-    if (!session || (workspaceId && session.workspaceId !== workspaceId)) {
+    if (!session || session.workspaceId !== workspaceId) {
       return c.json({ error: 'Session not found' }, 404);
     }
 

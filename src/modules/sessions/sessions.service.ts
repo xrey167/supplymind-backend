@@ -72,7 +72,7 @@ export const sessionsService = {
 
   async buildContextMessages(sessionId: string): Promise<Message[]> {
     const { messages } = await sessionsRepo.getMessagePage(sessionId, {
-      limit: 100,
+      limit: 1000,
       includeCompacted: false,
     });
     const allMessages = await sessionsRepo.getMessages(sessionId, {
