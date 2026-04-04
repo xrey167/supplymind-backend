@@ -42,6 +42,22 @@ mock.module('../../../infra/queue/bullmq', () => ({
   enqueueSkill: mockEnqueueSkill,
 }));
 
+const mockRunInSandbox = mock(async (_input: any) => ({ ok: true, value: { value: 'sandbox-result', durationMs: 10 } } as any));
+
+mock.module('../../../core/security/sandbox', () => ({
+  runInSandbox: mockRunInSandbox,
+}));
+
+const mockGetSandboxPolicy = mock(async (_wsId?: string) => ({
+  maxTimeoutMs: 30000, allowNetwork: false, allowedPaths: [], deniedPaths: [], maxMemoryMb: 128, lockedByOrg: false,
+}));
+
+mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
+  workspaceSettingsService: {
+    getSandboxPolicy: mockGetSandboxPolicy,
+  },
+}));
+
 mock.module('../../../config/logger', () => ({
   logger: {
     info: mock(() => undefined),
@@ -84,6 +100,8 @@ describe('ToolsService', () => {
     mockRegistryUnregister.mockClear();
     mockCallTool.mockClear();
     mockEnqueueSkill.mockClear();
+    mockRunInSandbox.mockClear();
+    mockGetSandboxPolicy.mockClear();
   });
 
   // ── list ──────────────────────────────────────────────────────────────────
@@ -160,6 +178,31 @@ describe('ToolsService', () => {
       expect(typeof registeredArg.handler).toBe('function');
     });
 
+    test('should pass providerType in metadata for correct skill registry mapping', async () => {
+      const row = makeRow({ providerType: 'mcp' });
+      mockCreate.mockResolvedValueOnce(row as any);
+
+      await service.create({ name: 'my_tool', description: 'A tool', providerType: 'mcp' });
+
+      const registeredArg = mockRegistryRegister.mock.calls[0][0];
+      expect(registeredArg.metadata).toEqual({ providerType: 'mcp' });
+    });
+
+    test('should register builtin tool with error handler that rejects invocation', async () => {
+      const row = makeRow({ providerType: 'builtin', name: 'echo' });
+      mockCreate.mockResolvedValueOnce(row as any);
+
+      const result = await service.create({ name: 'echo', description: 'A builtin', providerType: 'builtin' });
+      expect(result.ok).toBe(true);
+
+      const registeredArg = mockRegistryRegister.mock.calls[0][0];
+      const handlerResult = await registeredArg.handler({ x: 1 });
+      expect(handlerResult.ok).toBe(false);
+      if (!handlerResult.ok) {
+        expect(handlerResult.error.message).toContain('BuiltinSkillProvider');
+      }
+    });
+
     test('should register mcp tool with correct handler', async () => {
       const row = makeRow({
         providerType: 'mcp',
@@ -204,6 +247,31 @@ describe('ToolsService', () => {
       const handlerResult = await registeredArg.handler({ x: 2 }, { workspaceId: 'ws-1', callerId: 'agent-1' });
       expect(handlerResult.ok).toBe(true);
       expect(mockEnqueueSkill).toHaveBeenCalledTimes(1);
+    });
+
+    test('should register inline tool with sandbox handler', async () => {
+      const row = makeRow({
+        providerType: 'inline',
+        handlerConfig: { code: 'return args.x * 2;' },
+      });
+      mockCreate.mockResolvedValueOnce(row as any);
+
+      await service.create({
+        name: 'my_tool',
+        description: 'A tool',
+        providerType: 'inline',
+        handlerConfig: { code: 'return args.x * 2;' },
+      });
+
+      const registeredArg = mockRegistryRegister.mock.calls[0][0];
+      mockRunInSandbox.mockResolvedValueOnce({ ok: true, value: { value: 42, durationMs: 5 } } as any);
+
+      const handlerResult = await registeredArg.handler({ x: 21 }, { workspaceId: 'ws-1' });
+      expect(handlerResult.ok).toBe(true);
+      if (handlerResult.ok) expect(handlerResult.value).toBe(42);
+      expect(mockGetSandboxPolicy).toHaveBeenCalledWith('ws-1');
+      expect(mockRunInSandbox).toHaveBeenCalledTimes(1);
+      expect(mockRunInSandbox.mock.calls[0][0].code).toBe('return args.x * 2;');
     });
   });
 

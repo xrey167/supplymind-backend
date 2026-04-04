@@ -41,7 +41,7 @@ async function executeStep(
           const skillResult = await skillsDispatch.dispatchSkill(step.skillId, args, {
             callerId: 'orchestration',
             workspaceId,
-            callerRole: 'system',
+            callerRole: 'system' as const,
           });
           if (!skillResult.ok) throw new Error(skillResult.error instanceof Error ? skillResult.error.message : String(skillResult.error));
           result = skillResult.value;

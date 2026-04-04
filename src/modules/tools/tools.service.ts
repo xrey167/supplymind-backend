@@ -8,13 +8,15 @@ import type { DispatchContext } from '../skills/skills.types';
 import { mcpClientPool } from '../../infra/mcp/client-pool';
 import { enqueueSkill } from '../../infra/queue/bullmq';
 import { logger } from '../../config/logger';
+import { runInSandbox } from '../../core/security/sandbox';
+import { workspaceSettingsService } from '../settings/workspace-settings/workspace-settings.service';
 
 export class ToolsService {
   private createHandler(tool: ToolDef): (args: Record<string, unknown>, ctx?: DispatchContext) => Promise<Result<unknown>> {
     switch (tool.providerType) {
       case 'builtin':
-        // Builtins are registered by BuiltinSkillProvider, DB tools with 'builtin' type just pass through
-        return async (args) => ok(args);
+        // Builtins are handled by BuiltinSkillProvider — DB records with this type should not overwrite real handlers
+        return async () => err(new Error(`Builtin tool "${tool.name}" must be provided by BuiltinSkillProvider, not DB handler`));
 
       case 'mcp': {
         // handlerConfig should have { serverName: string, toolName: string }
@@ -30,8 +32,7 @@ export class ToolsService {
       }
 
       case 'worker': {
-        // handlerConfig should have { queueName?: string, timeout?: number }
-        const { timeout = 30_000 } = tool.handlerConfig as { queueName?: string; timeout?: number };
+        const { timeout = 30_000 } = tool.handlerConfig as { timeout?: number };
         return async (args, ctx) => {
           try {
             const result = await enqueueSkill(
@@ -47,18 +48,18 @@ export class ToolsService {
       }
 
       case 'inline': {
-        // handlerConfig should have { code: string } — a JS function body executed only when code is trusted/admin-created
-        return async (args) => {
-          logger.warn({ toolId: tool.id, toolName: tool.name }, 'Inline tool execution — ensure code is trusted');
-          try {
-            // nosec: inline tools are admin-defined; sandboxing is the responsibility of the deployment environment
-            // eslint-disable-next-line no-new-func
-            const fn = new Function('args', tool.handlerConfig.code as string);
-            const result = await fn(args);
-            return ok(result);
-          } catch (error) {
-            return err(error instanceof Error ? error : new Error(String(error)));
-          }
+        return async (args, ctx) => {
+          const workspaceId = ctx?.workspaceId;
+          const policy = await workspaceSettingsService.getSandboxPolicy(workspaceId ?? 'default');
+          const result = await runInSandbox({
+            code: tool.handlerConfig.code as string,
+            args,
+            policy,
+            toolId: tool.id,
+            toolName: tool.name,
+          });
+          if (!result.ok) return err(result.error);
+          return ok(result.value.value);
         };
       }
 
@@ -96,6 +97,7 @@ export class ToolsService {
       priority: tool.priority,
       enabled: tool.enabled,
       handler: this.createHandler(tool),
+      metadata: { providerType: tool.providerType },
     });
 
     return ok(tool);
@@ -116,6 +118,7 @@ export class ToolsService {
       priority: tool.priority,
       enabled: tool.enabled,
       handler: this.createHandler(tool),
+      metadata: { providerType: tool.providerType },
     });
 
     return ok(tool);
@@ -133,6 +136,7 @@ export class ToolsService {
   /** Load all enabled tool definitions from DB and register them in the tool registry. */
   async loadToolsFromDb(workspaceId?: string): Promise<ToolDef[]> {
     const tools = await this.list(workspaceId);
+    let registered = 0;
     for (const tool of tools) {
       if (!tool.enabled) continue;
       toolRegistry.register({
@@ -144,9 +148,11 @@ export class ToolsService {
         priority: tool.priority,
         enabled: tool.enabled,
         handler: this.createHandler(tool),
+        metadata: { providerType: tool.providerType },
       });
+      registered++;
     }
-    logger.info({ count: tools.length }, 'Loaded tools from DB into registry');
+    logger.info({ total: tools.length, registered }, 'Loaded tools from DB into registry');
     return tools;
   }
 }

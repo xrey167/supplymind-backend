@@ -62,7 +62,7 @@ export async function callSkill(
   const result = await dispatchSkill(name, args, {
     callerId: options.callerId ?? 'sdk',
     workspaceId: options.workspaceId,
-    callerRole: options.callerRole ?? 'admin',
+    callerRole: (options.callerRole ?? 'admin') as any,
     traceId: options.traceId,
   });
   if (!result.ok) {

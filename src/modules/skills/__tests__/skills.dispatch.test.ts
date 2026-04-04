@@ -13,9 +13,16 @@ mock.module('../skills.dispatch', () => {
   const { eventBus } = require('../../../events/bus') as any;
   const { Topics } = require('../../../events/topics') as any;
 
+  const { hasPermission, getRequiredRole } = require('../../../core/security/rbac') as any;
+
   const dispatchSkill = async (skillId: string, args: any, context: any): Promise<any> => {
     if (context.signal?.aborted) return err(new AbortError('Skill dispatch aborted', 'system'));
-    if (!skillRegistry.has(skillId)) return err(new Error(`Skill not found: ${skillId}`));
+    const skill = skillRegistry.get(skillId);
+    if (!skill) return err(new Error(`Skill not found: ${skillId}`));
+    const requiredRole = getRequiredRole(skill.providerType);
+    if (!hasPermission(context.callerRole, requiredRole)) {
+      return err(new Error(`Permission denied: role '${context.callerRole}' cannot invoke '${skillId}' (requires '${requiredRole}')`));
+    }
     const hooks = hooksRegistry.get(skillId);
     if (hooks?.beforeExecute) {
       const hookCtx = { callerId: context.callerId, workspaceId: context.workspaceId, traceId: context.traceId };
@@ -47,7 +54,7 @@ import type { DispatchContext } from '../skills.types';
 const ctx: DispatchContext = {
   callerId: 'test-user',
   workspaceId: 'ws-1',
-  callerRole: 'admin',
+  callerRole: 'admin' as const,
 };
 
 describe('dispatchSkill', () => {
@@ -175,5 +182,65 @@ describe('dispatchSkill hooks', () => {
 
     const result = await dispatchSkill('aftererr', {}, ctx);
     expect(result.ok).toBe(true);
+  });
+});
+
+describe('dispatchSkill RBAC', () => {
+  beforeEach(() => {
+    skillRegistry.clear();
+    skillCache.clear();
+  });
+
+  test('viewer can invoke builtin skills', async () => {
+    skillRegistry.register({
+      id: 'test:builtin', name: 'builtin_skill', description: 'Builtin',
+      inputSchema: { type: 'object' }, providerType: 'builtin', priority: 10,
+      handler: async () => ok('done'),
+    });
+    const result = await dispatchSkill('builtin_skill', {}, { ...ctx, callerRole: 'viewer' as const });
+    expect(result.ok).toBe(true);
+  });
+
+  test('viewer cannot invoke inline skills', async () => {
+    skillRegistry.register({
+      id: 'test:inline', name: 'inline_skill', description: 'Inline',
+      inputSchema: { type: 'object' }, providerType: 'inline', priority: 40,
+      handler: async () => ok('done'),
+    });
+    const result = await dispatchSkill('inline_skill', {}, { ...ctx, callerRole: 'viewer' as const });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain('Permission denied');
+  });
+
+  test('admin can invoke inline skills', async () => {
+    skillRegistry.register({
+      id: 'test:inline', name: 'inline_skill', description: 'Inline',
+      inputSchema: { type: 'object' }, providerType: 'inline', priority: 40,
+      handler: async () => ok('done'),
+    });
+    const result = await dispatchSkill('inline_skill', {}, { ...ctx, callerRole: 'admin' as const });
+    expect(result.ok).toBe(true);
+  });
+
+  test('agent can invoke worker skills but not mcp skills', async () => {
+    skillRegistry.register({
+      id: 'test:worker', name: 'worker_skill', description: 'Worker',
+      inputSchema: { type: 'object' }, providerType: 'worker', priority: 20,
+      handler: async () => ok('done'),
+    });
+    skillRegistry.register({
+      id: 'test:mcp', name: 'mcp_skill', description: 'MCP',
+      inputSchema: { type: 'object' }, providerType: 'mcp', priority: 15,
+      handler: async () => ok('done'),
+    });
+
+    const agentCtx = { ...ctx, callerRole: 'agent' as const };
+    const workerResult = await dispatchSkill('worker_skill', {}, agentCtx);
+    expect(workerResult.ok).toBe(true);
+
+    // agent(20) < operator(30) required for mcp
+    const mcpResult = await dispatchSkill('mcp_skill', {}, agentCtx);
+    expect(mcpResult.ok).toBe(false);
+    if (!mcpResult.ok) expect(mcpResult.error.message).toContain('Permission denied');
   });
 });

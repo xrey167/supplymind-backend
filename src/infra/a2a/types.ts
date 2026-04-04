@@ -32,6 +32,7 @@ export interface A2ATask {
   status: { state: TaskState; message?: string };
   artifacts?: Artifact[];
   history?: A2AMessage[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface Artifact {

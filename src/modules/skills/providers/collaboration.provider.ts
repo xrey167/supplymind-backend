@@ -31,15 +31,15 @@ export class CollaborationSkillProvider implements SkillProvider {
         },
         providerType: 'builtin',
         priority: this.priority,
-        handler: async (args) => {
+        handler: async (args, context) => {
           try {
             const req = args as CollaborationRequest;
             // Create a dispatch fn that routes through skill dispatch
             const dispatch = async (skillId: string, skillArgs: Record<string, unknown>): Promise<string> => {
               const result = await dispatchSkill(skillId, skillArgs, {
-                callerId: 'collaboration-engine',
-                workspaceId: 'default', // TODO: pass from context
-                callerRole: 'agent',
+                callerId: context?.callerId ?? 'collaboration-engine',
+                workspaceId: context?.workspaceId ?? 'default',
+                callerRole: 'agent' as const,
               });
               if (!result.ok) throw new Error(result.error.message);
               return typeof result.value === 'string' ? result.value : JSON.stringify(result.value);

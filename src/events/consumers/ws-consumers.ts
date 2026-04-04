@@ -231,8 +231,8 @@ async function handleWsSkillInvoke(event: BusEvent): Promise<void> {
 
     const ctx: DispatchContext = {
       callerId: clientId,
-      workspaceId: data.workspaceId ?? 'default', // TODO: extract from WS auth context
-      callerRole: 'operator',
+      workspaceId: data.workspaceId ?? clientId, // TODO: extract from WS auth context when WS auth is implemented
+      callerRole: 'operator' as const,
       traceId: requestId,
     };
 

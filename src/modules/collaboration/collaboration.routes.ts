@@ -32,7 +32,7 @@ CollaborationRoutes.openapi(collaborateRoute, async (c) => {
 
   const dispatch: CollabDispatchFn = async (skillId, args) => {
     const result = await dispatchSkill(skillId, args as Record<string, unknown>, {
-      callerId, workspaceId, callerRole: 'agent',
+      callerId, workspaceId, callerRole: 'agent' as const,
     });
     if (!result.ok) throw new Error(result.error.message);
     return typeof result.value === 'string' ? result.value : JSON.stringify(result.value);

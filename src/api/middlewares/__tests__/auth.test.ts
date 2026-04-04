@@ -120,13 +120,13 @@ describe('authMiddleware', () => {
       expect(body.callerRole).toBe('editor');
     });
 
-    it('should fall back to admin callerRole when role is absent', async () => {
+    it('should fall back to viewer callerRole when role is absent', async () => {
       const token = makeDevJwt({ sub: 'user-abc' });
       const res = await app.request('/test', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const body = await res.json();
-      expect(body.callerRole).toBe('admin');
+      expect(body.callerRole).toBe('viewer');
     });
 
     it('should fall back to dev-user callerId when sub is absent', async () => {
@@ -160,5 +160,60 @@ describe('authMiddleware', () => {
       const body = await res.json();
       expect(body.callerRole).toBe('operator');
     });
+
+    it('should handle base64url-encoded JWT payloads with special characters', async () => {
+      // Manually build a JWT with base64url chars (- and _) in the payload
+      const payload = { sub: 'user-with-special+/chars', role: 'admin' };
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
+      const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+      const token = `${header}.${body}.fakesig`;
+
+      const res = await app.request('/test', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.callerId).toBe('user-with-special+/chars');
+    });
+  });
+});
+
+const { requireRole } = await import('../auth');
+
+describe('requireRole middleware', () => {
+
+  function buildProtectedApp(minimumRole: string) {
+    const app = new Hono();
+    app.onError(errorHandler);
+    app.use('*', authMiddleware);
+    app.get('/protected', requireRole(minimumRole as any), (c) => c.json({ ok: true }));
+    return app;
+  }
+
+  it('should allow access when caller role meets requirement', async () => {
+    const app = buildProtectedApp('operator');
+    const token = makeDevJwt({ sub: 'user-1', role: 'admin' });
+    const res = await app.request('/protected', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('should deny access when caller role is insufficient', async () => {
+    const app = buildProtectedApp('admin');
+    const token = makeDevJwt({ sub: 'user-1', role: 'viewer' });
+    const res = await app.request('/protected', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('should allow exact role match', async () => {
+    const app = buildProtectedApp('operator');
+    const token = makeDevJwt({ sub: 'user-1', role: 'operator' });
+    const res = await app.request('/protected', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
   });
 });

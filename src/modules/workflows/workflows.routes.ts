@@ -42,7 +42,7 @@ WorkflowRoutes.openapi(runWorkflowRoute, async (c) => {
   const dispatch: WorkflowDispatchFn = async (skillId, args, text) => {
     const mergedArgs = text ? { ...args, prompt: text } : args;
     const result = await dispatchSkill(skillId, mergedArgs, {
-      callerId, workspaceId, callerRole: 'agent',
+      callerId, workspaceId, callerRole: 'agent' as const,
     });
     if (!result.ok) throw new Error(result.error.message);
     return typeof result.value === 'string' ? result.value : JSON.stringify(result.value);

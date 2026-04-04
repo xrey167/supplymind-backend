@@ -1,5 +1,6 @@
 import type { Result } from '../../core/result';
 import type { ToolDefinition } from '../../infra/ai/types';
+import type { Role } from '../../core/security';
 
 export type SkillProviderType = "builtin" | "worker" | "plugin" | "mcp" | "inline";
 
@@ -30,9 +31,11 @@ export interface SkillProvider {
 export interface DispatchContext {
   callerId: string;
   workspaceId: string;
-  callerRole: string;
+  callerRole: Role;
   traceId?: string;
   signal?: AbortSignal;
+  taskId?: string;
+  args?: Record<string, unknown>;
 }
 
 export type DispatchFn = (
