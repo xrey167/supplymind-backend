@@ -87,9 +87,14 @@ export async function initSubsystems(): Promise<void> {
     logger.warn({ error: err }, 'Redis pub/sub bridge failed to initialize — continuing without it');
   }
 
-  // Step 5: MCP client pool — load remote tools as skills (non-critical)
-  // TODO: Load MCP server configs from DB when workspace context is available
-  // For now, skip MCP init — configs will come from DB via API later
+  // Step 5: MCP client pool — load global MCP server configs from DB (non-critical)
+  try {
+    const { mcpService } = await import('../modules/mcp/mcp.service');
+    await mcpService.loadGlobalServers();
+    logger.info('Global MCP server configs loaded');
+  } catch (err) {
+    logger.warn({ err }, 'Global MCP server load failed — continuing without');
+  }
 
   // Step 6 (original): Load tool definitions from DB into skill registry (non-critical)
   try {
