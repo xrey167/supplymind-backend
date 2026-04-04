@@ -11,6 +11,7 @@ import type { A2ATask, TaskState, TaskSendParams, A2AMessage } from './types';
 import type { AgentConfig } from './coordinator-config';
 import { AbortError } from '../../core/errors';
 import { toolRegistry } from '../../modules/tools/tools.registry';
+import { taskRepo } from './task-repo';
 
 const MAX_TOOL_CALL_ITERATIONS = 10;
 
@@ -38,6 +39,15 @@ class TaskManager {
     const controller = new AbortController();
     const record: TaskRecord = { task, agentId: config.id, workspaceId: config.workspaceId, controller };
     this.tasks.set(taskId, record);
+
+    // Persist to DB (best-effort — don't fail the task if DB write fails)
+    taskRepo.create({
+      id: taskId,
+      workspaceId: config.workspaceId,
+      agentId: config.id,
+      status: 'submitted',
+      input: params.message ?? {},
+    }).catch(() => {}); // best-effort
 
     eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'submitted', workspaceId: config.workspaceId });
 
@@ -223,6 +233,7 @@ class TaskManager {
           currentRecord.task.status = { state: 'completed' };
         }
 
+        taskRepo.updateStatus(taskId, 'completed', runResult.content, currentRecord?.task.artifacts).catch(() => {}); // best-effort
         eventBus.publish(Topics.TASK_COMPLETED, { taskId, output: runResult.content });
         eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'completed', workspaceId: config.workspaceId });
         return;
@@ -274,6 +285,7 @@ class TaskManager {
       toolCall: { id: toolCall.id, name: toolCall.name, args: toolCall.args, status: 'in_progress' },
     });
 
+    const toolCallStart = Date.now();
     const toolResult = await dispatchSkill(
       toolCall.name,
       (toolCall.args ?? {}) as Record<string, unknown>,
@@ -281,6 +293,16 @@ class TaskManager {
     );
 
     const resultValue = toolResult.ok ? toolResult.value : `Error: ${toolResult.error.message}`;
+
+    taskRepo.logToolCall({
+      taskId,
+      skillName: toolCall.name,
+      status: toolResult.ok ? 'completed' : 'failed',
+      input: toolCall.args ?? {},
+      output: resultValue,
+      durationMs: Date.now() - toolCallStart,
+      error: toolResult.ok ? undefined : String(resultValue),
+    }).catch(() => {}); // best-effort
 
     eventBus.publish(Topics.TASK_TOOL_CALL, {
       taskId,
@@ -299,6 +321,7 @@ class TaskManager {
     if (record) {
       record.task.status = { state, message };
       eventBus.publish(Topics.TASK_STATUS, { taskId, status: state, workspaceId: record.workspaceId, message });
+      taskRepo.updateStatus(taskId, state, undefined, undefined).catch(() => {}); // best-effort
     }
   }
 
