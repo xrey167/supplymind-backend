@@ -1,6 +1,7 @@
 import { ok, err } from '../../core/result';
 import type { Result } from '../../core/result';
 import { taskManager } from '../../infra/a2a/task-manager';
+import { taskRepo } from '../../infra/a2a/task-repo';
 import { agentsRepo } from '../agents/agents.repo';
 import { toAgentConfig } from '../agents/agents.mapper';
 import { tasksRepo } from './tasks.repo';
@@ -51,8 +52,10 @@ export class TasksService {
     return taskManager.cancel(taskId);
   }
 
-  list(workspaceId?: string): A2ATask[] {
-    return taskManager.list(workspaceId);
+  async list(workspaceId?: string): Promise<A2ATask[]> {
+    const dbTasks = await taskRepo.findByWorkspace(workspaceId);
+    // Merge live in-memory state for running tasks (more accurate status)
+    return dbTasks.map(t => taskManager.get(t.id) ?? t);
   }
 }
 

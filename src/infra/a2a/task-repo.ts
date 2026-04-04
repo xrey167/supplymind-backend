@@ -1,6 +1,7 @@
 import { db } from '../db/client';
 import { a2aTasks, toolCallLogs } from '../db/schema';
 import { eq } from 'drizzle-orm';
+import type { A2ATask } from './types';
 
 export const taskRepo = {
   async create(data: {
@@ -28,6 +29,40 @@ export const taskRepo = {
         updatedAt: new Date(),
       })
       .where(eq(a2aTasks.id, taskId));
+  },
+
+  async findByWorkspace(workspaceId?: string): Promise<A2ATask[]> {
+    const rows = workspaceId
+      ? await db.select().from(a2aTasks).where(eq(a2aTasks.workspaceId, workspaceId))
+      : await db.select().from(a2aTasks);
+    return rows.map(row => ({
+      id: row.id,
+      status: { state: (row.status ?? 'submitted') as A2ATask['status']['state'] },
+      artifacts: (row.artifacts as A2ATask['artifacts']) ?? [],
+      history: (row.history as A2ATask['history']) ?? [],
+    }));
+  },
+
+  async findById(taskId: string): Promise<A2ATask | undefined> {
+    const rows = await db.select().from(a2aTasks).where(eq(a2aTasks.id, taskId));
+    const row = rows[0];
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      status: { state: (row.status ?? 'submitted') as A2ATask['status']['state'] },
+      artifacts: (row.artifacts as A2ATask['artifacts']) ?? [],
+      history: (row.history as A2ATask['history']) ?? [],
+    };
+  },
+
+  async findByStatus(status: string): Promise<A2ATask[]> {
+    const rows = await db.select().from(a2aTasks).where(eq(a2aTasks.status, status as any));
+    return rows.map(row => ({
+      id: row.id,
+      status: { state: (row.status ?? 'submitted') as A2ATask['status']['state'] },
+      artifacts: (row.artifacts as A2ATask['artifacts']) ?? [],
+      history: (row.history as A2ATask['history']) ?? [],
+    }));
   },
 
   async logToolCall(data: {

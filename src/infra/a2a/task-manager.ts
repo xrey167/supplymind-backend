@@ -274,8 +274,9 @@ class TaskManager {
       // Max iterations reached
       this.updateStatus(taskId, 'failed', 'Max tool call iterations reached');
     } finally {
-      // Schedule cleanup after callers have had time to read final state
-      setTimeout(() => this.tasks.delete(taskId), 60_000);
+      // No cleanup — in-memory record persists until server restart.
+      // DB is the source of truth for historical tasks.
+      // AbortController remains accessible for the task's lifetime in this process.
     }
   }
 

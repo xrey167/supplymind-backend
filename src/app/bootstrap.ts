@@ -12,6 +12,7 @@ import { getStateStore, closeStateStore } from '../infra/state';
 import { setCacheProvider } from '../infra/cache';
 import { RedisCache } from '../infra/cache/redis-cache';
 import { registerMemorySkills } from '../modules/memory/memory.skills';
+import { taskRepo } from '../infra/a2a/task-repo';
 
 let redisPubSub: RedisPubSub | null = null;
 
@@ -90,7 +91,7 @@ export async function initSubsystems(): Promise<void> {
   // TODO: Load MCP server configs from DB when workspace context is available
   // For now, skip MCP init — configs will come from DB via API later
 
-  // Step 6: Load tool definitions from DB into skill registry (non-critical)
+  // Step 6 (original): Load tool definitions from DB into skill registry (non-critical)
   try {
     const { toolsService } = await import('../modules/tools/tools.service');
     const tools = await toolsService.loadToolsFromDb();
@@ -99,7 +100,21 @@ export async function initSubsystems(): Promise<void> {
     logger.warn({ error: (error as Error).message }, 'Failed to load tools from DB — continuing without DB tools');
   }
 
-  // Step 7: Start MCP server — expose skills as MCP tools (non-critical)
+  // Step 7: Recover stale tasks from prior run (non-critical)
+  try {
+    const staleStatuses = ['working', 'submitted'] as const;
+    for (const status of staleStatuses) {
+      const staleTasks = await taskRepo.findByStatus(status);
+      for (const t of staleTasks) {
+        await taskRepo.updateStatus(t.id, 'failed');
+        logger.warn({ taskId: t.id, status }, 'Marked stale task as failed on startup');
+      }
+    }
+  } catch (err) {
+    logger.warn({ err }, 'Stale task recovery failed — continuing');
+  }
+
+  // Step 8: Start MCP server — expose skills as MCP tools (non-critical)
   try {
     const { createMcpServer } = await import('../infra/mcp/server');
     createMcpServer();

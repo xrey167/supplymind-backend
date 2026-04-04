@@ -34,7 +34,7 @@ export const tasksController = {
   async listTasks(c: Context) {
     const query = listTasksQuerySchema.parse(c.req.query());
     const workspaceId = query.workspaceId ?? (c.get('workspaceId') as string);
-    const tasks = tasksService.list(workspaceId);
+    const tasks = await tasksService.list(workspaceId);
     return c.json(tasks);
   },
 
