@@ -51,6 +51,14 @@ export const Topics = {
   ORCHESTRATION_GATE_WAITING: 'orchestration.gate.waiting',
   ORCHESTRATION_COMPLETED: 'orchestration.completed',
   ORCHESTRATION_FAILED: 'orchestration.failed',
+  // Tool approvals
+  TOOL_APPROVAL_REQUESTED: 'tool.approval_requested',
+  TOOL_APPROVAL_RESOLVED: 'tool.approval_resolved',
+  // Security audit
+  SECURITY_RBAC_DENIED: 'security.rbac.denied',
+  SECURITY_PERMISSION_MODE_BLOCKED: 'security.permission_mode.blocked',
+  SECURITY_SANDBOX_EXECUTED: 'security.sandbox.executed',
+  SECURITY_SANDBOX_FAILED: 'security.sandbox.failed',
   // System
   HEARTBEAT: 'system.heartbeat',
 } as const;

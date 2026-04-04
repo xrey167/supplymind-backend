@@ -17,7 +17,8 @@ export type ServerMessage =
   | { type: 'orchestration:status'; orchestrationId: string; status: string; stepId?: string }
   | { type: 'orchestration:gate'; orchestrationId: string; stepId: string; prompt: string }
   | { type: 'task:thinking_delta'; taskId: string; thinking: string }
-  | { type: 'task:round_completed'; taskId: string; roundId: string; iterationIndex: number; toolCallCount: number; tokenUsage: { input: number; output: number }; totalTokens: { input: number; output: number } };
+  | { type: 'task:round_completed'; taskId: string; roundId: string; iterationIndex: number; toolCallCount: number; tokenUsage: { input: number; output: number }; totalTokens: { input: number; output: number } }
+  | { type: 'tool:approval_required'; approvalId: string; taskId: string; toolName: string; args: unknown; workspaceId: string };
 
 export type ClientMessage =
   | { type: 'task:send'; agentId: string; messages: unknown[] }

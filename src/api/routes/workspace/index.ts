@@ -12,6 +12,7 @@ import { memoryRoutes } from '../../../modules/memory/memory.routes';
 import { orchestrationRoutes } from '../../../modules/orchestration/orchestration.routes';
 import { agentRegistryRoutes } from '../../../modules/agent-registry/agent-registry.routes';
 import { mcpRoutes } from '../../../modules/mcp/mcp.routes';
+import { workspaceSettingsRoutes } from '../../../modules/settings/workspace-settings/workspace-settings.routes';
 
 const workspaceRoutes = new OpenAPIHono();
 
@@ -31,5 +32,6 @@ workspaceRoutes.route('/memory', memoryRoutes);
 workspaceRoutes.route('/orchestrations', orchestrationRoutes);
 workspaceRoutes.route('/agent-registry', agentRegistryRoutes);
 workspaceRoutes.route('/mcp', mcpRoutes);
+workspaceRoutes.route('/settings', workspaceSettingsRoutes);
 
 export { workspaceRoutes };

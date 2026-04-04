@@ -57,6 +57,19 @@ class WsServer {
       });
     });
 
+    // Forward tool approval requests to workspace subscribers
+    eventBus.subscribe(Topics.TOOL_APPROVAL_REQUESTED, (event) => {
+      const data = event.data as { approvalId: string; taskId: string; toolName: string; args: unknown; workspaceId: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'tool:approval_required',
+        approvalId: data.approvalId,
+        taskId: data.taskId,
+        toolName: data.toolName,
+        args: data.args,
+        workspaceId: data.workspaceId,
+      });
+    });
+
     // Route skill:result back to the requesting WS client
     eventBus.subscribe('ws.skill.result', (event) => {
       const data = event.data as any;
