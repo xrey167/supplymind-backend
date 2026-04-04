@@ -19,15 +19,16 @@ class WsServer {
       Topics.TASK_ARTIFACT, Topics.TASK_ERROR, Topics.TASK_COMPLETED,
     ];
     for (const topic of taskTopics) {
-      eventBus.on(topic, (data: any) => {
+      eventBus.subscribe(topic, (event) => {
+        const data = event.data as any;
         this.broadcastToSubscribed(`task:${data.taskId}`, { ...data, type: topic } as any);
       });
     }
 
     // Subscribe to skill events
-    eventBus.on(Topics.SKILL_INVOKED, (data: any) => {
+    eventBus.subscribe(Topics.SKILL_INVOKED, (event) => {
       this.broadcastToSubscribed('events:skill.*', {
-        type: 'event', topic: Topics.SKILL_INVOKED, data, timestamp: new Date().toISOString(),
+        type: 'event', topic: Topics.SKILL_INVOKED, data: event.data, timestamp: new Date().toISOString(),
       });
     });
   }
@@ -55,16 +56,16 @@ class WsServer {
           break;
         case 'task:send':
           // Will be wired to task-manager in Phase 6
-          eventBus.emit('ws:task:send', { clientId, ...msg });
+          eventBus.publish('ws.task.send', { clientId, ...msg });
           break;
         case 'task:cancel':
-          eventBus.emit('ws:task:cancel', { clientId, taskId: msg.taskId });
+          eventBus.publish('ws.task.cancel', { clientId, taskId: msg.taskId });
           break;
         case 'task:input':
-          eventBus.emit('ws:task:input', { clientId, taskId: msg.taskId, input: msg.input });
+          eventBus.publish('ws.task.input', { clientId, taskId: msg.taskId, input: msg.input });
           break;
         case 'a2a:send':
-          eventBus.emit('ws:a2a:send', { clientId, ...msg });
+          eventBus.publish('ws.a2a.send', { clientId, ...msg });
           break;
       }
     } catch {

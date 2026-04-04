@@ -22,7 +22,7 @@ export class ToolsService {
   async create(input: CreateToolInput): Promise<Result<ToolDef>> {
     const row = await toolsRepo.create(input);
     const tool = toToolDef(row);
-    eventBus.emit(Topics.SKILL_REGISTERED, {
+    eventBus.publish(Topics.SKILL_REGISTERED, {
       toolId: tool.id,
       workspaceId: tool.workspaceId,
       name: tool.name,

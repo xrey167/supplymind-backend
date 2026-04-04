@@ -41,19 +41,19 @@ export function sseResponse(
 export function taskEventStream(c: Context, taskId: string): Response {
   return sseResponse(c, (send, close) => {
     const topics = ['task:status', 'task:text_delta', 'task:tool_call', 'task:artifact', 'task:error', 'task:completed'];
-    const handlers: Array<() => void> = [];
+    const subIds: string[] = [];
     for (const topic of topics) {
-      const handler = (data: any) => {
+      const id = eventBus.subscribe(topic, (event) => {
+        const data = event.data as any;
         if (data.taskId === taskId) {
           send(topic, data);
           if (topic === 'task:completed' || topic === 'task:error') {
             close();
           }
         }
-      };
-      eventBus.on(topic, handler);
-      handlers.push(() => eventBus.off(topic, handler));
+      });
+      subIds.push(id);
     }
-    return () => handlers.forEach(h => h());
+    return () => subIds.forEach(id => eventBus.unsubscribe(id));
   });
 }

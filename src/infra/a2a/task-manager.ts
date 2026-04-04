@@ -38,7 +38,7 @@ class TaskManager {
     const record: TaskRecord = { task, agentId: config.id, workspaceId: config.workspaceId };
     this.tasks.set(taskId, record);
 
-    eventBus.emit(Topics.TASK_STATUS, { taskId, status: 'submitted', workspaceId: config.workspaceId });
+    eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'submitted', workspaceId: config.workspaceId });
 
     // Run async -- don't block the response
     this.executeTask(taskId, params, config).catch((error) => {
@@ -104,7 +104,7 @@ class TaskManager {
 
         for (const toolCall of runResult.toolCalls) {
           // Emit tool call start
-          eventBus.emit(Topics.TASK_TOOL_CALL, {
+          eventBus.publish(Topics.TASK_TOOL_CALL, {
             taskId, toolCall: { id: toolCall.id, name: toolCall.name, args: toolCall.args, status: 'in_progress' },
           });
 
@@ -112,7 +112,7 @@ class TaskManager {
 
           // Emit tool call result
           const resultValue = toolResult.ok ? toolResult.value : `Error: ${toolResult.error.message}`;
-          eventBus.emit(Topics.TASK_TOOL_CALL, {
+          eventBus.publish(Topics.TASK_TOOL_CALL, {
             taskId, toolCall: { id: toolCall.id, name: toolCall.name, args: toolCall.args, status: toolResult.ok ? 'completed' : 'failed', result: resultValue },
           });
 
@@ -133,8 +133,8 @@ class TaskManager {
         record.task.status = { state: 'completed' };
       }
 
-      eventBus.emit(Topics.TASK_COMPLETED, { taskId, output: runResult.content });
-      eventBus.emit(Topics.TASK_STATUS, { taskId, status: 'completed', workspaceId: config.workspaceId });
+      eventBus.publish(Topics.TASK_COMPLETED, { taskId, output: runResult.content });
+      eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'completed', workspaceId: config.workspaceId });
       return;
     }
 
@@ -146,7 +146,7 @@ class TaskManager {
     const record = this.tasks.get(taskId);
     if (record) {
       record.task.status = { state, message };
-      eventBus.emit(Topics.TASK_STATUS, { taskId, status: state, workspaceId: record.workspaceId, message });
+      eventBus.publish(Topics.TASK_STATUS, { taskId, status: state, workspaceId: record.workspaceId, message });
     }
   }
 
@@ -170,7 +170,7 @@ class TaskManager {
     const record = this.tasks.get(taskId);
     if (!record) return undefined;
     record.task.status = { state: 'canceled' };
-    eventBus.emit(Topics.TASK_STATUS, { taskId, status: 'canceled', workspaceId: record.workspaceId });
+    eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'canceled', workspaceId: record.workspaceId });
     return record.task;
   }
 

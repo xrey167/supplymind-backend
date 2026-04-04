@@ -33,7 +33,7 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
   }
 
   // Emit event
-  eventBus.emit(Topics.SKILL_INVOKED, {
+  eventBus.publish(Topics.SKILL_INVOKED, {
     name: skillId,
     durationMs,
     success: result.ok,

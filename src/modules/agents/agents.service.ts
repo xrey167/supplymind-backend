@@ -21,7 +21,7 @@ export class AgentsService {
   async create(input: CreateAgentInput): Promise<Result<AgentConfig>> {
     const row = await agentsRepo.create(input);
     const agent = toAgentConfig(row);
-    eventBus.emit(Topics.AGENT_CREATED, {
+    eventBus.publish(Topics.AGENT_CREATED, {
       agentId: agent.id,
       workspaceId: agent.workspaceId,
       name: agent.name,
@@ -33,7 +33,7 @@ export class AgentsService {
     const row = await agentsRepo.update(id, input);
     if (!row) return err(new Error(`Agent not found: ${id}`));
     const agent = toAgentConfig(row);
-    eventBus.emit(Topics.AGENT_UPDATED, {
+    eventBus.publish(Topics.AGENT_UPDATED, {
       agentId: agent.id,
       changes: Object.keys(input),
     });
