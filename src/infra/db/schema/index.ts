@@ -91,3 +91,85 @@ export const toolCallLogs = pgTable('tool_call_logs', {
   error: text('error'),
   createdAt: timestamp('created_at').defaultNow(),
 });
+
+// New enums
+export const sessionStatusEnum = pgEnum('session_status', ['created', 'active', 'paused', 'closed', 'expired']);
+export const messageRoleEnum = pgEnum('message_role', ['user', 'assistant', 'system', 'tool']);
+export const memoryTypeEnum = pgEnum('memory_type', ['domain', 'feedback', 'pattern', 'reference']);
+export const memorySourceEnum = pgEnum('memory_source', ['explicit', 'proposed', 'approved']);
+export const proposalStatusEnum = pgEnum('proposal_status', ['pending', 'approved', 'rejected']);
+export const orchestrationStatusEnum = pgEnum('orchestration_status', ['submitted', 'running', 'paused', 'completed', 'failed']);
+
+// Sessions
+export const sessions = pgTable('sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull(),
+  agentId: uuid('agent_id'),
+  status: sessionStatusEnum('status').notNull().default('created'),
+  metadata: jsonb('metadata').default({}),
+  tokenCount: integer('token_count').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  closedAt: timestamp('closed_at'),
+});
+
+// Session messages
+export const sessionMessages = pgTable('session_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sessionId: uuid('session_id').notNull(),
+  role: messageRoleEnum('role').notNull(),
+  content: text('content').notNull(),
+  toolCallId: text('tool_call_id'),
+  toolCalls: jsonb('tool_calls'),
+  tokenEstimate: integer('token_estimate'),
+  isCompacted: boolean('is_compacted').default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Agent memories
+export const agentMemories = pgTable('agent_memories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull(),
+  agentId: uuid('agent_id'),
+  type: memoryTypeEnum('type').notNull(),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  confidence: real('confidence').default(1.0),
+  source: memorySourceEnum('source').notNull(),
+  metadata: jsonb('metadata').default({}),
+  expiresAt: timestamp('expires_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// Memory proposals
+export const memoryProposals = pgTable('memory_proposals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull(),
+  agentId: uuid('agent_id').notNull(),
+  type: memoryTypeEnum('type').notNull(),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  evidence: text('evidence'),
+  sessionId: uuid('session_id'),
+  status: proposalStatusEnum('status').notNull().default('pending'),
+  rejectionReason: text('rejection_reason'),
+  createdAt: timestamp('created_at').defaultNow(),
+  reviewedAt: timestamp('reviewed_at'),
+});
+
+// Orchestrations
+export const orchestrations = pgTable('orchestrations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull(),
+  sessionId: uuid('session_id'),
+  name: text('name'),
+  definition: jsonb('definition').notNull(),
+  status: orchestrationStatusEnum('status').notNull().default('submitted'),
+  stepResults: jsonb('step_results').default({}),
+  currentStepId: text('current_step_id'),
+  input: jsonb('input').default({}),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  completedAt: timestamp('completed_at'),
+});
