@@ -10,7 +10,7 @@ let _store: StateStore | null = null;
 
 export function getStateStore(): StateStore {
   if (!_store) {
-    const redisUrl = process.env.REDIS_URL;
+    const redisUrl = Bun.env.REDIS_URL;
     _store = redisUrl
       ? new RedisStateStore(redisUrl)
       : new MemoryStateStore();

@@ -13,13 +13,19 @@ export interface Session {
   closedAt?: Date;
 }
 
+export interface ToolCallRecord {
+  id: string;
+  name: string;
+  args: unknown;
+}
+
 export interface SessionMessage {
   id: string;
   sessionId: string;
   role: MessageRole;
   content: string;
   toolCallId?: string;
-  toolCalls?: unknown;
+  toolCalls?: ToolCallRecord[];
   tokenEstimate?: number;
   isCompacted: boolean;
   createdAt: Date;
@@ -29,5 +35,5 @@ export interface AddMessageInput {
   role: MessageRole;
   content: string;
   toolCallId?: string;
-  toolCalls?: unknown;
+  toolCalls?: ToolCallRecord[];
 }

@@ -101,10 +101,12 @@ async function handleWsTaskInput(event: BusEvent): Promise<void> {
   const data = event.data as any;
   const { clientId, taskId, input } = data;
 
-  logger.warn(
-    { clientId, taskId, input },
-    'ws.task.input not yet implemented (input_required not yet implemented)',
-  );
+  logger.warn({ clientId, taskId }, 'ws.task.input not yet implemented (input_required not yet implemented)');
+  await eventBus.publish('task.error', {
+    clientId,
+    taskId,
+    error: 'task:input (input_required resumption) is not yet implemented',
+  });
   // TODO: Implement input_required workflow once task manager supports resumption
 }
 

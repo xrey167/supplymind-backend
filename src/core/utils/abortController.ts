@@ -41,21 +41,6 @@ export function combinedAbortSignal(
     return AbortSignal.any(signals);
   }
 
-  // With timeout: add a manual timer that aborts a controller, then combine via AbortSignal.any
-  const timeoutController = new AbortController();
-  const timer = setTimeout(
-    () => timeoutController.abort(new Error(`Timed out after ${timeoutMs}ms`)),
-    timeoutMs,
-  );
-
-  const combined = AbortSignal.any([...signals, timeoutController.signal]);
-
-  // Clean up the timer once the combined signal fires (prevents the timer outliving resolution)
-  combined.addEventListener(
-    'abort',
-    () => clearTimeout(timer),
-    { once: true },
-  );
-
-  return combined;
+  // With timeout: use AbortSignal.timeout() (Bun-native) to avoid manual timer management
+  return AbortSignal.any([...signals, AbortSignal.timeout(timeoutMs)]);
 }

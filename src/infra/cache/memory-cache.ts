@@ -39,8 +39,8 @@ export class MemoryCache implements CacheProvider {
     });
   }
 
-  async del(key: string): Promise<void> {
-    this.data.delete(key);
+  async del(key: string): Promise<boolean> {
+    return this.data.delete(key);
   }
 
   async clear(pattern?: string): Promise<void> {
@@ -48,10 +48,11 @@ export class MemoryCache implements CacheProvider {
       this.data.clear();
       return;
     }
-    const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(
-      '^' + escaped.replace(/\*/g, '.*').replace(/\?/g, '.') + '$',
-    );
+    // Escape special regex chars except * and ?, then convert glob wildcards
+    const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*')
+      .replace(/\?/g, '.');
+    const regex = new RegExp('^' + escaped + '$');
     for (const k of this.data.keys()) {
       if (regex.test(k)) this.data.delete(k);
     }

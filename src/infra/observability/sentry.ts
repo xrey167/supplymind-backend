@@ -4,7 +4,7 @@ import { logger } from '../../config/logger';
 let initialized = false;
 
 export function initSentry(): void {
-  const dsn = process.env.SENTRY_DSN;
+  const dsn = Bun.env.SENTRY_DSN;
   if (!dsn) {
     logger.info('Sentry DSN not configured — skipping initialization');
     return;
@@ -14,9 +14,9 @@ export function initSentry(): void {
 
   Sentry.init({
     dsn,
-    environment: process.env.NODE_ENV ?? 'development',
-    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.2 : 1.0,
-    profilesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 0,
+    environment: Bun.env.NODE_ENV ?? 'development',
+    tracesSampleRate: Bun.env.NODE_ENV === 'production' ? 0.2 : 1.0,
+    profilesSampleRate: Bun.env.NODE_ENV === 'production' ? 0.1 : 0,
   });
 
   initialized = true;

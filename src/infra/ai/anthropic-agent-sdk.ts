@@ -11,7 +11,7 @@ export class AnthropicAgentSdkRuntime implements AgentRuntime {
   private toolExecutor?: ToolExecutor;
 
   constructor(apiKey?: string) {
-    this.client = new Anthropic({ apiKey: apiKey ?? process.env.ANTHROPIC_API_KEY });
+    this.client = new Anthropic({ apiKey: apiKey ?? Bun.env.ANTHROPIC_API_KEY });
   }
 
   setToolExecutor(executor: ToolExecutor): void {

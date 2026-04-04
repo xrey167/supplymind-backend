@@ -3,6 +3,7 @@ import { logger } from '../../config/logger';
 import { ok, err } from '../../core/result';
 import { combinedAbortSignal } from '../../core/utils/abortController';
 import { toOpenAITools, toOpenAIToolChoice } from './tool-format';
+import { captureException } from '../observability/sentry';
 import type { AgentRuntime, RunInput, RunResult, StreamEvent } from './types';
 import type { Result } from '../../core/result';
 
@@ -10,7 +11,7 @@ export class OpenAIRawRuntime implements AgentRuntime {
   private client: OpenAI;
 
   constructor(apiKey?: string) {
-    this.client = new OpenAI({ apiKey: apiKey ?? process.env.OPENAI_API_KEY });
+    this.client = new OpenAI({ apiKey: apiKey ?? Bun.env.OPENAI_API_KEY });
   }
 
   async run(input: RunInput): Promise<Result<RunResult>> {
@@ -107,7 +108,7 @@ export class OpenAIRawRuntime implements AgentRuntime {
   }
 
   async *stream(input: RunInput): AsyncIterable<StreamEvent> {
-    const watchdogMs = parseInt(process.env.STREAM_WATCHDOG_MS ?? '90000', 10);
+    const watchdogMs = parseInt(Bun.env.STREAM_WATCHDOG_MS ?? '90000', 10);
     const watchdogController = new AbortController();
     let watchdogTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -191,6 +192,7 @@ export class OpenAIRawRuntime implements AgentRuntime {
       if (watchdogController.signal.aborted) {
         yield { type: 'error', data: { error: `Stream watchdog timeout after ${watchdogMs}ms` } };
       } else {
+        captureException(err, { provider: 'openai', streaming: true });
         yield { type: 'error', data: { error: err instanceof Error ? err.message : String(err) } };
       }
     } finally {

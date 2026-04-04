@@ -1,11 +1,29 @@
 import { describe, test, expect, mock } from 'bun:test';
 
-mock.module('../../memory/memory.service', () => ({
-  memoryService: {
-    recall: mock(() => Promise.resolve([
-      { type: 'domain', title: 'Supplier X', content: 'Lead time 14 days', confidence: 1.0 },
+// Mock memory dependencies at the repo/embedding/search level instead of the service level
+// to avoid polluting the global memoryService mock for other test files
+mock.module('../../memory/memory.repo', () => ({
+  memoryRepo: {
+    save: mock(() => Promise.resolve({ id: 'mem-1' })),
+    search: mock(() => Promise.resolve([
+      { id: 'mem-1', type: 'domain', title: 'Supplier X', content: 'Lead time 14 days', confidence: 1.0, source: 'explicit', metadata: {}, workspaceId: 'ws-1', createdAt: new Date(), updatedAt: new Date() },
     ])),
+    list: mock(() => Promise.resolve([])),
+    delete: mock(() => Promise.resolve(true)),
+    get: mock(() => Promise.resolve({ id: 'mem-1', type: 'domain', title: 'Supplier X', content: 'Lead time 14 days', confidence: 1.0, source: 'explicit', metadata: {}, workspaceId: 'ws-1', createdAt: new Date(), updatedAt: new Date() })),
+    createProposal: mock(() => Promise.resolve({ id: 'prop-1' })),
+    getProposal: mock(() => Promise.resolve(null)),
+    approveProposal: mock(() => Promise.resolve({ id: 'mem-1' })),
+    rejectProposal: mock(() => Promise.resolve()),
   },
+}));
+
+mock.module('../../memory/memory.embedding', () => ({
+  getEmbeddingProvider: () => ({ embed: mock(async () => [0.1, 0.2]) }),
+}));
+
+mock.module('../../memory/memory.store', () => ({
+  PgVectorMemoryStore: class { upsert = mock(async () => undefined); },
 }));
 
 mock.module('../../../infra/ai/runtime-factory', () => ({

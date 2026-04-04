@@ -27,8 +27,9 @@ export class RedisCache implements CacheProvider {
     }
   }
 
-  async del(key: string): Promise<void> {
-    await this.client.del(key);
+  async del(key: string): Promise<boolean> {
+    const count = await this.client.del(key);
+    return count > 0;
   }
 
   async clear(pattern?: string): Promise<void> {

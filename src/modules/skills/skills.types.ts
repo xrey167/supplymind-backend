@@ -17,7 +17,7 @@ export interface Skill {
   inputSchema: Record<string, unknown>;
   providerType: SkillProviderType;
   priority: number;
-  handler: (args: unknown, context?: DispatchContext) => Promise<Result<unknown>>;
+  handler: (args: Record<string, unknown>, context?: DispatchContext) => Promise<Result<unknown>>;
   toolHints?: SkillToolHints;
 }
 

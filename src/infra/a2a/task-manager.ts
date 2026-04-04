@@ -77,7 +77,10 @@ class TaskManager {
     config: AgentConfig,
   ) {
     const record = this.tasks.get(taskId);
-    if (!record) return;
+    if (!record) {
+      logger.error({ taskId }, 'executeTask: task record not found — task may be stuck as submitted in DB');
+      return;
+    }
     const { signal } = record.controller;
 
     try {
@@ -354,6 +357,7 @@ class TaskManager {
       eventBus.publish(Topics.TASK_STATUS, { taskId, status: state, workspaceId: record.workspaceId, message });
       taskRepo.updateStatus(taskId, state, undefined, undefined).catch((error: unknown) => {
         logger.error({ taskId, state, error }, 'Failed to update task status in DB');
+        captureException(error, { taskId, state });
       });
     }
   }

@@ -5,7 +5,7 @@ initSentry();
 
 import { createApp, destroySubsystems, getBunWebSocketHandlers } from './app/create-app';
 
-const port = Number(process.env.PORT) || 3001;
+const port = Number(Bun.env.PORT) || 3001;
 
 const app = await createApp();
 

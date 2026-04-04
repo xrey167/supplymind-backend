@@ -4,6 +4,7 @@ import { ok, err } from '../../core/result';
 import { AbortError } from '../../core/errors';
 import { combinedAbortSignal } from '../../core/utils/abortController';
 import { toGoogleTools, toGoogleToolConfig } from './tool-format';
+import { captureException } from '../observability/sentry';
 import type { AgentRuntime, RunInput, RunResult, StreamEvent } from './types';
 import type { Result } from '../../core/result';
 
@@ -11,7 +12,7 @@ export class GoogleRawRuntime implements AgentRuntime {
   private ai: GoogleGenAI;
 
   constructor(apiKey?: string) {
-    this.ai = new GoogleGenAI({ apiKey: apiKey ?? process.env.GOOGLE_API_KEY ?? '' });
+    this.ai = new GoogleGenAI({ apiKey: apiKey ?? Bun.env.GOOGLE_API_KEY ?? '' });
   }
 
   async run(input: RunInput): Promise<Result<RunResult>> {
@@ -78,7 +79,7 @@ export class GoogleRawRuntime implements AgentRuntime {
   }
 
   async *stream(input: RunInput): AsyncIterable<StreamEvent> {
-    const watchdogMs = parseInt(process.env.STREAM_WATCHDOG_MS ?? '90000', 10);
+    const watchdogMs = parseInt(Bun.env.STREAM_WATCHDOG_MS ?? '90000', 10);
     const watchdogController = new AbortController();
     let watchdogTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -129,13 +130,22 @@ export class GoogleRawRuntime implements AgentRuntime {
       const iterator = response[Symbol.asyncIterator]();
 
       while (true) {
-        // Check abort synchronously before each chunk to avoid creating a new Promise per iteration
-        if (combinedSignal.aborted) {
-          throw combinedSignal.reason instanceof Error
-            ? combinedSignal.reason
-            : new AbortError('Aborted', 'user');
-        }
-        const next = await iterator.next();
+        // Race each chunk against the combined abort signal so cancellation is
+        // reactive even while awaiting a slow chunk (not just between chunks).
+        const next = await Promise.race([
+          iterator.next(),
+          new Promise<never>((_, reject) => {
+            if (combinedSignal.aborted) {
+              reject(combinedSignal.reason instanceof Error ? combinedSignal.reason : new AbortError('Aborted', 'user'));
+              return;
+            }
+            const onAbort = () => reject(combinedSignal.reason instanceof Error ? combinedSignal.reason : new AbortError('Aborted', 'user'));
+            combinedSignal.addEventListener('abort', onAbort, { once: true });
+            // Listener is auto-removed by {once:true} when signal fires;
+            // if iterator resolves first this listener stays until signal fires or GC — acceptable
+            // because combinedSignal is short-lived (tied to this stream invocation).
+          }),
+        ]);
 
         if (next.done) break;
 
@@ -160,6 +170,7 @@ export class GoogleRawRuntime implements AgentRuntime {
       if (watchdogController.signal.aborted) {
         yield { type: 'error', data: { error: `Stream watchdog timeout after ${watchdogMs}ms` } };
       } else {
+        captureException(err, { provider: 'google', streaming: true });
         yield { type: 'error', data: { error: err instanceof Error ? err.message : String(err) } };
       }
     } finally {

@@ -30,7 +30,7 @@ export class SkillRegistry {
     return Array.from(this.skills.values());
   }
 
-  async invoke(name: string, args: unknown, context?: DispatchContext): Promise<Result<unknown>> {
+  async invoke(name: string, args: Record<string, unknown>, context?: DispatchContext): Promise<Result<unknown>> {
     const skill = this.skills.get(name);
     if (!skill) {
       return err(new Error(`Skill not found: ${name}`));

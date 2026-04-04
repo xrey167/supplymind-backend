@@ -40,7 +40,14 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
         workspaceId: context.workspaceId,
         traceId: context.traceId,
       };
-      const hookResult = await hooks.beforeExecute(args, hookCtx);
+      let hookResult: Awaited<ReturnType<typeof hooks.beforeExecute>>;
+      try {
+        hookResult = await hooks.beforeExecute(args, hookCtx);
+      } catch (hookError: unknown) {
+        logger.error({ skillId, error: hookError }, 'beforeExecute hook threw unexpectedly');
+        captureException(hookError, { skillId, callerId: context.callerId });
+        return err(new Error(`beforeExecute hook failed for skill ${skillId}`));
+      }
       if (!hookResult.allow) {
         return err(new Error(hookResult.reason ?? `Tool ${skillId} blocked by beforeExecute hook`));
       }

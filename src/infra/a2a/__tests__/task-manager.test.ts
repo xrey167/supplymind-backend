@@ -232,6 +232,22 @@ describe('TaskManager', () => {
       expect(result?.status.state).toBe('completed'); // state unchanged
     });
 
+    test('cancel on failed task returns task without changing state', async () => {
+      mockRun.mockResolvedValueOnce({ ok: false, error: { message: 'crashed' } });
+
+      const task = await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'fail first' }] },
+        agentConfig: baseConfig(),
+        callerId: 'caller-1',
+      });
+
+      await flush();
+      expect(taskManager.get(task.id)?.status.state).toBe('failed');
+
+      const result = taskManager.cancel(task.id);
+      expect(result?.status.state).toBe('failed'); // state unchanged
+    });
+
     test('abort controller signal is aborted after cancel()', async () => {
       // Use a slow runtime so executeTask is still in-flight
       mockRun.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve({ ok: true, value: { content: 'done', stopReason: 'end_turn' } }), 500)));
@@ -341,8 +357,9 @@ describe('TaskManager', () => {
         callerId: 'caller-1',
       });
 
-      await flush();
+      await flush(200);
 
+      expect(mockRun.mock.calls.length).toBeGreaterThanOrEqual(1);
       const runCall = mockRun.mock.calls[0][0] as any;
       expect(runCall.tools).toHaveLength(1);
       expect(runCall.tools[0].name).toBe('allowed_tool');
@@ -363,8 +380,9 @@ describe('TaskManager', () => {
         callerId: 'caller-1',
       });
 
-      await flush();
+      await flush(200);
 
+      expect(mockRun.mock.calls.length).toBeGreaterThanOrEqual(1);
       const runCall = mockRun.mock.calls[0][0] as any;
       expect(runCall.tools).toHaveLength(2);
     });
@@ -381,8 +399,9 @@ describe('TaskManager', () => {
         callerId: 'caller-1',
       });
 
-      await flush();
+      await flush(200);
 
+      expect(mockRun.mock.calls.length).toBeGreaterThanOrEqual(1);
       const runCall = mockRun.mock.calls[0][0] as any;
       expect(runCall.tools).toHaveLength(0);
     });

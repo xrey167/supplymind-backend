@@ -3,6 +3,7 @@ import { logger } from '../../config/logger';
 import { ok, err } from '../../core/result';
 import { combinedAbortSignal } from '../../core/utils/abortController';
 import { toAnthropicTools, toAnthropicToolChoice } from './tool-format';
+import { captureException } from '../observability/sentry';
 import type { AgentRuntime, RunInput, RunResult, StreamEvent } from './types';
 import type { Result } from '../../core/result';
 
@@ -10,7 +11,7 @@ export class AnthropicRawRuntime implements AgentRuntime {
   private client: Anthropic;
 
   constructor(apiKey?: string) {
-    this.client = new Anthropic({ apiKey: apiKey ?? process.env.ANTHROPIC_API_KEY });
+    this.client = new Anthropic({ apiKey: apiKey ?? Bun.env.ANTHROPIC_API_KEY });
   }
 
   async run(input: RunInput): Promise<Result<RunResult>> {
@@ -94,7 +95,7 @@ export class AnthropicRawRuntime implements AgentRuntime {
   }
 
   async *stream(input: RunInput): AsyncIterable<StreamEvent> {
-    const watchdogMs = parseInt(process.env.STREAM_WATCHDOG_MS ?? '90000', 10);
+    const watchdogMs = parseInt(Bun.env.STREAM_WATCHDOG_MS ?? '90000', 10);
     const watchdogController = new AbortController();
     let watchdogTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -175,6 +176,7 @@ export class AnthropicRawRuntime implements AgentRuntime {
       if (watchdogController.signal.aborted) {
         yield { type: 'error', data: { error: `Stream watchdog timeout after ${watchdogMs}ms` } };
       } else {
+        captureException(err, { provider: 'anthropic', streaming: true });
         yield { type: 'error', data: { error: err instanceof Error ? err.message : String(err) } };
       }
     } finally {

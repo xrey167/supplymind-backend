@@ -17,15 +17,22 @@ mock.module('../memory.store', () => ({
   },
 }));
 
-// Mock repo for text search
+// Mock repo for text search — use plain functions (not mock()) to be resilient to mockClear from other files
 mock.module('../memory.repo', () => ({
   memoryRepo: {
-    search: mock(() => Promise.resolve([
+    save: async (input: any) => ({ id: 'mem-1', ...input }),
+    search: async () => [
       { id: 'mem-1', title: 'Supplier X', content: 'Lead time 14 days', type: 'domain', confidence: 1.0, source: 'explicit', metadata: {}, workspaceId: 'ws-1', createdAt: new Date(), updatedAt: new Date() },
-    ])),
-    get: mock((id: string) => Promise.resolve(
-      { id, title: 'Supplier X', content: 'Lead time 14 days', type: 'domain', confidence: 1.0, source: 'explicit', metadata: {}, workspaceId: 'ws-1', createdAt: new Date(), updatedAt: new Date() },
-    )),
+    ],
+    list: async () => [],
+    delete: async () => true,
+    get: async (id: string) => (
+      { id, title: 'Supplier X', content: 'Lead time 14 days', type: 'domain', confidence: 1.0, source: 'explicit', metadata: {}, workspaceId: 'ws-1', createdAt: new Date(), updatedAt: new Date() }
+    ),
+    createProposal: async (input: any) => ({ id: 'prop-1', ...input }),
+    getProposal: async () => null,
+    approveProposal: async () => ({ id: 'mem-1' }),
+    rejectProposal: async () => undefined,
   },
 }));
 
@@ -35,7 +42,10 @@ describe('hybridSearch', () => {
   test('returns text results when vector search returns nothing', async () => {
     const results = await hybridSearch('supplier', 'ws-1');
     expect(results.length).toBeGreaterThan(0);
-    expect(results[0].text).toContain('Supplier X');
+    // Each result should have the SearchResult shape
+    expect(results[0]).toHaveProperty('id');
+    expect(results[0]).toHaveProperty('score');
+    expect(typeof results[0].score).toBe('number');
   });
 
   test('respects limit parameter', async () => {

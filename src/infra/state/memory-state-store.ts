@@ -70,10 +70,11 @@ export class MemoryStateStore implements StateStore {
   }
 
   async keys(pattern: string): Promise<string[]> {
-    const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(
-      '^' + escaped.replace(/\*/g, '.*').replace(/\?/g, '.') + '$',
-    );
+    // Escape special regex chars except * and ?, then convert glob wildcards
+    const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*')
+      .replace(/\?/g, '.');
+    const regex = new RegExp('^' + escaped + '$');
     const result: string[] = [];
     for (const [k] of this.data) {
       if (this.alive(this.data.get(k)) && regex.test(k)) {

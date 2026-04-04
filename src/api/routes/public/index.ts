@@ -35,10 +35,16 @@ publicRoutes.post('/a2a', async (c) => {
   }
 
   const apiKey = authHeader.slice(7);
-  if (!apiKey.startsWith('a2a_k_') && !apiKey.startsWith('ey')) {
-    return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Invalid API key format' } }, 401);
+
+  // Validate against configured API key — reject unknown keys outright
+  const configuredKey = process.env.A2A_API_KEY;
+  if (!configuredKey) {
+    return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'A2A endpoint not configured (missing A2A_API_KEY)' } }, 503);
   }
-  // TODO: validate API key against DB when api_keys table is available
+  if (apiKey !== configuredKey) {
+    return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Invalid API key' } }, 401);
+  }
+  // TODO: migrate to per-workspace API key validation once api_keys table is available
 
   // Parse and validate JSON-RPC envelope
   let body: z.infer<typeof jsonRpcSchema>;

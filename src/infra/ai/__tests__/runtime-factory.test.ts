@@ -65,7 +65,7 @@ const baseInput: RunInput = {
 
 function makeStream(): AgentRuntime['stream'] {
   return async function* () {
-    yield { type: 'done', data: null } satisfies StreamEvent;
+    yield { type: 'done', data: {} } satisfies StreamEvent;
   };
 }
 

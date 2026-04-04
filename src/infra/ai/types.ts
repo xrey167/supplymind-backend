@@ -3,16 +3,10 @@ import type { Result } from '../../core/result';
 export type AgentMode = "raw" | "agent-sdk";
 export type AIProvider = "anthropic" | "openai" | "google";
 
-export interface ContentBlock {
-  type: "text" | "tool_use" | "tool_result";
-  text?: string;
-  id?: string;
-  name?: string;
-  input?: unknown;
-  toolUseId?: string;
-  content?: string;
-  isError?: boolean;
-}
+export type ContentBlock =
+  | { type: "text"; text: string }
+  | { type: "tool_use"; id: string; name: string; input: unknown }
+  | { type: "tool_result"; toolUseId: string; content: string; isError?: boolean };
 
 export interface Message {
   role: "user" | "assistant" | "system" | "tool";
@@ -61,10 +55,13 @@ export interface RunResult {
   stopReason?: "end_turn" | "tool_use" | "max_tokens" | "pause_turn";
 }
 
-export interface StreamEvent {
-  type: "text_delta" | "tool_call_start" | "tool_call_delta" | "tool_call_end" | "done" | "error";
-  data: unknown;
-}
+export type StreamEvent =
+  | { type: "text_delta"; data: { text: string } }
+  | { type: "tool_call_start"; data: { id: string; name: string } }
+  | { type: "tool_call_delta"; data: { delta: string } }
+  | { type: "tool_call_end"; data: { id: string; name: string; args: unknown } }
+  | { type: "done"; data: Record<string, unknown> }
+  | { type: "error"; data: { error: string } };
 
 export interface AgentRuntime {
   run(input: RunInput): Promise<Result<RunResult>>;

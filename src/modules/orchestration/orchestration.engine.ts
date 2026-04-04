@@ -38,7 +38,7 @@ async function executeStep(
           const args = step.args
             ? JSON.parse(resolveTemplate(JSON.stringify(step.args), stepResults, input))
             : {};
-          const skillResult = await skillsDispatch.dispatchSkill(step.skillId!, args, {
+          const skillResult = await skillsDispatch.dispatchSkill(step.skillId, args, {
             callerId: 'orchestration',
             workspaceId,
             callerRole: 'system',

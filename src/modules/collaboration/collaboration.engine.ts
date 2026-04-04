@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid';
+import { logger } from '../../config/logger';
 import type {
   AgentResponse,
   CollabDispatchFn,
@@ -114,8 +115,19 @@ async function consensus(
   let bestIdx = 0;
   let agreement: number | undefined;
 
+  let judgeResult: string;
   try {
-    const judgeResult = await dispatch(judge, { query: judgePrompt });
+    judgeResult = await dispatch(judge, { query: judgePrompt });
+  } catch (dispatchErr: unknown) {
+    logger.warn(
+      { judgeAgent: judge, error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr) },
+      'consensus: judge agent dispatch failed, falling back to first response',
+    );
+    const best = successResponses[0];
+    return { id: nanoid(), strategy: 'consensus', output: best.result, responses, totalDurationMs: Date.now() - start };
+  }
+
+  try {
     const parsed = JSON.parse(judgeResult);
     bestIdx = typeof parsed.bestId === 'number' && parsed.bestId >= 0 && parsed.bestId < successResponses.length ? parsed.bestId : 0;
     agreement = typeof parsed.agreement === 'number' ? parsed.agreement : undefined;
@@ -126,11 +138,10 @@ async function consensus(
         }
       }
     }
-  } catch (err) {
-    // Judge returned non-JSON — fall back to first response
-    console.warn(
-      `[consensus] judge "${judge}" returned unparseable result, falling back to first response`,
-      err instanceof Error ? err.message : String(err),
+  } catch (parseErr: unknown) {
+    logger.warn(
+      { judgeAgent: judge, error: parseErr instanceof Error ? parseErr.message : String(parseErr) },
+      'consensus: judge returned non-JSON, falling back to first response',
     );
     bestIdx = 0;
   }
@@ -159,15 +170,15 @@ async function debate(
   let round = 0;
   let convergedAt: number | undefined;
 
-  for (let r = 1; r <= maxRounds; r++) {
-    round = r;
+  for (let rd = 1; rd <= maxRounds; rd++) {
+    round = rd;
     const context =
       previousResults.length > 0
-        ? `Previous responses:\n${previousResults.map((r, i) => `[${i}]: ${r}`).join('\n')}\n\nNow refine your answer:\n${req.query}`
+        ? `Previous responses:\n${previousResults.map((prev, i) => `[${i}]: ${prev}`).join('\n')}\n\nNow refine your answer:\n${req.query}`
         : req.query;
 
     const responses = await queryAgents(req.agents, context, dispatch, req.timeoutMs);
-    for (const r of responses) r.round = round;
+    for (const resp of responses) resp.round = round;
     allResponses.push(...responses);
 
     const currentResults = responses.filter((r) => !r.error).map((r) => r.result);

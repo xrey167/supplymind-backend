@@ -1,51 +1,51 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterEach, spyOn } from 'bun:test';
 
-mock.module('../../../infra/db/client', () => ({
-  db: {
-    insert: mock(() => ({
-      values: mock(() => ({
-        returning: mock(() => [{
-          id: 'mem-1', workspaceId: 'ws-1', type: 'domain', title: 'Test',
-          content: 'Test content', confidence: 1.0, source: 'explicit',
-          metadata: {}, createdAt: new Date(), updatedAt: new Date(),
-        }]),
-      })),
-    })),
-    select: mock(() => ({
-      from: mock(() => ({
-        where: mock(() => ({
-          limit: mock(() => [{
-            id: 'mem-1', workspaceId: 'ws-1', type: 'domain', title: 'Supplier X',
-            content: 'Lead time 14 days', confidence: 1.0, source: 'explicit',
-            metadata: {}, createdAt: new Date(), updatedAt: new Date(),
-          }]),
-        })),
-      })),
-    })),
-    delete: mock(() => ({ where: mock(() => ({ rowCount: 1 })) })),
-  },
+// Mock dynamic imports used by memory.service (safe — these are await import() calls)
+mock.module('../memory.embedding', () => ({
+  getEmbeddingProvider: () => ({ embed: mock(async () => [0.1, 0.2, 0.3]) }),
 }));
 
-mock.module('../../../infra/db/schema', () => ({
-  agentMemories: { id: {}, workspaceId: {}, agentId: {}, title: {}, content: {} },
-  memoryProposals: { id: {} },
+mock.module('../memory.store', () => ({
+  PgVectorMemoryStore: class { upsert = mock(async () => undefined); },
 }));
 
-mock.module('drizzle-orm', () => ({
-  eq: (...a: unknown[]) => a,
-  and: (...a: unknown[]) => a,
-  or: (...a: unknown[]) => a,
-  isNull: (a: unknown) => a,
-  ilike: (...a: unknown[]) => a,
+mock.module('../memory.search', () => ({
+  hybridSearch: mock(async () => [{ id: 'mem-1', score: 0.9 }]),
 }));
 
 import { registerMemorySkills } from '../memory.skills';
 import { skillRegistry } from '../../skills/skills.registry';
+import { memoryRepo } from '../memory.repo';
+import { eventBus } from '../../../events/bus';
 
 describe('memory skills', () => {
   beforeEach(() => {
     skillRegistry.clear();
     registerMemorySkills();
+
+    // Spy on repo and eventBus so skills work without hitting real DB
+    spyOn(memoryRepo, 'save').mockResolvedValue({
+      id: 'mem-1', workspaceId: 'default', agentId: undefined,
+      type: 'domain', title: 'Test', content: 'Test content',
+      confidence: 1.0, source: 'explicit', metadata: {},
+      createdAt: new Date(), updatedAt: new Date(),
+    } as any);
+    spyOn(memoryRepo, 'get').mockResolvedValue({
+      id: 'mem-1', workspaceId: 'default', type: 'domain', title: 'Supplier X',
+      content: 'Lead time 14 days', confidence: 1.0, source: 'explicit',
+      metadata: {}, createdAt: new Date(), updatedAt: new Date(),
+    } as any);
+    spyOn(memoryRepo, 'search').mockResolvedValue([{
+      id: 'mem-1', workspaceId: 'default', type: 'domain', title: 'Supplier X',
+      content: 'Lead time 14 days', confidence: 1.0, source: 'explicit',
+      metadata: {}, createdAt: new Date(), updatedAt: new Date(),
+    }] as any);
+    spyOn(memoryRepo, 'delete').mockResolvedValue(true);
+    spyOn(eventBus, 'publish').mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    mock.restore();
   });
 
   test('registers remember, recall, propose_memory, forget skills', () => {

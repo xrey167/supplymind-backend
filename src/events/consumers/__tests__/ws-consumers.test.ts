@@ -187,14 +187,9 @@ describe('ws-consumers', () => {
 
   describe('ws.skill.invoke', () => {
     test('successful skill invocation publishes ws.skill.result', async () => {
-      const { dispatchSkill } = await import('../../../modules/skills/skills.dispatch');
-      const dispatchSpy = spyOn({ dispatchSkill } as any, 'dispatchSkill');
-
-      // We need to mock at the module level — use eventBus directly
       const resultEvents: any[] = [];
       eventBus.subscribe('ws.skill.result', (e) => { resultEvents.push(e.data); });
 
-      // Mock dispatchSkill via module mock
       const originalModule = await import('../../../modules/skills/skills.dispatch');
       const spy = spyOn(originalModule, 'dispatchSkill' as any).mockResolvedValue({ ok: true, value: { echo: 'hello' } });
 
@@ -213,7 +208,6 @@ describe('ws-consumers', () => {
       expect(msg.ok).toBe(true);
       expect(msg.requestId).toBe('req-1');
       spy.mockRestore();
-      dispatchSpy.mockRestore();
     });
 
     test('publishes error result when skill name is missing', async () => {

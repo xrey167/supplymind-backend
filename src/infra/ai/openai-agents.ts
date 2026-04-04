@@ -11,7 +11,7 @@ export class OpenAIAgentSdkRuntime implements AgentRuntime {
   private toolExecutor?: ToolExecutor;
 
   constructor(apiKey?: string) {
-    this.client = new OpenAI({ apiKey: apiKey ?? process.env.OPENAI_API_KEY });
+    this.client = new OpenAI({ apiKey: apiKey ?? Bun.env.OPENAI_API_KEY });
   }
 
   setToolExecutor(executor: ToolExecutor): void {

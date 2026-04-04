@@ -40,7 +40,7 @@ export async function initSubsystems(): Promise<void> {
 
   // Wire Redis cache if Redis is available
   try {
-    const redisUrl = process.env.REDIS_URL;
+    const redisUrl = Bun.env.REDIS_URL;
     if (redisUrl) {
       const cacheClient = createRedisClient(redisUrl);
       setCacheProvider(new RedisCache(cacheClient));
@@ -68,7 +68,7 @@ export async function initSubsystems(): Promise<void> {
 
   // Step 4: Redis pub/sub bridge (non-critical — warn on failure)
   try {
-    const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
+    const redisUrl = Bun.env.REDIS_URL ?? 'redis://localhost:6379';
     const { publisher, subscriber } = createRedisPair(redisUrl);
     redisPubSub = new RedisPubSub(eventBus, publisher, subscriber);
     redisPubSub.bridgeToRedis('task.#');

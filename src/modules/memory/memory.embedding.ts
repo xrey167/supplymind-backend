@@ -10,7 +10,7 @@ export class OpenAIEmbedding implements EmbeddingProvider {
   private model = 'text-embedding-3-small';
 
   constructor(apiKey?: string) {
-    this.apiKey = apiKey ?? process.env.OPENAI_API_KEY ?? '';
+    this.apiKey = apiKey ?? Bun.env.OPENAI_API_KEY ?? '';
   }
 
   async embed(text: string): Promise<number[]> {
@@ -50,7 +50,7 @@ let _provider: EmbeddingProvider | null = null;
 
 export function getEmbeddingProvider(): EmbeddingProvider {
   if (!_provider) {
-    _provider = process.env.OPENAI_API_KEY ? new OpenAIEmbedding() : new NoOpEmbedding();
+    _provider = Bun.env.OPENAI_API_KEY ? new OpenAIEmbedding() : new NoOpEmbedding();
   }
   return _provider;
 }
