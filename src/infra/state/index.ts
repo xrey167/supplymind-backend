@@ -1,15 +1,19 @@
 export { type StateStore } from './types';
 export { MemoryStateStore } from './memory-state-store';
+export { RedisStateStore } from './redis-state-store';
 
 import { MemoryStateStore } from './memory-state-store';
+import { RedisStateStore } from './redis-state-store';
 import type { StateStore } from './types';
 
 let _store: StateStore | null = null;
 
 export function getStateStore(): StateStore {
   if (!_store) {
-    // TODO: Add RedisStateStore when REDIS_URL is set (Task 2)
-    _store = new MemoryStateStore();
+    const redisUrl = process.env.REDIS_URL;
+    _store = redisUrl
+      ? new RedisStateStore(redisUrl)
+      : new MemoryStateStore();
   }
   return _store;
 }
