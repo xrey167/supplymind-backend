@@ -5,7 +5,15 @@ export interface AgentCard {
   description: string;
   url: string;
   version: string;
-  capabilities: { streaming: boolean };
+  capabilities: {
+    streaming: boolean;
+    pushNotifications?: boolean;
+    toolChoice?: boolean;
+    strictToolUse?: boolean;
+    parallelToolUse?: boolean;
+  };
+  defaultInputModes?: string[];
+  defaultOutputModes?: string[];
   skills: AgentSkill[];
 }
 
@@ -13,6 +21,8 @@ export interface AgentSkill {
   id: string;
   name: string;
   description: string;
+  inputSchema?: Record<string, unknown>;
+  tags?: string[];
 }
 
 export type TaskState = 'submitted' | 'working' | 'input_required' | 'completed' | 'failed' | 'canceled';
