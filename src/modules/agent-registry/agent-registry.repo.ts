@@ -65,13 +65,16 @@ export class AgentRegistryRepo {
     return rows[0] ? toRegisteredAgent(rows[0]) : undefined;
   }
 
-  async updateDiscoveredAt(id: string, agentCard?: Record<string, unknown>): Promise<RegisteredAgent | undefined> {
+  async updateDiscoveredAt(id: string, agentCard?: Record<string, unknown>, apiKeyHash?: string): Promise<RegisteredAgent | undefined> {
     const updateData: Partial<typeof registeredAgents.$inferInsert> = {
       lastDiscoveredAt: new Date(),
       updatedAt: new Date(),
     };
     if (agentCard) {
       updateData.agentCard = agentCard;
+    }
+    if (apiKeyHash !== undefined) {
+      updateData.apiKeyHash = apiKeyHash;
     }
     const rows = await db
       .update(registeredAgents)

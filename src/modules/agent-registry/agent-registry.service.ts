@@ -20,7 +20,7 @@ export class AgentRegistryService {
       // 3. Check if already registered for this workspace
       const existing = await agentRegistryRepo.findByWorkspaceAndUrl(workspaceId, url);
       if (existing) {
-        const updated = await agentRegistryRepo.updateDiscoveredAt(existing.id, card as unknown as Record<string, unknown>);
+        const updated = await agentRegistryRepo.updateDiscoveredAt(existing.id, card as unknown as Record<string, unknown>, apiKeyHash);
         const agent = updated ?? existing;
         workerRegistry.load(url, card, apiKey, agent.lastDiscoveredAt?.getTime() ?? agent.createdAt.getTime());
         return ok(agent);
@@ -83,7 +83,11 @@ export class AgentRegistryService {
       if (agent.workspaceId !== workspaceId) return err(new Error('Agent not found in this workspace'));
 
       const card = await workerRegistry.discover(agent.url, apiKey);
-      const updated = await agentRegistryRepo.updateDiscoveredAt(id, card as unknown as Record<string, unknown>);
+      let apiKeyHash: string | undefined;
+      if (apiKey) {
+        apiKeyHash = await Bun.password.hash(apiKey);
+      }
+      const updated = await agentRegistryRepo.updateDiscoveredAt(id, card as unknown as Record<string, unknown>, apiKeyHash);
       const refreshed = updated ?? agent;
       workerRegistry.load(agent.url, card, apiKey, refreshed.lastDiscoveredAt?.getTime() ?? refreshed.createdAt.getTime());
       return ok(refreshed);

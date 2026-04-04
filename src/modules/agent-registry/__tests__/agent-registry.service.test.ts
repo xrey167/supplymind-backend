@@ -137,7 +137,14 @@ describe('AgentRegistryService', () => {
 
       expect(result.ok).toBe(true);
       expect(mockCreate).not.toHaveBeenCalled();
-      expect(mockUpdateDiscoveredAt).toHaveBeenCalledWith('existing-id', expect.any(Object));
+      expect(mockUpdateDiscoveredAt).toHaveBeenCalledWith('existing-id', expect.any(Object), undefined);
+    });
+
+    it('hashes apiKey and stores it on create', async () => {
+      await service.register('ws-1', 'http://localhost:9000', 'secret-key');
+      const callArg = mockCreate.mock.calls[0][0];
+      expect(callArg.apiKeyHash).toBeDefined();
+      expect(callArg.apiKeyHash).not.toBe('secret-key');
     });
 
     it('returns err when discover fails', async () => {
