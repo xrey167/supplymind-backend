@@ -70,6 +70,33 @@ describe('collaborate', () => {
     expect(result.responses.length).toBeGreaterThanOrEqual(3);
   });
 
+  test('consensus: returns warning when all agents fail', async () => {
+    const allFail: CollabDispatchFn = async () => { throw new Error('down'); };
+    const result = await collaborate({
+      strategy: 'consensus',
+      query: 'test',
+      agents: ['a', 'b'],
+    }, allFail);
+
+    expect(result.output).toBe('');
+    expect(result.warning).toBe('All agents failed');
+  });
+
+  test('consensus: falls back to first when judge returns invalid JSON', async () => {
+    const dispatch: CollabDispatchFn = async (skillId) => {
+      if (skillId === 'judge') return 'not json at all';
+      return `answer from ${skillId}`;
+    };
+    const result = await collaborate({
+      strategy: 'consensus',
+      query: 'test',
+      agents: ['a', 'b'],
+      judgeAgent: 'judge',
+    }, dispatch);
+
+    expect(result.output).toContain('answer from a');
+  });
+
   test('debate: iterates rounds until convergence or max', async () => {
     const result = await collaborate({
       strategy: 'debate',

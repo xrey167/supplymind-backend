@@ -123,8 +123,12 @@ async function consensus(
         }
       }
     }
-  } catch {
-    // fallback: pick first
+  } catch (err) {
+    // Judge returned non-JSON — fall back to first response
+    console.warn(
+      `[consensus] judge "${judge}" returned unparseable result, falling back to first response`,
+      err instanceof Error ? err.message : String(err),
+    );
     bestIdx = 0;
   }
 

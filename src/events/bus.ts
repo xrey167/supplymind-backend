@@ -164,6 +164,9 @@ export class EventBus {
         this.deadLetters.splice(0, this.deadLetters.length - MAX_DEAD_LETTERS);
       }
       if (sub.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        console.warn(
+          `[EventBus] Auto-unsubscribing "${sub.name ?? sub.id}" after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`,
+        );
         this.subscriptions.delete(sub.id);
       }
     }
