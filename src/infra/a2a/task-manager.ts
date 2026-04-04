@@ -11,6 +11,7 @@ import type { A2ATask, TaskState, TaskSendParams, A2AMessage } from './types';
 import type { AgentConfig } from './coordinator-config';
 import { AbortError } from '../../core/errors';
 import { toolRegistry } from '../../modules/tools/tools.registry';
+import { contextService } from '../../modules/context/context.service';
 import { taskRepo } from './task-repo';
 
 const MAX_TOOL_CALL_ITERATIONS = 10;
@@ -123,9 +124,20 @@ class TaskManager {
           taggedHistory.push({ message: msg, roundId, iterationIndex: i });
         };
 
-        const input: RunInput = {
+        // Prepare context: inject memories, snip old tool results, compact if needed
+        const context = await contextService.prepare({
           messages,
-          systemPrompt: config.systemPrompt,
+          agentConfig: {
+            model: config.model,
+            systemPrompt: config.systemPrompt,
+            workspaceId: config.workspaceId,
+            agentId: config.id,
+          },
+        });
+
+        const input: RunInput = {
+          messages: context.messages,
+          systemPrompt: context.systemPrompt,
           tools,
           model: config.model,
           temperature: config.temperature,

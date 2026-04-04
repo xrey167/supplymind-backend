@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach, afterAll, mock, spyOn } 
 import * as runtimeFactory from '../../../infra/ai/runtime-factory';
 import * as skillsDispatch from '../../../modules/skills/skills.dispatch';
 import * as skillsRegistryModule from '../../../modules/skills/skills.registry';
+import { contextService } from '../../../modules/context/context.service';
 import { taskManager } from '../task-manager';
 import { eventBus } from '../../../events/bus';
 import { toolRegistry } from '../../../modules/tools/tools.registry';
@@ -21,6 +22,14 @@ spyOn(skillsDispatch, 'dispatchSkill').mockImplementation(mockDispatchSkill as a
 spyOn(skillsRegistryModule.skillRegistry, 'toToolDefinitions').mockImplementation(
   () => [{ name: 'echo', description: 'Echo', inputSchema: {} }],
 );
+
+// Mock contextService.prepare — pass through messages unchanged
+spyOn(contextService, 'prepare').mockImplementation(async (input: any) => ({
+  systemPrompt: input.agentConfig.systemPrompt ?? '',
+  messages: input.messages,
+  estimatedTokens: 0,
+  wasCompacted: false,
+}));
 
 // Restore all spies after this file so they don't bleed into other test files
 afterAll(() => {
