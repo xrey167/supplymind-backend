@@ -126,8 +126,27 @@ export class GoogleRawRuntime implements AgentRuntime {
         ),
       ]);
 
-      for await (const chunk of response) {
-        kick();
+      const iterator = response[Symbol.asyncIterator]();
+
+      while (true) {
+        // Race: next chunk vs signal abort
+        const next = await Promise.race([
+          iterator.next(),
+          new Promise<IteratorResult<any>>((_, reject) => {
+            if (combinedSignal.aborted) {
+              reject(combinedSignal.reason ?? new Error('Aborted'));
+              return;
+            }
+            const onAbort = () => reject(combinedSignal.reason ?? new Error('Aborted'));
+            combinedSignal.addEventListener('abort', onAbort, { once: true });
+          }),
+        ]);
+
+        if (next.done) break;
+
+        kick(); // reset watchdog on each chunk
+        const chunk = next.value;
+
         if (chunk.text) {
           yield { type: 'text_delta', data: { text: chunk.text } };
         }

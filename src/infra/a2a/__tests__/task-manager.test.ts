@@ -431,6 +431,89 @@ describe('TaskManager', () => {
       toolRegistry.unregister('write_tool_2');
     });
 
+    test('parallel read-only tools where one throws — error message has correct toolCallId', async () => {
+      toolRegistry.register({
+        id: 'err-ro-1', name: 'err_ro_tool_1', description: 'Error RO 1',
+        inputSchema: {}, source: 'builtin', priority: 10, enabled: true,
+        isReadOnly: true,
+        handler: async () => ({ ok: true as const, value: 'ok' }),
+      });
+      toolRegistry.register({
+        id: 'err-ro-2', name: 'err_ro_tool_2', description: 'Error RO 2',
+        inputSchema: {}, source: 'builtin', priority: 10, enabled: true,
+        isReadOnly: true,
+        handler: async () => ({ ok: true as const, value: 'ok' }),
+      });
+
+      let callCount = 0;
+      mockRun.mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            value: {
+              content: 'calling ro tools with error',
+              stopReason: 'tool_use',
+              toolCalls: [
+                { id: 'err-ro-tc-1', name: 'err_ro_tool_1', args: {} },
+                { id: 'err-ro-tc-2', name: 'err_ro_tool_2', args: {} },
+              ],
+            },
+          };
+        }
+        return { ok: true, value: { content: 'done', stopReason: 'end_turn' } };
+      });
+
+      const dispatchCalls: Array<{ name: string; throwError: boolean }> = [
+        { name: 'err_ro_tool_1', throwError: false },
+        { name: 'err_ro_tool_2', throwError: true }, // This one will throw
+      ];
+      let dispatchIdx = 0;
+
+      mockDispatchSkill.mockImplementation(async (name: string) => {
+        const call = dispatchCalls[dispatchIdx++];
+        if (call.throwError) {
+          throw new Error('Tool execution failed');
+        }
+        return { ok: true, value: `result-${name}` };
+      });
+
+      const task = await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'parallel ro with error' }] },
+        agentConfig: baseConfig(),
+        callerId: 'caller-1',
+      });
+
+      await flush(200);
+
+      // Task should still complete despite tool error
+      expect(taskManager.get(task.id)?.status.state).toBe('completed');
+
+      // Verify that mockRun was called a second time with the tool results
+      expect(mockRun.mock.calls.length).toBeGreaterThanOrEqual(2);
+      const secondRunCall = mockRun.mock.calls[1][0] as any;
+      const messages = secondRunCall.messages;
+
+      // Should have an assistant message with the tool calls
+      const toolCallMsg = messages.find((m: any) => m.role === 'assistant' && m.content);
+      expect(toolCallMsg).toBeDefined();
+
+      // Should have two tool result messages
+      const toolResults = messages.filter((m: any) => m.role === 'tool');
+      expect(toolResults.length).toBe(2);
+
+      // First tool result should be successful
+      expect(toolResults[0].toolCallId).toBe('err-ro-tc-1');
+      expect(toolResults[0].content).toContain('result-err_ro_tool_1');
+
+      // Second tool result should be an error with the correct toolCallId (not 'unknown')
+      expect(toolResults[1].toolCallId).toBe('err-ro-tc-2');
+      expect(toolResults[1].content).toContain('Error: Tool execution failed');
+
+      toolRegistry.unregister('err_ro_tool_1');
+      toolRegistry.unregister('err_ro_tool_2');
+    });
+
     test('mixed batch: write runs serially first, then read-only tools run in parallel', async () => {
       toolRegistry.register({
         id: 'mx-w', name: 'mixed_write', description: 'Mixed write',

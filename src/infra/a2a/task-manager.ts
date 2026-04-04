@@ -146,7 +146,8 @@ class TaskManager {
               const results = await Promise.allSettled(
                 batch.calls.map(tc => this.executeToolCall(tc, taskId, dispatchCtx))
               );
-              for (const r of results) {
+              for (let idx = 0; idx < results.length; idx++) {
+                const r = results[idx];
                 if (r.status === 'fulfilled') {
                   messages.push(r.value);
                 } else {
@@ -154,7 +155,7 @@ class TaskManager {
                   messages.push({
                     role: 'tool',
                     content: `Error: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`,
-                    toolCallId: 'unknown',
+                    toolCallId: batch.calls[idx].id,
                   });
                 }
               }
