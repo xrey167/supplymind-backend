@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ok, err } from '../../core/result';
-import { toAnthropicTools } from './tool-format';
+import { toAnthropicTools, toAnthropicToolChoice } from './tool-format';
 import type { AgentRuntime, RunInput, RunResult, StreamEvent } from './types';
 import type { Result } from '../../core/result';
 
@@ -44,6 +44,15 @@ export class AnthropicRawRuntime implements AgentRuntime {
       if (input.tools?.length) {
         params.tools = toAnthropicTools(input.tools) as Anthropic.Tool[];
       }
+      if (input.toolChoice && input.tools?.length) {
+        (params as any).tool_choice = toAnthropicToolChoice(input.toolChoice);
+      }
+      if (input.disableParallelToolUse !== undefined) {
+        (params as any).tool_choice = {
+          ...((params as any).tool_choice ?? { type: 'auto' }),
+          disable_parallel_tool_use: input.disableParallelToolUse,
+        };
+      }
 
       const response = await this.client.messages.create(params);
 
@@ -64,7 +73,9 @@ export class AnthropicRawRuntime implements AgentRuntime {
           ? 'tool_use'
           : response.stop_reason === 'max_tokens'
             ? 'max_tokens'
-            : 'end_turn';
+            : (response.stop_reason as string) === 'pause_turn'
+              ? 'pause_turn'
+              : 'end_turn';
 
       return ok({
         content,
@@ -97,6 +108,15 @@ export class AnthropicRawRuntime implements AgentRuntime {
       if (input.systemPrompt) params.system = input.systemPrompt;
       if (input.temperature !== undefined) params.temperature = input.temperature;
       if (input.tools?.length) params.tools = toAnthropicTools(input.tools) as Anthropic.Tool[];
+      if (input.toolChoice && input.tools?.length) {
+        (params as any).tool_choice = toAnthropicToolChoice(input.toolChoice);
+      }
+      if (input.disableParallelToolUse !== undefined) {
+        (params as any).tool_choice = {
+          ...((params as any).tool_choice ?? { type: 'auto' }),
+          disable_parallel_tool_use: input.disableParallelToolUse,
+        };
+      }
 
       const stream = this.client.messages.stream(params);
 
