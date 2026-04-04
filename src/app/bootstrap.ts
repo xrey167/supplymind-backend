@@ -123,6 +123,15 @@ export async function initSubsystems(): Promise<void> {
     logger.warn({ error: (error as Error).message }, 'Failed to initialize MCP server — MCP tools unavailable');
   }
 
+  // Step 9: Load registered agents from DB into memory (non-critical)
+  try {
+    const { agentRegistryService } = await import('../modules/agent-registry/agent-registry.service');
+    await agentRegistryService.loadAll();
+    logger.info('Registered agents loaded from DB');
+  } catch (err) {
+    logger.warn({ err }, 'Failed to load registered agents — continuing without');
+  }
+
   logger.info('Bootstrap complete');
 }
 

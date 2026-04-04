@@ -10,6 +10,7 @@ import {
   timestamp,
   customType,
   primaryKey,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 const vector = customType<{ data: number[]; driverParam: string }>({
@@ -17,6 +18,9 @@ const vector = customType<{ data: number[]; driverParam: string }>({
   toDriver(value) { return `[${value.join(',')}]`; },
   fromDriver(value) { return JSON.parse(value as string); },
 });
+
+// Setting enums
+export const toolPermissionModeEnum = pgEnum('tool_permission_mode', ['auto', 'ask', 'strict']);
 
 // Enums
 export const aiProviderEnum = pgEnum('ai_provider', ['anthropic', 'openai', 'google']);
@@ -189,3 +193,41 @@ export const orchestrations = pgTable('orchestrations', {
   updatedAt: timestamp('updated_at').defaultNow(),
   completedAt: timestamp('completed_at'),
 });
+
+// Workspace settings (key-value per workspace)
+export const workspaceSettings = pgTable('workspace_settings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull(),
+  key: text('key').notNull(),
+  value: jsonb('value').notNull(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// API keys
+export const apiKeys = pgTable('api_keys', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull(),
+  name: text('name').notNull(),
+  keyHash: text('key_hash').notNull(),
+  keyPrefix: text('key_prefix').notNull(),  // first 12 chars for identification
+  role: text('role').notNull().default('admin'),
+  enabled: boolean('enabled').default(true),
+  expiresAt: timestamp('expires_at'),
+  lastUsedAt: timestamp('last_used_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Registered A2A agents (persistent registry)
+export const registeredAgents = pgTable('registered_agents', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: text('workspace_id').notNull(),
+  url: text('url').notNull(),
+  agentCard: jsonb('agent_card').notNull(),
+  apiKeyHash: text('api_key_hash'),
+  enabled: boolean('enabled').notNull().default(true),
+  lastDiscoveredAt: timestamp('last_discovered_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('registered_agents_workspace_url_idx').on(t.workspaceId, t.url),
+]);

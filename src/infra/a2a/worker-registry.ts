@@ -55,6 +55,10 @@ class WorkerRegistry {
     return Array.from(this.agents.values());
   }
 
+  load(url: string, card: AgentCard, apiKey?: string, registeredAt?: number): void {
+    this.agents.set(url, { url, card, apiKey, registeredAt: registeredAt ?? Date.now() });
+  }
+
   remove(agentUrl: string): void {
     this.agents.delete(agentUrl);
   }

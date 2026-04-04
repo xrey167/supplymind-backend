@@ -10,6 +10,7 @@ import { WorkflowRoutes } from '../../../modules/workflows/workflows.routes';
 import { sessionsRoutes } from '../../../modules/sessions/sessions.routes';
 import { memoryRoutes } from '../../../modules/memory/memory.routes';
 import { orchestrationRoutes } from '../../../modules/orchestration/orchestration.routes';
+import { agentRegistryRoutes } from '../../../modules/agent-registry/agent-registry.routes';
 
 const workspaceRoutes = new OpenAPIHono();
 
@@ -27,5 +28,6 @@ workspaceRoutes.route('/workflows', WorkflowRoutes);
 workspaceRoutes.route('/sessions', sessionsRoutes);
 workspaceRoutes.route('/memory', memoryRoutes);
 workspaceRoutes.route('/orchestrations', orchestrationRoutes);
+workspaceRoutes.route('/agent-registry', agentRegistryRoutes);
 
 export { workspaceRoutes };
