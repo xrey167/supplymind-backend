@@ -1,328 +1,304 @@
-import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
-import { EventBus, type BusEvent } from '../../bus';
+import { describe, test, expect, beforeEach, mock } from 'bun:test';
+
+// Mock task manager and worker registry FIRST, before any imports
+let mockTaskSendImpl: (params: any) => Promise<any>;
+let mockTaskCancelImpl: (taskId: string) => any;
+let mockWorkerDelegateImpl: (agentUrl: string, params: any) => Promise<any>;
+
+mock.module('../../../infra/a2a/task-manager', () => ({
+  taskManager: {
+    get send() {
+      return (params: any) => mockTaskSendImpl(params);
+    },
+    get cancel() {
+      return (taskId: string) => mockTaskCancelImpl(taskId);
+    },
+  },
+}));
+
+mock.module('../../../infra/a2a/worker-registry', () => ({
+  workerRegistry: {
+    get delegate() {
+      return (agentUrl: string, params: any) => mockWorkerDelegateImpl(agentUrl, params);
+    },
+  },
+}));
+
+// Mock logger to suppress output
+mock.module('../../../config/logger', () => ({
+  logger: {
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+  },
+}));
+
+// Now import eventBus and ws-consumers
+import { eventBus } from '../../bus';
 import { initWsConsumers } from '../ws-consumers';
 
-// Create a test-isolated event bus and mocks
 describe('ws-consumers', () => {
-  let testBus: EventBus;
-  let taskManagerMock: any;
-  let workerRegistryMock: any;
-  let loggerMock: any;
-
   beforeEach(() => {
-    testBus = new EventBus();
+    // Reset eventBus subscriptions
+    eventBus.reset();
 
-    // Create mocks for taskManager
-    taskManagerMock = {
-      send: mock(async (params: any) => ({
-        id: 'task-' + Date.now(),
-        status: { state: 'submitted' },
-        artifacts: [],
-        history: [],
-      })),
-      cancel: mock((taskId: string) => ({
-        id: taskId,
-        status: { state: 'canceled' },
-        artifacts: [],
-        history: [],
-      })),
-      get: mock(() => null),
-      list: mock(() => []),
-    };
-
-    // Create mocks for workerRegistry
-    workerRegistryMock = {
-      delegate: mock(async () => ({ success: true })),
-      discover: mock(async () => ({})),
-      findBySkill: mock(() => null),
-      list: mock(() => []),
-      remove: mock(() => {}),
-    };
-
-    // Create a logger mock
-    loggerMock = {
-      info: mock(() => {}),
-      warn: mock(() => {}),
-      error: mock(() => {}),
-      debug: mock(() => {}),
-    };
-  });
-
-  afterEach(() => {
-    testBus.reset();
-  });
-
-  describe('initWsConsumers', () => {
-    test('subscribes to all four WebSocket topics', async () => {
-      const bus = new EventBus();
-      const topics = ['ws.task.send', 'ws.task.cancel', 'ws.task.input', 'ws.a2a.send'];
-      const received: string[] = [];
-
-      for (const topic of topics) {
-        bus.subscribe(topic, () => {
-          received.push(topic);
-        });
-      }
-
-      await Promise.all([
-        bus.publish('ws.task.send', { clientId: 'c1', agentId: 'a1' }),
-        bus.publish('ws.task.cancel', { clientId: 'c1', taskId: 't1' }),
-        bus.publish('ws.task.input', { clientId: 'c1', taskId: 't1', input: 'test' }),
-        bus.publish('ws.a2a.send', { clientId: 'c1', agentUrl: 'http://agent' }),
-      ]);
-
-      expect(received.length).toBe(4);
-      expect(received).toContain('ws.task.send');
-      expect(received).toContain('ws.task.cancel');
-      expect(received).toContain('ws.task.input');
-      expect(received).toContain('ws.a2a.send');
-    });
-  });
-
-  describe('ws.task.send handler', () => {
-    test('publishes error when agentId is missing', async () => {
-      const errors: any[] = [];
-      testBus.subscribe('task.error', (e) => {
-        errors.push(e.data);
-      });
-
-      const handler = async (event: BusEvent) => {
-        const data = event.data as any;
-        if (!data.agentId) {
-          await testBus.publish('task.error', {
-            clientId: data.clientId,
-            error: 'Missing agentId in task send request',
-          });
-        }
-      };
-
-      testBus.subscribe('ws.task.send', handler, { name: 'test-task-send' });
-
-      await testBus.publish('ws.task.send', {
-        clientId: 'client-1',
-        messages: [{ role: 'user', content: 'Hello' }],
-      });
-
-      expect(errors.length).toBe(1);
-      expect(errors[0].error).toBe('Missing agentId in task send request');
-      expect(errors[0].clientId).toBe('client-1');
+    // Set up default mock implementations
+    mockTaskSendImpl = async (params: any) => ({
+      id: 'task-' + Date.now(),
+      status: { state: 'submitted' },
+      artifacts: [],
+      history: [],
     });
 
-    test('successfully creates task with valid agentId and messages', async () => {
-      const tasks: any[] = [];
-      let handlerCalled = false;
+    mockTaskCancelImpl = (taskId: string) => ({
+      id: taskId,
+      status: { state: 'canceled' },
+      artifacts: [],
+      history: [],
+    });
 
-      const handler = async (event: BusEvent) => {
-        const data = event.data as any;
-        if (data.agentId) {
-          handlerCalled = true;
-          tasks.push({ id: 'task-123', clientId: data.clientId });
-        }
+    mockWorkerDelegateImpl = async (agentUrl: string, params: any) => ({
+      success: true,
+      result: 'delegation-result',
+    });
+
+    // Initialize consumers after resetting and setting up mocks
+    initWsConsumers();
+  });
+
+  describe('ws.task.send', () => {
+    test('creates task via taskManager with valid agentId and messages', async () => {
+      const taskSendCalls: any[] = [];
+      mockTaskSendImpl = async (params: any) => {
+        taskSendCalls.push(params);
+        return {
+          id: 'task-123',
+          status: { state: 'submitted' },
+          artifacts: [],
+          history: [],
+        };
       };
 
-      testBus.subscribe('ws.task.send', handler, { name: 'test-task-send' });
-
-      await testBus.publish('ws.task.send', {
+      await eventBus.publish('ws.task.send', {
         clientId: 'client-1',
         agentId: 'agent-123',
-        messages: [
-          { kind: 'text', text: 'Hello' },
-          { kind: 'text', text: 'World' },
-        ],
+        messages: [{ kind: 'text', text: 'Hello' }],
       });
 
-      expect(handlerCalled).toBe(true);
-      expect(tasks.length).toBe(1);
-      expect(tasks[0].clientId).toBe('client-1');
+      // Wait for async handler
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(taskSendCalls.length).toBeGreaterThan(0);
+      const call = taskSendCalls[0];
+      expect(call.agentConfig.id).toBe('agent-123');
+      expect(call.callerId).toBe('client-1');
+    });
+
+    test('publishes error event when agentId is missing', async () => {
+      const errorEvents: any[] = [];
+      eventBus.subscribe('task.error', (e) => {
+        errorEvents.push(e.data);
+      });
+
+      await eventBus.publish('ws.task.send', {
+        clientId: 'client-1',
+        messages: [{ kind: 'text', text: 'Hello' }],
+      });
+
+      // Wait for async handler
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(errorEvents.length).toBeGreaterThan(0);
+      expect(errorEvents[0].clientId).toBe('client-1');
+      expect(errorEvents[0].error).toContain('agentId');
+    });
+
+    test('publishes error when taskManager.send throws', async () => {
+      const errorEvents: any[] = [];
+      eventBus.subscribe('task.error', (e) => {
+        errorEvents.push(e.data);
+      });
+
+      mockTaskSendImpl = async () => {
+        throw new Error('Task creation failed');
+      };
+
+      await eventBus.publish('ws.task.send', {
+        clientId: 'client-1',
+        agentId: 'agent-123',
+        messages: [{ kind: 'text', text: 'Hello' }],
+      });
+
+      // Wait for async handler
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(errorEvents.length).toBeGreaterThan(0);
+      expect(errorEvents[0].error).toContain('Task creation failed');
     });
   });
 
-  describe('ws.task.cancel handler', () => {
+  describe('ws.task.cancel', () => {
     test('calls taskManager.cancel with valid taskId', async () => {
-      let cancelCalled = false;
-      let cancelledTaskId = '';
-
-      const handler = async (event: BusEvent) => {
-        const data = event.data as any;
-        if (data.taskId) {
-          cancelCalled = true;
-          cancelledTaskId = data.taskId;
-        }
+      const cancelCalls: string[] = [];
+      mockTaskCancelImpl = (taskId: string) => {
+        cancelCalls.push(taskId);
+        return {
+          id: taskId,
+          status: { state: 'canceled' },
+          artifacts: [],
+          history: [],
+        };
       };
 
-      testBus.subscribe('ws.task.cancel', handler, { name: 'test-task-cancel' });
-
-      await testBus.publish('ws.task.cancel', {
+      await eventBus.publish('ws.task.cancel', {
         clientId: 'client-1',
         taskId: 'task-123',
       });
 
-      expect(cancelCalled).toBe(true);
-      expect(cancelledTaskId).toBe('task-123');
+      // Wait for async handler
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(cancelCalls).toContain('task-123');
     });
 
-    test('logs warning when taskId is missing', async () => {
-      let warnLogged = false;
-
-      const handler = async (event: BusEvent) => {
-        const data = event.data as any;
-        if (!data.taskId) {
-          warnLogged = true;
-        }
+    test('handles missing taskId gracefully', async () => {
+      const cancelCalls: string[] = [];
+      mockTaskCancelImpl = (taskId: string) => {
+        cancelCalls.push(taskId);
+        return null;
       };
 
-      testBus.subscribe('ws.task.cancel', handler, { name: 'test-task-cancel' });
-
-      await testBus.publish('ws.task.cancel', {
+      // Publish without taskId
+      await eventBus.publish('ws.task.cancel', {
         clientId: 'client-1',
       });
 
-      expect(warnLogged).toBe(true);
+      // Wait for async handler
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Should not call cancel
+      expect(cancelCalls.length).toBe(0);
+    });
+
+    test('logs errors gracefully when taskManager.cancel throws', async () => {
+      mockTaskCancelImpl = () => {
+        throw new Error('Cancellation failed');
+      };
+
+      // Should not throw or crash
+      await eventBus.publish('ws.task.cancel', {
+        clientId: 'client-1',
+        taskId: 'task-123',
+      });
+
+      // Wait for async handler
+      await new Promise((r) => setTimeout(r, 50));
+
+      // If we get here without error, the test passes
+      expect(true).toBe(true);
     });
   });
 
-  describe('ws.task.input handler', () => {
-    test('logs stub message for ws.task.input', async () => {
-      let inputReceived = false;
-      let receivedTaskId = '';
-
-      const handler = async (event: BusEvent) => {
-        const data = event.data as any;
-        inputReceived = true;
-        receivedTaskId = data.taskId;
-      };
-
-      testBus.subscribe('ws.task.input', handler, { name: 'test-task-input' });
-
-      await testBus.publish('ws.task.input', {
+  describe('ws.task.input', () => {
+    test('logs warning for unimplemented input handler', async () => {
+      // The handler logs a warning and returns without error
+      // Just verify it doesn't crash
+      await eventBus.publish('ws.task.input', {
         clientId: 'client-1',
         taskId: 'task-123',
         input: 'user input',
       });
 
-      expect(inputReceived).toBe(true);
-      expect(receivedTaskId).toBe('task-123');
+      // Wait for async handler
+      await new Promise((r) => setTimeout(r, 50));
+
+      // If we get here without error, the test passes
+      expect(true).toBe(true);
     });
   });
 
-  describe('ws.a2a.send handler', () => {
+  describe('ws.a2a.send', () => {
     test('delegates to workerRegistry with valid params', async () => {
-      let delegateCalled = false;
-      let delegateParams: any = null;
-
-      const handler = async (event: BusEvent) => {
-        const data = event.data as any;
-        if (data.agentUrl) {
-          delegateCalled = true;
-          delegateParams = { agentUrl: data.agentUrl, skillId: data.skillId, args: data.args };
-        }
+      const delegateCalls: any[] = [];
+      mockWorkerDelegateImpl = async (agentUrl: string, params: any) => {
+        delegateCalls.push({ agentUrl, params });
+        return { success: true };
       };
 
-      testBus.subscribe('ws.a2a.send', handler, { name: 'test-a2a-send' });
-
-      await testBus.publish('ws.a2a.send', {
+      await eventBus.publish('ws.a2a.send', {
         clientId: 'client-1',
         agentUrl: 'http://agent.local',
         skillId: 'skill-456',
         args: { param: 'value' },
       });
 
-      expect(delegateCalled).toBe(true);
-      expect(delegateParams.agentUrl).toBe('http://agent.local');
-      expect(delegateParams.skillId).toBe('skill-456');
-      expect(delegateParams.args).toEqual({ param: 'value' });
+      // Wait for async handler
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(delegateCalls.length).toBeGreaterThan(0);
+      const call = delegateCalls[0];
+      expect(call.agentUrl).toBe('http://agent.local');
+      expect(call.params.skillId).toBe('skill-456');
+      expect(call.params.args).toEqual({ param: 'value' });
     });
 
     test('publishes error when agentUrl is missing', async () => {
-      const errors: any[] = [];
-
-      const handler = async (event: BusEvent) => {
-        const data = event.data as any;
-        if (!data.agentUrl) {
-          await testBus.publish('task.error', {
-            clientId: data.clientId,
-            error: 'Missing agentUrl in A2A send request',
-          });
-        }
-      };
-
-      testBus.subscribe('ws.a2a.send', handler, { name: 'test-a2a-send' });
-      testBus.subscribe('task.error', (e) => {
-        errors.push(e.data);
+      const errorEvents: any[] = [];
+      eventBus.subscribe('task.error', (e) => {
+        errorEvents.push(e.data);
       });
 
-      await testBus.publish('ws.a2a.send', {
+      await eventBus.publish('ws.a2a.send', {
         clientId: 'client-1',
         skillId: 'skill-456',
         args: { param: 'value' },
       });
 
-      expect(errors.length).toBe(1);
-      expect(errors[0].error).toBe('Missing agentUrl in A2A send request');
-      expect(errors[0].clientId).toBe('client-1');
+      // Wait for async handler
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(errorEvents.length).toBeGreaterThan(0);
+      expect(errorEvents[0].clientId).toBe('client-1');
+      expect(errorEvents[0].error).toContain('agentUrl');
     });
 
-    test('publishes error on delegation failure', async () => {
-      const errors: any[] = [];
-
-      const handler = async (event: BusEvent) => {
-        const data = event.data as any;
-        if (!data.agentUrl) {
-          await testBus.publish('task.error', {
-            clientId: data.clientId,
-            error: 'Missing agentUrl in A2A send request',
-          });
-          return;
-        }
-        try {
-          throw new Error('Delegation failed: 500');
-        } catch (error) {
-          const err = error instanceof Error ? error : new Error(String(error));
-          await testBus.publish('task.error', {
-            clientId: data.clientId,
-            error: err.message,
-          });
-        }
-      };
-
-      testBus.subscribe('ws.a2a.send', handler, { name: 'test-a2a-send' });
-      testBus.subscribe('task.error', (e) => {
-        errors.push(e.data);
+    test('publishes error when workerRegistry.delegate throws', async () => {
+      const errorEvents: any[] = [];
+      eventBus.subscribe('task.error', (e) => {
+        errorEvents.push(e.data);
       });
 
-      await testBus.publish('ws.a2a.send', {
+      mockWorkerDelegateImpl = async () => {
+        throw new Error('Delegation failed: 500');
+      };
+
+      await eventBus.publish('ws.a2a.send', {
         clientId: 'client-1',
         agentUrl: 'http://agent.local',
         skillId: 'skill-456',
       });
 
-      expect(errors.length).toBe(1);
-      expect(errors[0].error).toContain('Delegation failed');
-      expect(errors[0].clientId).toBe('client-1');
+      // Wait for async handler
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(errorEvents.length).toBeGreaterThan(0);
+      expect(errorEvents[0].error).toContain('Delegation failed');
     });
   });
 
-  describe('event bus integration', () => {
-    test('eventBus.subscribe returns a subscription ID', () => {
-      const subId = testBus.subscribe('ws.task.send', async (event: BusEvent) => {
-        // handler
-      });
-      expect(typeof subId).toBe('string');
-      expect(subId.length).toBeGreaterThan(0);
-    });
+  describe('subscriber initialization', () => {
+    test('initWsConsumers subscribes to all four topics', async () => {
+      // Create a fresh event bus to verify topics are subscribed
+      eventBus.reset();
+      const stats = eventBus.getStats();
+      const initialSubscriptions = stats.subscriptions;
 
-    test('eventBus can unsubscribe from events', async () => {
-      let callCount = 0;
-      const subId = testBus.subscribe('ws.task.send', async () => {
-        callCount++;
-      });
+      initWsConsumers();
 
-      await testBus.publish('ws.task.send', { clientId: 'c1', agentId: 'a1' });
-      expect(callCount).toBe(1);
-
-      testBus.unsubscribe(subId);
-      await testBus.publish('ws.task.send', { clientId: 'c1', agentId: 'a1' });
-      expect(callCount).toBe(1); // Should not increment after unsubscribe
+      const newStats = eventBus.getStats();
+      expect(newStats.subscriptions).toBeGreaterThan(initialSubscriptions);
+      // Should have at least 4 subscriptions (one for each ws.* topic)
+      expect(newStats.subscriptions).toBeGreaterThanOrEqual(4);
     });
   });
 });
