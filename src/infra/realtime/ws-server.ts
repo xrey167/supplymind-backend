@@ -26,6 +26,20 @@ class WsServer {
       });
     }
 
+    // Forward TASK_ROUND_COMPLETED with token usage to subscribed clients
+    eventBus.subscribe(Topics.TASK_ROUND_COMPLETED, (event) => {
+      const data = event.data as any;
+      this.broadcastToSubscribed(`task:${data.taskId}`, {
+        type: 'task:round_completed',
+        taskId: data.taskId,
+        roundId: data.roundId,
+        iterationIndex: data.iterationIndex,
+        toolCallCount: data.toolCallCount,
+        tokenUsage: data.tokenUsage,
+        totalTokens: data.totalTokens,
+      });
+    });
+
     // Subscribe to skill events
     eventBus.subscribe(Topics.SKILL_INVOKED, (event) => {
       this.broadcastToSubscribed('events:skill.*', {

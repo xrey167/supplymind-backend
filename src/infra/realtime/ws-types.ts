@@ -15,7 +15,9 @@ export type ServerMessage =
   | { type: 'session:resumed'; sessionId: string }
   | { type: 'memory:proposal'; proposal: { id: string; agentId: string; title: string; content: string; evidence?: string; type: string } }
   | { type: 'orchestration:status'; orchestrationId: string; status: string; stepId?: string }
-  | { type: 'orchestration:gate'; orchestrationId: string; stepId: string; prompt: string };
+  | { type: 'orchestration:gate'; orchestrationId: string; stepId: string; prompt: string }
+  | { type: 'task:thinking_delta'; taskId: string; thinking: string }
+  | { type: 'task:round_completed'; taskId: string; roundId: string; iterationIndex: number; toolCallCount: number; tokenUsage: { input: number; output: number }; totalTokens: { input: number; output: number } };
 
 export type ClientMessage =
   | { type: 'task:send'; agentId: string; messages: unknown[] }

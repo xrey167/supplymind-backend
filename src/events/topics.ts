@@ -13,6 +13,7 @@ export const Topics = {
   TASK_COMPLETED: 'task.completed',
   TASK_CANCELED: 'task.canceled',
   TASK_ROUND_COMPLETED: 'task.round.completed',
+  TASK_THINKING_DELTA: 'task.thinking_delta',
   // Agents
   AGENT_CREATED: 'agent.created',
   AGENT_UPDATED: 'agent.updated',

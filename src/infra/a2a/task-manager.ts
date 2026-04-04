@@ -23,6 +23,7 @@ interface TaskRecord {
   agentId: string;
   workspaceId: string;
   controller: AbortController;
+  totalTokens: { input: number; output: number };
 }
 
 class TaskManager {
@@ -40,7 +41,7 @@ class TaskManager {
     };
 
     const controller = new AbortController();
-    const record: TaskRecord = { task, agentId: config.id, workspaceId: config.workspaceId, controller };
+    const record: TaskRecord = { task, agentId: config.id, workspaceId: config.workspaceId, controller, totalTokens: { input: 0, output: 0 } };
     this.tasks.set(taskId, record);
 
     // Persist to DB — awaited so the row exists before getBlockers queries it
@@ -132,7 +133,7 @@ class TaskManager {
       const dispatchCtx: DispatchContext = {
         callerId: config.id,
         workspaceId: config.workspaceId,
-        callerRole: 'agent',
+        callerRole: 'agent' as const,
         traceId: taskId,
         signal,
       };
@@ -197,6 +198,10 @@ class TaskManager {
 
         const runResult = result.value;
 
+        const usage = runResult.usage ?? { inputTokens: 0, outputTokens: 0 };
+        record.totalTokens.input += usage.inputTokens;
+        record.totalTokens.output += usage.outputTokens;
+
         // If there are tool calls, execute them
         if (runResult.stopReason === 'tool_use' && runResult.toolCalls?.length) {
           // Add assistant message with tool calls
@@ -249,6 +254,8 @@ class TaskManager {
             roundId,
             iterationIndex: i,
             toolCallCount: runResult.toolCalls?.length ?? 0,
+            tokenUsage: { input: usage.inputTokens, output: usage.outputTokens },
+            totalTokens: { input: record.totalTokens.input, output: record.totalTokens.output },
           });
           continue; // Loop again with tool results
         }
@@ -261,6 +268,8 @@ class TaskManager {
             roundId,
             iterationIndex: i,
             toolCallCount: 0,
+            tokenUsage: { input: usage.inputTokens, output: usage.outputTokens },
+            totalTokens: { input: record.totalTokens.input, output: record.totalTokens.output },
           });
           continue;
         }
@@ -278,6 +287,10 @@ class TaskManager {
             roundId: t.roundId,
           }));
           currentRecord.task.status = { state: 'completed' };
+          (currentRecord.task as any).metadata = {
+            ...(currentRecord.task as any).metadata,
+            totalTokens: currentRecord.totalTokens,
+          };
         }
 
         taskRepo.updateStatus(taskId, 'completed', runResult.content, currentRecord?.task.artifacts).catch((error: unknown) => {
