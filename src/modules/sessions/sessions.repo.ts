@@ -1,6 +1,6 @@
 import { db } from '../../infra/db/client';
 import { sessions, sessionMessages } from '../../infra/db/schema';
-import { eq, and, lt } from 'drizzle-orm';
+import { eq, and, lt, gt, count } from 'drizzle-orm';
 import type { Session, SessionMessage, AddMessageInput, SessionStatus } from './sessions.types';
 
 function estimateTokens(text: string): number {
@@ -57,6 +57,52 @@ export const sessionsRepo = {
     }
     const rows = await (query as any).orderBy(sessionMessages.createdAt).limit(opts?.limit ?? 1000);
     return rows as unknown as SessionMessage[];
+  },
+
+  async getMessagePage(
+    sessionId: string,
+    opts: {
+      limit?: number;
+      cursor?: string;
+      includeCompacted?: boolean;
+    } = {},
+  ): Promise<{ messages: SessionMessage[]; total: number }> {
+    const limit = Math.min(opts.limit ?? 50, 100);
+    const includeCompacted = opts.includeCompacted ?? false;
+
+    // Build base filter
+    const baseFilter = includeCompacted
+      ? eq(sessionMessages.sessionId, sessionId)
+      : and(eq(sessionMessages.sessionId, sessionId), eq(sessionMessages.isCompacted, false));
+
+    // Count total (without cursor/limit)
+    const [{ value: total }] = await db
+      .select({ value: count() })
+      .from(sessionMessages)
+      .where(baseFilter);
+
+    // Build cursor filter
+    let cursorFilter = baseFilter;
+    if (opts.cursor) {
+      // Get the createdAt of the cursor message, then use createdAt > that value
+      const [cursorRow] = await db
+        .select({ createdAt: sessionMessages.createdAt })
+        .from(sessionMessages)
+        .where(eq(sessionMessages.id, opts.cursor))
+        .limit(1);
+      if (cursorRow) {
+        cursorFilter = and(baseFilter, gt(sessionMessages.createdAt, cursorRow.createdAt)) as any;
+      }
+    }
+
+    const rows = await db
+      .select()
+      .from(sessionMessages)
+      .where(cursorFilter)
+      .orderBy(sessionMessages.createdAt)
+      .limit(limit);
+
+    return { messages: rows as unknown as SessionMessage[], total: Number(total) };
   },
 
   async expireIdleSessions(maxIdleMs: number): Promise<number> {

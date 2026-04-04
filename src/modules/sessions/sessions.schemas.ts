@@ -11,3 +11,9 @@ export const addMessageSchema = z.object({
   toolCallId: z.string().optional(),
   toolCalls: z.unknown().optional(),
 });
+
+export const transcriptQuerySchema = z.object({
+  limit: z.coerce.number().min(1).max(100).default(50).optional(),
+  cursor: z.string().optional(),
+  includeCompacted: z.coerce.boolean().default(false).optional(),
+});
