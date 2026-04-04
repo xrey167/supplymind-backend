@@ -34,14 +34,12 @@ export function getCapabilities(provider: AIProvider, model: string): ProviderCa
   };
 
   return {
-    supportsVision: true,
-    supportsToolUse: true,
     supportsExtendedThinking: false,
     ...providerDefaults,
     ...modelOverrides,
     maxContextTokens: limits.contextWindow,
     maxOutputTokens: limits.responseMax,
-  };
+  } as ProviderCapabilities;
 }
 
 export function getContextLimit(provider: AIProvider, model: string): number {
