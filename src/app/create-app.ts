@@ -3,22 +3,32 @@ import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
 import { wsServer } from '../infra/realtime/ws-server';
 import { initEventConsumers } from '../events/consumers';
+import { errorHandler } from '../api/middlewares/error-handler';
+import { publicRoutes } from '../api/routes/public';
+import { workspaceRoutes } from '../api/routes/workspace';
 
 export function createApp() {
   const app = new OpenAPIHono();
 
-  // Middleware
+  // Global middleware
   app.use('*', cors());
   app.use('*', honoLogger());
+
+  // Error handler
+  app.onError(errorHandler);
 
   // Health check
   app.get('/healthz', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
+  // Public routes (no auth): /.well-known/agent.json, /a2a
+  app.route('/', publicRoutes);
+
+  // Workspace-scoped routes (auth required): /api/v1/workspaces/:workspaceId/*
+  app.route('/api/v1/workspaces/:workspaceId', workspaceRoutes);
+
   // Initialize subsystems
   wsServer.init();
   initEventConsumers();
-
-  // Routes will be mounted in Phase 7
 
   return app;
 }
