@@ -158,6 +158,77 @@ describe('ws-consumers', () => {
     });
   });
 
+  describe('ws.skill.invoke', () => {
+    test('successful skill invocation publishes ws.skill.result', async () => {
+      const { dispatchSkill } = await import('../../../modules/skills/skills.dispatch');
+      const dispatchSpy = spyOn({ dispatchSkill } as any, 'dispatchSkill');
+
+      // We need to mock at the module level — use eventBus directly
+      const resultEvents: any[] = [];
+      eventBus.subscribe('ws.skill.result', (e) => { resultEvents.push(e.data); });
+
+      // Mock dispatchSkill via module mock
+      const originalModule = await import('../../../modules/skills/skills.dispatch');
+      const spy = spyOn(originalModule, 'dispatchSkill' as any).mockResolvedValue({ ok: true, value: { echo: 'hello' } });
+
+      await eventBus.publish('ws.skill.invoke', {
+        clientId: 'client-1',
+        name: 'echo',
+        args: { msg: 'hello' },
+        requestId: 'req-1',
+      });
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(resultEvents.length).toBeGreaterThan(0);
+      const msg = resultEvents[0].message;
+      expect(msg.type).toBe('skill:result');
+      expect(msg.name).toBe('echo');
+      expect(msg.ok).toBe(true);
+      expect(msg.requestId).toBe('req-1');
+      spy.mockRestore();
+      dispatchSpy.mockRestore();
+    });
+
+    test('publishes error result when skill name is missing', async () => {
+      const resultEvents: any[] = [];
+      eventBus.subscribe('ws.skill.result', (e) => { resultEvents.push(e.data); });
+
+      await eventBus.publish('ws.skill.invoke', {
+        clientId: 'client-1',
+        requestId: 'req-2',
+      });
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(resultEvents.length).toBeGreaterThan(0);
+      const msg = resultEvents[0].message;
+      expect(msg.ok).toBe(false);
+      expect(msg.error).toContain('Missing skill name');
+    });
+
+    test('publishes error result when dispatchSkill throws', async () => {
+      const resultEvents: any[] = [];
+      eventBus.subscribe('ws.skill.result', (e) => { resultEvents.push(e.data); });
+
+      const originalModule = await import('../../../modules/skills/skills.dispatch');
+      const spy = spyOn(originalModule, 'dispatchSkill' as any).mockRejectedValue(new Error('Skill exploded'));
+
+      await eventBus.publish('ws.skill.invoke', {
+        clientId: 'client-1',
+        name: 'broken-skill',
+        args: {},
+        requestId: 'req-3',
+      });
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(resultEvents.length).toBeGreaterThan(0);
+      const msg = resultEvents[0].message;
+      expect(msg.ok).toBe(false);
+      expect(msg.error).toContain('Skill exploded');
+      expect(msg.name).toBe('broken-skill');
+      spy.mockRestore();
+    });
+  });
+
   describe('subscriber initialization', () => {
     test('initWsConsumers subscribes to all topics', () => {
       eventBus.reset();
