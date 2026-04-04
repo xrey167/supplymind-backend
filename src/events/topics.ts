@@ -34,6 +34,22 @@ export const Topics = {
   // DOMAIN_ENTITY_CREATED: 'ontology.entity.created',
   // TODO: Supply chain alerts — deferred
   // SC_ALERT_CRITICAL: 'supply-chain.alert.critical',
+  // Sessions
+  SESSION_CREATED: 'session.created',
+  SESSION_PAUSED: 'session.paused',
+  SESSION_RESUMED: 'session.resumed',
+  SESSION_CLOSED: 'session.closed',
+  // Memory
+  MEMORY_SAVED: 'memory.saved',
+  MEMORY_PROPOSAL: 'memory.proposal',
+  MEMORY_APPROVED: 'memory.approved',
+  MEMORY_REJECTED: 'memory.rejected',
+  // Orchestration
+  ORCHESTRATION_STARTED: 'orchestration.started',
+  ORCHESTRATION_STEP_COMPLETED: 'orchestration.step.completed',
+  ORCHESTRATION_GATE_WAITING: 'orchestration.gate.waiting',
+  ORCHESTRATION_COMPLETED: 'orchestration.completed',
+  ORCHESTRATION_FAILED: 'orchestration.failed',
   // System
   HEARTBEAT: 'system.heartbeat',
 } as const;
