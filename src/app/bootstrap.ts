@@ -89,6 +89,25 @@ export async function initSubsystems(): Promise<void> {
   // Step 5: MCP client pool — load remote tools as skills (non-critical)
   // TODO: Load MCP server configs from DB when workspace context is available
   // For now, skip MCP init — configs will come from DB via API later
+
+  // Step 6: Load tool definitions from DB into skill registry (non-critical)
+  try {
+    const { toolsService } = await import('../modules/tools/tools.service');
+    const tools = await toolsService.loadToolsFromDb();
+    logger.info({ toolCount: tools.length }, 'Tool definitions loaded from DB');
+  } catch (error) {
+    logger.warn({ error: (error as Error).message }, 'Failed to load tools from DB — continuing without DB tools');
+  }
+
+  // Step 7: Start MCP server — expose skills as MCP tools (non-critical)
+  try {
+    const { createMcpServer } = await import('../infra/mcp/server');
+    createMcpServer();
+    logger.info('MCP server initialized');
+  } catch (error) {
+    logger.warn({ error: (error as Error).message }, 'Failed to initialize MCP server — MCP tools unavailable');
+  }
+
   logger.info('Bootstrap complete');
 }
 

@@ -1,6 +1,5 @@
-import { describe, test, expect, mock, beforeEach, afterEach, spyOn } from 'bun:test';
+import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import type { AgentMemory, MemoryProposal } from '../memory.types';
-import { Topics } from '../../../events/topics';
 
 // --- Fixtures ---
 
@@ -30,26 +29,31 @@ const mockProposal: MemoryProposal = {
   createdAt: new Date('2024-01-01'),
 };
 
-// Re-export real memory.events so other files' mock.module doesn't replace them with no-ops.
-// memory.service calls emitMemorySaved etc. which internally call eventBus.publish — we spy on that.
-mock.module('../memory.events', () => {
-  const { eventBus } = require('../../../events/bus');
-  const { Topics } = require('../../../events/topics');
-  return {
-    emitMemorySaved: (memoryId: string, workspaceId: string) =>
-      eventBus.publish(Topics.MEMORY_SAVED, { memoryId, workspaceId }),
-    emitMemoryProposal: (proposal: any) =>
-      eventBus.publish(Topics.MEMORY_PROPOSAL, proposal),
-    emitMemoryApproved: (memoryId: string, proposalId: string, workspaceId: string) =>
-      eventBus.publish(Topics.MEMORY_APPROVED, { memoryId, proposalId, workspaceId }),
-    emitMemoryRejected: (proposalId: string, workspaceId: string, reason?: string) =>
-      eventBus.publish(Topics.MEMORY_REJECTED, { proposalId, workspaceId, reason }),
-  };
-});
+// --- Mocks (must be declared before importing the module under test) ---
 
-// --- Mock dynamic imports ---
-// memory.service uses these via `await import(...)` so mock.module is safe here
+const repoMocks = {
+  save: mock(async () => mockMemory),
+  search: mock(async () => [mockMemory]),
+  list: mock(async () => [mockMemory]),
+  delete: mock(async () => true),
+  get: mock(async (_id: string) => mockMemory),
+  createProposal: mock(async () => mockProposal),
+  getProposal: mock(async () => mockProposal),
+  approveProposal: mock(async () => mockMemory),
+  rejectProposal: mock(async () => undefined),
+};
 
+const eventMocks = {
+  emitMemorySaved: mock(() => undefined),
+  emitMemoryProposal: mock(() => undefined),
+  emitMemoryApproved: mock(() => undefined),
+  emitMemoryRejected: mock(() => undefined),
+};
+
+mock.module('../memory.repo', () => ({ memoryRepo: repoMocks }));
+mock.module('../memory.events', () => eventMocks);
+
+// Embedding path mocks — happy path by default
 const embedMock = mock(async () => [0.1, 0.2, 0.3]);
 const upsertMock = mock(async () => undefined);
 
@@ -63,39 +67,43 @@ mock.module('../memory.store', () => ({
   },
 }));
 
+// Hybrid search mock — happy path returns a hit by default
 const hybridSearchMock = mock(async () => [{ id: 'mem-1', score: 0.9 }]);
 
 mock.module('../memory.search', () => ({
   hybridSearch: hybridSearchMock,
 }));
 
-// --- Imports ---
-// memoryRepo and eventBus are spied on directly; no mock.module needed for static imports
+// Import after all mock.module calls
 import { memoryService } from '../memory.service';
-import { memoryRepo } from '../memory.repo';
-import { eventBus } from '../../../events/bus';
+
+// --- Helpers ---
+
+function resetMocks() {
+  Object.values(repoMocks).forEach(m => m.mockClear());
+  Object.values(eventMocks).forEach(m => m.mockClear());
+  embedMock.mockClear();
+  upsertMock.mockClear();
+  hybridSearchMock.mockClear();
+}
 
 // --- Tests ---
 
 describe('memoryService', () => {
-  afterEach(() => {
-    mock.restore();
-  });
-
   describe('save()', () => {
     beforeEach(() => {
-      spyOn(memoryRepo, 'save').mockResolvedValue(mockMemory);
-      spyOn(eventBus, 'publish').mockResolvedValue(undefined);
-      embedMock.mockClear().mockImplementation(async () => [0.1, 0.2, 0.3]);
-      upsertMock.mockClear().mockImplementation(async () => undefined);
+      resetMocks();
+      repoMocks.save.mockImplementation(async () => mockMemory);
+      embedMock.mockImplementation(async () => [0.1, 0.2, 0.3]);
+      upsertMock.mockImplementation(async () => undefined);
     });
 
     test('should save via repo and return the memory', async () => {
       const input = { workspaceId: 'ws-1', type: 'domain' as const, title: 'Test Memory', content: 'Some content' };
       const result = await memoryService.save(input);
 
-      expect(memoryRepo.save).toHaveBeenCalledTimes(1);
-      expect(memoryRepo.save).toHaveBeenCalledWith(input);
+      expect(repoMocks.save).toHaveBeenCalledTimes(1);
+      expect(repoMocks.save).toHaveBeenCalledWith(input);
       expect(result).toEqual(mockMemory);
     });
 
@@ -103,10 +111,8 @@ describe('memoryService', () => {
       const input = { workspaceId: 'ws-1', type: 'domain' as const, title: 'Test Memory', content: 'Some content' };
       await memoryService.save(input);
 
-      expect(eventBus.publish).toHaveBeenCalledWith(Topics.MEMORY_SAVED, {
-        memoryId: mockMemory.id,
-        workspaceId: mockMemory.workspaceId,
-      });
+      expect(eventMocks.emitMemorySaved).toHaveBeenCalledTimes(1);
+      expect(eventMocks.emitMemorySaved).toHaveBeenCalledWith(mockMemory.id, mockMemory.workspaceId);
     });
 
     test('should attempt to generate and upsert embedding', async () => {
@@ -125,7 +131,7 @@ describe('memoryService', () => {
       const result = await memoryService.save(input);
 
       expect(result).toEqual(mockMemory);
-      expect(eventBus.publish).toHaveBeenCalledWith(Topics.MEMORY_SAVED, expect.any(Object));
+      expect(eventMocks.emitMemorySaved).toHaveBeenCalledTimes(1);
     });
 
     test('should still save and emit event when vector store upsert fails', async () => {
@@ -135,22 +141,23 @@ describe('memoryService', () => {
       const result = await memoryService.save(input);
 
       expect(result).toEqual(mockMemory);
-      expect(eventBus.publish).toHaveBeenCalledWith(Topics.MEMORY_SAVED, expect.any(Object));
+      expect(eventMocks.emitMemorySaved).toHaveBeenCalledTimes(1);
     });
 
     test('should include agentId when provided', async () => {
       const input = { workspaceId: 'ws-1', agentId: 'agent-42', type: 'feedback' as const, title: 'Feedback', content: 'Good run' };
       await memoryService.save(input);
 
-      expect(memoryRepo.save).toHaveBeenCalledWith(input);
+      expect(repoMocks.save).toHaveBeenCalledWith(input);
     });
   });
 
   describe('recall()', () => {
     beforeEach(() => {
-      spyOn(memoryRepo, 'get').mockResolvedValue(mockMemory);
-      spyOn(memoryRepo, 'search').mockResolvedValue([mockMemory]);
-      hybridSearchMock.mockClear().mockImplementation(async () => [{ id: 'mem-1', score: 0.9 }]);
+      resetMocks();
+      hybridSearchMock.mockImplementation(async () => [{ id: 'mem-1', score: 0.9 }]);
+      repoMocks.get.mockImplementation(async () => mockMemory);
+      repoMocks.search.mockImplementation(async () => [mockMemory]);
     });
 
     test('should return memories via hybrid search when it succeeds and returns results', async () => {
@@ -167,8 +174,8 @@ describe('memoryService', () => {
 
       const results = await memoryService.recall({ query: 'supply chain', workspaceId: 'ws-1' });
 
-      expect(memoryRepo.search).toHaveBeenCalledTimes(1);
-      expect(memoryRepo.search).toHaveBeenCalledWith('supply chain', 'ws-1', undefined, 5);
+      expect(repoMocks.search).toHaveBeenCalledTimes(1);
+      expect(repoMocks.search).toHaveBeenCalledWith('supply chain', 'ws-1', undefined, 5);
       expect(results).toEqual([mockMemory]);
     });
 
@@ -177,7 +184,7 @@ describe('memoryService', () => {
 
       await memoryService.recall({ query: 'no match', workspaceId: 'ws-1' });
 
-      expect(memoryRepo.search).toHaveBeenCalledTimes(1);
+      expect(repoMocks.search).toHaveBeenCalledTimes(1);
     });
 
     test('should pass agentId and limit to hybrid search', async () => {
@@ -194,7 +201,7 @@ describe('memoryService', () => {
 
     test('should filter out undefined memories from hybrid search results', async () => {
       hybridSearchMock.mockImplementation(async () => [{ id: 'mem-1', score: 0.9 }, { id: 'mem-missing', score: 0.5 }]);
-      (memoryRepo.get as ReturnType<typeof spyOn>).mockImplementation(async (id: string) => id === 'mem-1' ? mockMemory : undefined);
+      repoMocks.get.mockImplementation(async (id: string) => id === 'mem-1' ? mockMemory : undefined);
 
       const results = await memoryService.recall({ query: 'test', workspaceId: 'ws-1' });
 
@@ -207,31 +214,32 @@ describe('memoryService', () => {
 
       await memoryService.recall({ query: 'test', workspaceId: 'ws-1', agentId: 'agent-1', limit: 3 });
 
-      expect(memoryRepo.search).toHaveBeenCalledWith('test', 'ws-1', 'agent-1', 3);
+      expect(repoMocks.search).toHaveBeenCalledWith('test', 'ws-1', 'agent-1', 3);
     });
   });
 
   describe('list()', () => {
     beforeEach(() => {
-      spyOn(memoryRepo, 'list').mockResolvedValue([mockMemory]);
+      resetMocks();
+      repoMocks.list.mockImplementation(async () => [mockMemory]);
     });
 
     test('should delegate to repo.list and return results', async () => {
       const results = await memoryService.list('ws-1');
 
-      expect(memoryRepo.list).toHaveBeenCalledTimes(1);
-      expect(memoryRepo.list).toHaveBeenCalledWith('ws-1', undefined);
+      expect(repoMocks.list).toHaveBeenCalledTimes(1);
+      expect(repoMocks.list).toHaveBeenCalledWith('ws-1', undefined);
       expect(results).toEqual([mockMemory]);
     });
 
     test('should pass agentId when provided', async () => {
       await memoryService.list('ws-1', 'agent-1');
 
-      expect(memoryRepo.list).toHaveBeenCalledWith('ws-1', 'agent-1');
+      expect(repoMocks.list).toHaveBeenCalledWith('ws-1', 'agent-1');
     });
 
     test('should return empty array when repo returns none', async () => {
-      (memoryRepo.list as ReturnType<typeof spyOn>).mockResolvedValue([]);
+      repoMocks.list.mockImplementation(async () => []);
 
       const results = await memoryService.list('ws-empty');
 
@@ -241,19 +249,20 @@ describe('memoryService', () => {
 
   describe('forget()', () => {
     beforeEach(() => {
-      spyOn(memoryRepo, 'delete').mockResolvedValue(true);
+      resetMocks();
+      repoMocks.delete.mockImplementation(async () => true);
     });
 
     test('should delegate to repo.delete and return true on success', async () => {
       const result = await memoryService.forget('mem-1');
 
-      expect(memoryRepo.delete).toHaveBeenCalledTimes(1);
-      expect(memoryRepo.delete).toHaveBeenCalledWith('mem-1');
+      expect(repoMocks.delete).toHaveBeenCalledTimes(1);
+      expect(repoMocks.delete).toHaveBeenCalledWith('mem-1');
       expect(result).toBe(true);
     });
 
     test('should return false when repo reports memory not found', async () => {
-      (memoryRepo.delete as ReturnType<typeof spyOn>).mockResolvedValue(false);
+      repoMocks.delete.mockImplementation(async () => false);
 
       const result = await memoryService.forget('mem-nonexistent');
 
@@ -263,16 +272,16 @@ describe('memoryService', () => {
 
   describe('propose()', () => {
     beforeEach(() => {
-      spyOn(memoryRepo, 'createProposal').mockResolvedValue(mockProposal);
-      spyOn(eventBus, 'publish').mockResolvedValue(undefined);
+      resetMocks();
+      repoMocks.createProposal.mockImplementation(async () => mockProposal);
     });
 
     test('should create proposal via repo and return it', async () => {
       const input = { workspaceId: 'ws-1', agentId: 'agent-1', type: 'pattern' as const, title: 'Proposed Memory', content: 'Pattern content' };
       const result = await memoryService.propose(input);
 
-      expect(memoryRepo.createProposal).toHaveBeenCalledTimes(1);
-      expect(memoryRepo.createProposal).toHaveBeenCalledWith(input);
+      expect(repoMocks.createProposal).toHaveBeenCalledTimes(1);
+      expect(repoMocks.createProposal).toHaveBeenCalledWith(input);
       expect(result).toEqual(mockProposal);
     });
 
@@ -280,7 +289,8 @@ describe('memoryService', () => {
       const input = { workspaceId: 'ws-1', agentId: 'agent-1', type: 'domain' as const, title: 'Proposed Memory', content: 'Content' };
       await memoryService.propose(input);
 
-      expect(eventBus.publish).toHaveBeenCalledWith(Topics.MEMORY_PROPOSAL, {
+      expect(eventMocks.emitMemoryProposal).toHaveBeenCalledTimes(1);
+      expect(eventMocks.emitMemoryProposal).toHaveBeenCalledWith({
         id: mockProposal.id,
         workspaceId: mockProposal.workspaceId,
         agentId: mockProposal.agentId,
@@ -298,67 +308,57 @@ describe('memoryService', () => {
 
   describe('approveProposal()', () => {
     beforeEach(() => {
-      spyOn(memoryRepo, 'approveProposal').mockResolvedValue(mockMemory);
-      spyOn(eventBus, 'publish').mockResolvedValue(undefined);
+      resetMocks();
+      repoMocks.approveProposal.mockImplementation(async () => mockMemory);
     });
 
     test('should approve proposal via repo and return the resulting memory', async () => {
       const result = await memoryService.approveProposal('prop-1');
 
-      expect(memoryRepo.approveProposal).toHaveBeenCalledTimes(1);
-      expect(memoryRepo.approveProposal).toHaveBeenCalledWith('prop-1');
+      expect(repoMocks.approveProposal).toHaveBeenCalledTimes(1);
+      expect(repoMocks.approveProposal).toHaveBeenCalledWith('prop-1');
       expect(result).toEqual(mockMemory);
     });
 
     test('should emit MemoryApproved event with correct ids', async () => {
       await memoryService.approveProposal('prop-1');
 
-      expect(eventBus.publish).toHaveBeenCalledWith(Topics.MEMORY_APPROVED, {
-        memoryId: mockMemory.id,
-        proposalId: 'prop-1',
-        workspaceId: mockMemory.workspaceId,
-      });
+      expect(eventMocks.emitMemoryApproved).toHaveBeenCalledTimes(1);
+      expect(eventMocks.emitMemoryApproved).toHaveBeenCalledWith(mockMemory.id, 'prop-1', mockMemory.workspaceId);
     });
   });
 
   describe('rejectProposal()', () => {
     beforeEach(() => {
-      spyOn(memoryRepo, 'getProposal').mockResolvedValue(mockProposal);
-      spyOn(memoryRepo, 'rejectProposal').mockResolvedValue(undefined);
-      spyOn(eventBus, 'publish').mockResolvedValue(undefined);
+      resetMocks();
+      repoMocks.getProposal.mockImplementation(async () => mockProposal);
+      repoMocks.rejectProposal.mockImplementation(async () => undefined);
     });
 
     test('should reject proposal via repo and emit event', async () => {
       await memoryService.rejectProposal('prop-1', 'Not accurate');
 
-      expect(memoryRepo.getProposal).toHaveBeenCalledWith('prop-1');
-      expect(memoryRepo.rejectProposal).toHaveBeenCalledWith('prop-1', 'Not accurate');
-      expect(eventBus.publish).toHaveBeenCalledWith(Topics.MEMORY_REJECTED, {
-        proposalId: 'prop-1',
-        workspaceId: mockProposal.workspaceId,
-        reason: 'Not accurate',
-      });
+      expect(repoMocks.getProposal).toHaveBeenCalledWith('prop-1');
+      expect(repoMocks.rejectProposal).toHaveBeenCalledWith('prop-1', 'Not accurate');
+      expect(eventMocks.emitMemoryRejected).toHaveBeenCalledTimes(1);
+      expect(eventMocks.emitMemoryRejected).toHaveBeenCalledWith('prop-1', mockProposal.workspaceId, 'Not accurate');
     });
 
     test('should work without a rejection reason', async () => {
       await memoryService.rejectProposal('prop-1');
 
-      expect(memoryRepo.rejectProposal).toHaveBeenCalledWith('prop-1', undefined);
-      expect(eventBus.publish).toHaveBeenCalledWith(Topics.MEMORY_REJECTED, {
-        proposalId: 'prop-1',
-        workspaceId: mockProposal.workspaceId,
-        reason: undefined,
-      });
+      expect(repoMocks.rejectProposal).toHaveBeenCalledWith('prop-1', undefined);
+      expect(eventMocks.emitMemoryRejected).toHaveBeenCalledWith('prop-1', mockProposal.workspaceId, undefined);
     });
 
     test('should throw when proposal does not exist', async () => {
-      (memoryRepo.getProposal as ReturnType<typeof spyOn>).mockResolvedValue(undefined);
+      repoMocks.getProposal.mockImplementation(async () => undefined);
 
       await expect(memoryService.rejectProposal('prop-missing')).rejects.toThrow('Proposal not found: prop-missing');
     });
 
     test('should not call rejectProposal on repo when proposal is not found', async () => {
-      (memoryRepo.getProposal as ReturnType<typeof spyOn>).mockResolvedValue(undefined);
+      repoMocks.getProposal.mockImplementation(async () => undefined);
 
       try {
         await memoryService.rejectProposal('prop-missing');
@@ -366,8 +366,8 @@ describe('memoryService', () => {
         // expected
       }
 
-      expect(memoryRepo.rejectProposal).not.toHaveBeenCalled();
-      expect(eventBus.publish).not.toHaveBeenCalledWith(Topics.MEMORY_REJECTED, expect.any(Object));
+      expect(repoMocks.rejectProposal).not.toHaveBeenCalled();
+      expect(eventMocks.emitMemoryRejected).not.toHaveBeenCalled();
     });
   });
 });

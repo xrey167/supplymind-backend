@@ -16,7 +16,15 @@
       "Bash(echo \"exit: $?\")",
       "Bash(grep -E \"\\\\.test\\\\.ts$\")",
       "Bash(grep -l \"memory.repo\\\\|memory.search\\\\|memory.service\" src/modules/context/__tests__/*.ts)",
-      "Bash(grep -l \"memory\" src/modules/collaboration/__tests__/*.ts)"
+      "Bash(grep -l \"memory\" src/modules/collaboration/__tests__/*.ts)",
+      "Bash(git push:*)",
+      "Bash(gh pr:*)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(git branch:*)",
+      "mcp__fetch__fetch",
+      "Bash(tree -L 3 -d /c/Users/Xrey/SupplyMindAI/backend/src --ignore node_modules)",
+      "Bash(grep -E \"\\\\.ts$\")"
     ]
   }
 }
