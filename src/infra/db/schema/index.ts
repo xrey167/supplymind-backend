@@ -201,7 +201,9 @@ export const workspaceSettings = pgTable('workspace_settings', {
   key: text('key').notNull(),
   value: jsonb('value').notNull(),
   updatedAt: timestamp('updated_at').defaultNow(),
-});
+}, (t) => [
+  uniqueIndex('ws_settings_workspace_key_idx').on(t.workspaceId, t.key),
+]);
 
 // API keys
 export const apiKeys = pgTable('api_keys', {

@@ -38,7 +38,7 @@ export class WorkspaceSettingsController {
     const workspaceId = c.get('workspaceId') as string;
     const approvalId = c.req.param('approvalId');
 
-    const resolved = resolveApproval(approvalId, true);
+    const resolved = resolveApproval(approvalId, workspaceId, true);
     if (!resolved) {
       return c.json(
         { error: { code: 'NOT_FOUND', message: 'Approval request not found or already resolved' } },
@@ -54,7 +54,7 @@ export class WorkspaceSettingsController {
     const workspaceId = c.get('workspaceId') as string;
     const approvalId = c.req.param('approvalId');
 
-    const resolved = resolveApproval(approvalId, false);
+    const resolved = resolveApproval(approvalId, workspaceId, false);
     if (!resolved) {
       return c.json(
         { error: { code: 'NOT_FOUND', message: 'Approval request not found or already resolved' } },

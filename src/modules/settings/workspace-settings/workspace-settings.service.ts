@@ -78,6 +78,11 @@ export class WorkspaceSettingsService {
     const raw = await this.getRaw(workspaceId, WorkspaceSettingKeys.MCP_SERVER_POLICY);
     return mcpServerPolicySchema.parse(raw ?? {});
   }
+
+  // Spec-contract aliases
+  getSettings = this.getToolSettings;
+  updateSettings = this.updateToolSettings;
+  getMode = this.getToolPermissionMode;
 }
 
 export const workspaceSettingsService = new WorkspaceSettingsService();
