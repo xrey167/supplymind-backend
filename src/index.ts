@@ -1,3 +1,8 @@
+import { initSentry, Sentry } from './infra/observability/sentry';
+
+// Sentry must init before everything else
+initSentry();
+
 import { createApp, destroySubsystems, getBunWebSocketHandlers } from './app/create-app';
 
 const port = Number(process.env.PORT) || 3001;
@@ -13,14 +18,12 @@ const server = Bun.serve({
 console.log(`Server running on port ${port}`);
 
 // Graceful shutdown
-process.on('SIGINT', async () => {
+async function shutdown() {
   await destroySubsystems();
+  await Sentry.close(2000);
   server.stop();
   process.exit(0);
-});
+}
 
-process.on('SIGTERM', async () => {
-  await destroySubsystems();
-  server.stop();
-  process.exit(0);
-});
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

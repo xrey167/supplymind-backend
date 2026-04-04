@@ -11,7 +11,10 @@ export const envSchema = z.object({
   NOVU_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+  GOOGLE_API_KEY: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
+  OTEL_SERVICE_NAME: z.string().default('supplymind-backend'),
 });
 
 export type Env = z.infer<typeof envSchema>;
