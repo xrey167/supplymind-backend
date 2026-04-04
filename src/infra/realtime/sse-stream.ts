@@ -1,0 +1,59 @@
+import type { Context } from 'hono';
+import { eventBus } from '../../events/bus';
+
+export function sseResponse(
+  c: Context,
+  setup: (send: (event: string, data: unknown) => void, close: () => void) => void | (() => void),
+): Response {
+  const stream = new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder();
+      const send = (event: string, data: unknown) => {
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch {}
+      };
+      const close = () => {
+        try { controller.close(); } catch {}
+      };
+      // Heartbeat
+      const hb = setInterval(() => send('heartbeat', {}), 30_000);
+      const cleanup = setup(send, close);
+      // Signal cleanup on abort
+      c.req.raw.signal.addEventListener('abort', () => {
+        clearInterval(hb);
+        if (typeof cleanup === 'function') cleanup();
+        close();
+      });
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
+}
+
+/** SSE endpoint that streams events for a specific task */
+export function taskEventStream(c: Context, taskId: string): Response {
+  return sseResponse(c, (send, close) => {
+    const topics = ['task:status', 'task:text_delta', 'task:tool_call', 'task:artifact', 'task:error', 'task:completed'];
+    const handlers: Array<() => void> = [];
+    for (const topic of topics) {
+      const handler = (data: any) => {
+        if (data.taskId === taskId) {
+          send(topic, data);
+          if (topic === 'task:completed' || topic === 'task:error') {
+            close();
+          }
+        }
+      };
+      eventBus.on(topic, handler);
+      handlers.push(() => eventBus.off(topic, handler));
+    }
+    return () => handlers.forEach(h => h());
+  });
+}
