@@ -7,6 +7,9 @@ import { SkillsRoutes } from '../../../modules/skills';
 import { TasksRoutes } from '../../../modules/tasks';
 import { CollaborationRoutes } from '../../../modules/collaboration/collaboration.routes';
 import { WorkflowRoutes } from '../../../modules/workflows/workflows.routes';
+import { sessionsRoutes } from '../../../modules/sessions/sessions.routes';
+import { memoryRoutes } from '../../../modules/memory/memory.routes';
+import { orchestrationRoutes } from '../../../modules/orchestration/orchestration.routes';
 
 const workspaceRoutes = new OpenAPIHono();
 
@@ -21,5 +24,8 @@ workspaceRoutes.route('/skills', SkillsRoutes);
 workspaceRoutes.route('/tasks', TasksRoutes);
 workspaceRoutes.route('/collaboration', CollaborationRoutes);
 workspaceRoutes.route('/workflows', WorkflowRoutes);
+workspaceRoutes.route('/sessions', sessionsRoutes);
+workspaceRoutes.route('/memory', memoryRoutes);
+workspaceRoutes.route('/orchestrations', orchestrationRoutes);
 
 export { workspaceRoutes };
