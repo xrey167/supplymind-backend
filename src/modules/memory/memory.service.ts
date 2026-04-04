@@ -5,8 +5,11 @@ import type { AgentMemory, MemoryProposal, RecallResult, SaveMemoryInput, Propos
 
 const STALENESS_THRESHOLD_DAYS = 30;
 
-function daysSince(dateStr: string): number {
-  return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
+function daysSince(date: Date | string | null | undefined): number {
+  if (!date) return 0;
+  const ms = new Date(date).getTime();
+  if (isNaN(ms)) return 0;
+  return Math.max(0, Math.floor((Date.now() - ms) / (1000 * 60 * 60 * 24)));
 }
 
 function toRecallResult(m: AgentMemory): RecallResult {

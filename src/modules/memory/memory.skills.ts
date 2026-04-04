@@ -55,9 +55,8 @@ const memorySkills: Skill[] = [
         const agentId = context?.callerId;
         const memories = await memoryService.recall({ query, workspaceId, agentId, limit: limit ?? 5 });
         return ok(memories.map((m) => {
-          const staleWarning = m.stale ? ` ⚠️ Stale (${m.staleDays} days old)` : '';
           return {
-            title: m.title + staleWarning,
+            title: m.title,
             content: m.content,
             type: m.type,
             confidence: m.confidence,
@@ -65,6 +64,7 @@ const memorySkills: Skill[] = [
             stale: m.stale,
             staleDays: m.staleDays,
             updatedAt: m.updatedAt,
+            warning: m.stale ? `Memory is ${m.staleDays} days old and may be outdated` : undefined,
           };
         }));
       } catch (error) {
