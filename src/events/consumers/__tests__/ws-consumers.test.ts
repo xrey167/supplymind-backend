@@ -234,7 +234,7 @@ describe('ws-consumers', () => {
       eventBus.reset();
       const before = eventBus.getStats().subscriptions;
       initWsConsumers();
-      expect(eventBus.getStats().subscriptions).toBe(before + 5);
+      expect(eventBus.getStats().subscriptions).toBe(before + 8);
     });
   });
 });

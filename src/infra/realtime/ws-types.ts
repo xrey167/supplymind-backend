@@ -10,7 +10,12 @@ export type ServerMessage =
   | { type: 'mcp:progress'; toolName: string; progress: unknown }
   | { type: 'skill:result'; requestId: string; name: string; ok: boolean; result?: unknown; error?: string; durationMs: number }
   | { type: 'heartbeat' }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  | { type: 'session:input_required'; sessionId: string; prompt: string }
+  | { type: 'session:resumed'; sessionId: string }
+  | { type: 'memory:proposal'; proposal: { id: string; agentId: string; title: string; content: string; evidence?: string; type: string } }
+  | { type: 'orchestration:status'; orchestrationId: string; status: string; stepId?: string }
+  | { type: 'orchestration:gate'; orchestrationId: string; stepId: string; prompt: string };
 
 export type ClientMessage =
   | { type: 'task:send'; agentId: string; messages: unknown[] }
@@ -20,7 +25,11 @@ export type ClientMessage =
   | { type: 'unsubscribe'; channels: string[] }
   | { type: 'a2a:send'; agentUrl: string; skillId: string; args: unknown }
   | { type: 'skill:invoke'; name: string; args?: Record<string, unknown>; requestId?: string }
-  | { type: 'ping' };
+  | { type: 'ping' }
+  | { type: 'session:resume'; sessionId: string; input: unknown }
+  | { type: 'memory:approve'; proposalId: string }
+  | { type: 'memory:reject'; proposalId: string; reason?: string }
+  | { type: 'orchestration:gate:respond'; orchestrationId: string; stepId: string; approved: boolean };
 
 export interface WsClient {
   id: string;

@@ -21,6 +21,10 @@ export function initWsConsumers(): void {
 
   // Subscribe to ws.skill.invoke — direct skill invocation from UI
   eventBus.subscribe('ws.skill.invoke', handleWsSkillInvoke, { name: 'ws:skill:invoke' });
+
+  eventBus.subscribe('ws.session.resume', handleWsSessionResume, { name: 'ws:session:resume' });
+  eventBus.subscribe('ws.memory.approve', handleWsMemoryApprove, { name: 'ws:memory:approve' });
+  eventBus.subscribe('ws.memory.reject', handleWsMemoryReject, { name: 'ws:memory:reject' });
 }
 
 async function handleWsTaskSend(event: BusEvent): Promise<void> {
@@ -99,6 +103,63 @@ async function handleWsTaskInput(event: BusEvent): Promise<void> {
     'ws.task.input not yet implemented (input_required not yet implemented)',
   );
   // TODO: Implement input_required workflow once task manager supports resumption
+}
+
+async function handleWsSessionResume(event: BusEvent): Promise<void> {
+  const data = event.data as any;
+  try {
+    const { clientId, sessionId, input } = data;
+    if (!sessionId) {
+      logger.warn({ clientId }, 'ws.session.resume missing sessionId');
+      return;
+    }
+    const { sessionsService } = await import('../../modules/sessions/sessions.service');
+    await sessionsService.resume(sessionId);
+    if (input) {
+      await sessionsService.addMessage(sessionId, {
+        role: 'user',
+        content: typeof input === 'string' ? input : JSON.stringify(input),
+      });
+    }
+    logger.info({ clientId, sessionId }, 'Session resumed from WebSocket');
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error({ clientId: data.clientId, error: err.message }, 'Failed to resume session');
+  }
+}
+
+async function handleWsMemoryApprove(event: BusEvent): Promise<void> {
+  const data = event.data as any;
+  try {
+    const { clientId, proposalId } = data;
+    if (!proposalId) {
+      logger.warn({ clientId }, 'ws.memory.approve missing proposalId');
+      return;
+    }
+    const { memoryService } = await import('../../modules/memory/memory.service');
+    await memoryService.approveProposal(proposalId);
+    logger.info({ clientId, proposalId }, 'Memory proposal approved from WebSocket');
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error({ clientId: data.clientId, error: err.message }, 'Failed to approve memory proposal');
+  }
+}
+
+async function handleWsMemoryReject(event: BusEvent): Promise<void> {
+  const data = event.data as any;
+  try {
+    const { clientId, proposalId, reason } = data;
+    if (!proposalId) {
+      logger.warn({ clientId }, 'ws.memory.reject missing proposalId');
+      return;
+    }
+    const { memoryService } = await import('../../modules/memory/memory.service');
+    await memoryService.rejectProposal(proposalId, reason);
+    logger.info({ clientId, proposalId }, 'Memory proposal rejected from WebSocket');
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error({ clientId: data.clientId, error: err.message }, 'Failed to reject memory proposal');
+  }
 }
 
 async function handleWsA2aSend(event: BusEvent): Promise<void> {
