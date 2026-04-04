@@ -12,28 +12,31 @@ const mockRun = mock(() => Promise.resolve({ ok: true, value: { content: 'done',
 const mockStream = mock(() => (async function* () {})());
 const mockRuntime = { run: mockRun, stream: mockStream };
 
-spyOn(runtimeFactory, 'createRuntime').mockImplementation(() => mockRuntime as any);
+const runtimeSpy = spyOn(runtimeFactory, 'createRuntime').mockImplementation(() => mockRuntime as any);
 
 // Mock dispatchSkill via spyOn
 const mockDispatchSkill = mock(() => Promise.resolve({ ok: true, value: 'tool-result' }));
-spyOn(skillsDispatch, 'dispatchSkill').mockImplementation(mockDispatchSkill as any);
+const dispatchSpy = spyOn(skillsDispatch, 'dispatchSkill').mockImplementation(mockDispatchSkill as any);
 
 // Mock skillRegistry.toToolDefinitions via spyOn
-spyOn(skillsRegistryModule.skillRegistry, 'toToolDefinitions').mockImplementation(
+const toolDefsSpy = spyOn(skillsRegistryModule.skillRegistry, 'toToolDefinitions').mockImplementation(
   () => [{ name: 'echo', description: 'Echo', inputSchema: {} }],
 );
 
 // Mock contextService.prepare — pass through messages unchanged
-spyOn(contextService, 'prepare').mockImplementation(async (input: any) => ({
+const contextSpy = spyOn(contextService, 'prepare').mockImplementation(async (input: any) => ({
   systemPrompt: input.agentConfig.systemPrompt ?? '',
   messages: input.messages,
   estimatedTokens: 0,
   wasCompacted: false,
 }));
 
-// Restore all spies after this file so they don't bleed into other test files
+// Restore only our spies after this file so they don't bleed into other test files
 afterAll(() => {
-  mock.restore();
+  runtimeSpy.mockRestore();
+  dispatchSpy.mockRestore();
+  toolDefsSpy.mockRestore();
+  contextSpy.mockRestore();
 });
 
 function baseConfig() {
