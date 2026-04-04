@@ -4,10 +4,14 @@ import { skillsService } from '../modules/skills/skills.service';
 import { skillRegistry } from '../modules/skills/skills.registry';
 import { wsServer } from '../infra/realtime/ws-server';
 import { mcpClientPool } from '../infra/mcp/client-pool';
-import { createRedisPair } from '../infra/redis/client';
+import { createRedisPair, createRedisClient } from '../infra/redis/client';
 import { RedisPubSub } from '../infra/redis/pubsub';
 import { initEventConsumers } from '../events/consumers';
 import { initWsConsumers } from '../events/consumers/ws-consumers';
+import { getStateStore, closeStateStore } from '../infra/state';
+import { setCacheProvider } from '../infra/cache';
+import { RedisCache } from '../infra/cache/redis-cache';
+import { registerMemorySkills } from '../modules/memory/memory.skills';
 
 let redisPubSub: RedisPubSub | null = null;
 
@@ -24,6 +28,28 @@ export async function initSubsystems(): Promise<void> {
   } catch (err) {
     logger.error({ error: err }, 'Failed to load skills');
     throw err; // Skills are critical — fail startup
+  }
+
+  // Register memory skills (remember, recall, propose_memory, forget)
+  registerMemorySkills();
+  logger.info('Memory skills registered');
+
+  // StateStore + CacheProvider
+  const stateStore = getStateStore();
+  logger.info({ backend: stateStore.backend }, 'StateStore initialized');
+
+  // Wire Redis cache if Redis is available
+  try {
+    const redisUrl = process.env.REDIS_URL;
+    if (redisUrl) {
+      const cacheClient = createRedisClient(redisUrl);
+      setCacheProvider(new RedisCache(cacheClient));
+      logger.info('CacheProvider: Redis');
+    } else {
+      logger.info('CacheProvider: Memory (no REDIS_URL)');
+    }
+  } catch (err) {
+    logger.warn({ error: err }, 'Redis cache init failed — using memory cache');
   }
 
   // Step 2: WebSocket server
@@ -49,6 +75,12 @@ export async function initSubsystems(): Promise<void> {
     redisPubSub.bridgeFromRedis('task.#');
     redisPubSub.bridgeToRedis('collaboration.#');
     redisPubSub.bridgeFromRedis('collaboration.#');
+    redisPubSub.bridgeToRedis('session.#');
+    redisPubSub.bridgeFromRedis('session.#');
+    redisPubSub.bridgeToRedis('memory.#');
+    redisPubSub.bridgeFromRedis('memory.#');
+    redisPubSub.bridgeToRedis('orchestration.#');
+    redisPubSub.bridgeFromRedis('orchestration.#');
     logger.info('Redis pub/sub bridge initialized');
   } catch (err) {
     logger.warn({ error: err }, 'Redis pub/sub bridge failed to initialize — continuing without it');
@@ -66,6 +98,7 @@ export async function initSubsystems(): Promise<void> {
 export async function destroySubsystems(): Promise<void> {
   wsServer.destroy();
   await mcpClientPool.disconnectAll();
+  await closeStateStore();
   // Redis cleanup is handled by ioredis automatically on disconnect
   logger.info('Subsystems destroyed');
 }
