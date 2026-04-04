@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test';
 import { taskManager } from '../task-manager';
 import { eventBus } from '../../../events/bus';
+import { toolRegistry } from '../../../modules/tools/tools.registry';
 
 // Mock createRuntime
 const mockRun = mock(() => Promise.resolve({ ok: true, value: { content: 'done', stopReason: 'end_turn' } }));
@@ -21,6 +22,8 @@ mock.module('../../../modules/skills/skills.dispatch', () => ({
 mock.module('../../../modules/skills/skills.registry', () => ({
   skillRegistry: {
     toToolDefinitions: () => [{ name: 'echo', description: 'Echo', inputSchema: {} }],
+    register: () => {},
+    unregister: () => {},
   },
 }));
 
@@ -303,6 +306,207 @@ describe('TaskManager', () => {
       const runCall = mockRun.mock.calls[0][0] as any;
       expect(runCall.toolChoice).toEqual({ type: 'any' });
       expect(runCall.disableParallelToolUse).toBe(true);
+    });
+  });
+
+  describe('tool concurrency batching', () => {
+    test('read-only tools run in parallel', async () => {
+      // Register two read-only tools
+      toolRegistry.register({
+        id: 'ro-1', name: 'ro_tool_1', description: 'Read-only 1',
+        inputSchema: {}, source: 'builtin', priority: 10, enabled: true,
+        isReadOnly: true,
+        handler: async () => ({ ok: true as const, value: 'result-1' }),
+      });
+      toolRegistry.register({
+        id: 'ro-2', name: 'ro_tool_2', description: 'Read-only 2',
+        inputSchema: {}, source: 'builtin', priority: 10, enabled: true,
+        isReadOnly: true,
+        handler: async () => ({ ok: true as const, value: 'result-2' }),
+      });
+
+      let callCount = 0;
+      mockRun.mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            value: {
+              content: 'calling ro tools',
+              stopReason: 'tool_use',
+              toolCalls: [
+                { id: 'ro-tc-1', name: 'ro_tool_1', args: {} },
+                { id: 'ro-tc-2', name: 'ro_tool_2', args: {} },
+              ],
+            },
+          };
+        }
+        return { ok: true, value: { content: 'done', stopReason: 'end_turn' } };
+      });
+
+      const startTimes: number[] = [];
+      mockDispatchSkill.mockImplementation(async (name: string) => {
+        startTimes.push(Date.now());
+        await new Promise(r => setTimeout(r, 80)); // 80ms delay per tool
+        return { ok: true, value: `result-${name}` };
+      });
+
+      const task = await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'parallel ro tools' }] },
+        agentConfig: baseConfig(),
+        callerId: 'caller-1',
+      });
+
+      await flush(400);
+
+      expect(taskManager.get(task.id)?.status.state).toBe('completed');
+      // Both tools were dispatched
+      expect(mockDispatchSkill).toHaveBeenCalledTimes(2);
+      // Both tools started nearly simultaneously (parallel) — start times within 30ms of each other
+      // If serial, the second would start ~80ms after the first
+      expect(startTimes).toHaveLength(2);
+      expect(Math.abs(startTimes[1] - startTimes[0])).toBeLessThan(50);
+
+      toolRegistry.unregister('ro_tool_1');
+      toolRegistry.unregister('ro_tool_2');
+    });
+
+    test('write tools run serially', async () => {
+      toolRegistry.register({
+        id: 'w-1', name: 'write_tool_1', description: 'Write 1',
+        inputSchema: {}, source: 'builtin', priority: 10, enabled: true,
+        isReadOnly: false,
+        handler: async () => ({ ok: true as const, value: 'w1' }),
+      });
+      toolRegistry.register({
+        id: 'w-2', name: 'write_tool_2', description: 'Write 2',
+        inputSchema: {}, source: 'builtin', priority: 10, enabled: true,
+        isReadOnly: false,
+        handler: async () => ({ ok: true as const, value: 'w2' }),
+      });
+
+      let callCount = 0;
+      mockRun.mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            value: {
+              content: 'calling write tools',
+              stopReason: 'tool_use',
+              toolCalls: [
+                { id: 'w-tc-1', name: 'write_tool_1', args: {} },
+                { id: 'w-tc-2', name: 'write_tool_2', args: {} },
+              ],
+            },
+          };
+        }
+        return { ok: true, value: { content: 'done', stopReason: 'end_turn' } };
+      });
+
+      const order: string[] = [];
+      mockDispatchSkill.mockImplementation(async (name: string) => {
+        order.push(`start:${name}`);
+        await new Promise(r => setTimeout(r, 50));
+        order.push(`end:${name}`);
+        return { ok: true, value: `result-${name}` };
+      });
+
+      const task = await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'serial write tools' }] },
+        agentConfig: baseConfig(),
+        callerId: 'caller-1',
+      });
+
+      await flush(400);
+
+      expect(taskManager.get(task.id)?.status.state).toBe('completed');
+      // Serial: first tool fully completes before second starts
+      expect(order).toEqual([
+        'start:write_tool_1', 'end:write_tool_1',
+        'start:write_tool_2', 'end:write_tool_2',
+      ]);
+
+      toolRegistry.unregister('write_tool_1');
+      toolRegistry.unregister('write_tool_2');
+    });
+
+    test('mixed batch: write runs serially first, then read-only tools run in parallel', async () => {
+      toolRegistry.register({
+        id: 'mx-w', name: 'mixed_write', description: 'Mixed write',
+        inputSchema: {}, source: 'builtin', priority: 10, enabled: true,
+        isReadOnly: false,
+        handler: async () => ({ ok: true as const, value: 'w' }),
+      });
+      toolRegistry.register({
+        id: 'mx-r1', name: 'mixed_read_1', description: 'Mixed read 1',
+        inputSchema: {}, source: 'builtin', priority: 10, enabled: true,
+        isReadOnly: true,
+        handler: async () => ({ ok: true as const, value: 'r1' }),
+      });
+      toolRegistry.register({
+        id: 'mx-r2', name: 'mixed_read_2', description: 'Mixed read 2',
+        inputSchema: {}, source: 'builtin', priority: 10, enabled: true,
+        isReadOnly: true,
+        handler: async () => ({ ok: true as const, value: 'r2' }),
+      });
+
+      let callCount = 0;
+      mockRun.mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            value: {
+              content: 'mixed tools',
+              stopReason: 'tool_use',
+              toolCalls: [
+                { id: 'mx-tc-w', name: 'mixed_write', args: {} },
+                { id: 'mx-tc-r1', name: 'mixed_read_1', args: {} },
+                { id: 'mx-tc-r2', name: 'mixed_read_2', args: {} },
+              ],
+            },
+          };
+        }
+        return { ok: true, value: { content: 'done', stopReason: 'end_turn' } };
+      });
+
+      const dispatchLog: Array<{ name: string; time: number }> = [];
+      mockDispatchSkill.mockImplementation(async (name: string) => {
+        dispatchLog.push({ name, time: Date.now() });
+        await new Promise(r => setTimeout(r, 80));
+        return { ok: true, value: `result-${name}` };
+      });
+
+      const start = Date.now();
+      const task = await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'mixed tools' }] },
+        agentConfig: baseConfig(),
+        callerId: 'caller-1',
+      });
+
+      await flush(500);
+
+      expect(taskManager.get(task.id)?.status.state).toBe('completed');
+      expect(mockDispatchSkill).toHaveBeenCalledTimes(3);
+
+      // Write tool ran first
+      expect(dispatchLog[0].name).toBe('mixed_write');
+
+      // Read-only tools started after write completed (>= 80ms after start)
+      const readStartTimes = dispatchLog.filter(e => e.name !== 'mixed_write').map(e => e.time);
+      const writeStartTime = dispatchLog[0].time;
+      for (const t of readStartTimes) {
+        expect(t - writeStartTime).toBeGreaterThanOrEqual(70);
+      }
+
+      // Read-only tools started close together (parallel, within 30ms of each other)
+      const diff = Math.abs(readStartTimes[0] - readStartTimes[1]);
+      expect(diff).toBeLessThan(30);
+
+      toolRegistry.unregister('mixed_write');
+      toolRegistry.unregister('mixed_read_1');
+      toolRegistry.unregister('mixed_read_2');
     });
   });
 

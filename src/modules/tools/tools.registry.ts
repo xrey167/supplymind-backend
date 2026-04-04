@@ -20,6 +20,8 @@ export interface RegisteredTool {
   handler: (args: unknown) => Promise<Result<unknown>>;
   toolHints?: SkillToolHints;
   metadata?: Record<string, unknown>;
+  isConcurrencySafe?: boolean;  // safe to run alongside other tools
+  isReadOnly?: boolean;         // does not mutate shared state — can run in parallel
 }
 
 export interface ToolPlugin {

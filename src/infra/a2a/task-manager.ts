@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 import { createRuntime } from '../ai/runtime-factory';
-import type { AgentRuntime, AIProvider, AgentMode, ToolChoice } from '../ai/types';
+import type { AgentRuntime, AIProvider, AgentMode } from '../ai/types';
 import { skillRegistry } from '../../modules/skills/skills.registry';
 import { dispatchSkill } from '../../modules/skills/skills.dispatch';
 import { eventBus } from '../../events/bus';
@@ -8,7 +8,9 @@ import { Topics } from '../../events/topics';
 import type { Message, RunInput } from '../ai/types';
 import type { DispatchContext } from '../../modules/skills/skills.types';
 import type { A2ATask, TaskState, TaskSendParams } from './types';
+import type { AgentConfig } from './coordinator-config';
 import { AbortError } from '../../core/errors';
+import { toolRegistry } from '../../modules/tools/tools.registry';
 
 const MAX_TOOL_CALL_ITERATIONS = 10;
 
@@ -22,7 +24,7 @@ interface TaskRecord {
 class TaskManager {
   private tasks = new Map<string, TaskRecord>();
 
-  async send(params: TaskSendParams & { agentConfig: { id: string; provider: AIProvider; mode: 'raw' | 'agent-sdk'; model: string; systemPrompt?: string; temperature?: number; maxTokens?: number; toolIds?: string[]; workspaceId: string; toolChoice?: ToolChoice; disableParallelToolUse?: boolean }; callerId: string }): Promise<A2ATask> {
+  async send(params: TaskSendParams & { agentConfig: AgentConfig; callerId: string }): Promise<A2ATask> {
     const taskId = params.id ?? nanoid();
     const config = params.agentConfig;
 
@@ -55,7 +57,7 @@ class TaskManager {
   private async executeTask(
     taskId: string,
     params: TaskSendParams,
-    config: { id: string; provider: AIProvider; mode: 'raw' | 'agent-sdk'; model: string; systemPrompt?: string; temperature?: number; maxTokens?: number; toolIds?: string[]; workspaceId: string; toolChoice?: ToolChoice; disableParallelToolUse?: boolean },
+    config: AgentConfig,
   ) {
     const record = this.tasks.get(taskId);
     if (!record) return;
@@ -129,34 +131,46 @@ class TaskManager {
           // Add assistant message with tool calls
           messages.push({ role: 'assistant', content: runResult.content || '' });
 
-          for (const toolCall of runResult.toolCalls) {
+          const batches = this.partitionToolCalls(runResult.toolCalls);
+
+          for (const batch of batches) {
             if (signal.aborted) {
               if (record.task.status.state !== 'canceled') {
-                this.updateStatus(taskId, 'canceled', 'Aborted during tool execution');
+                this.updateStatus(taskId, 'canceled', 'Aborted during tool batching');
               }
               return;
             }
 
-            // Emit tool call start
-            eventBus.publish(Topics.TASK_TOOL_CALL, {
-              taskId, toolCall: { id: toolCall.id, name: toolCall.name, args: toolCall.args, status: 'in_progress' },
-            });
-
-            const args = (toolCall.args ?? {}) as Record<string, unknown>;
-            const toolResult = await dispatchSkill(toolCall.name, args, dispatchCtx);
-
-            // Emit tool call result
-            const resultValue = toolResult.ok ? toolResult.value : `Error: ${toolResult.error.message}`;
-            eventBus.publish(Topics.TASK_TOOL_CALL, {
-              taskId, toolCall: { id: toolCall.id, name: toolCall.name, args: toolCall.args, status: toolResult.ok ? 'completed' : 'failed', result: resultValue },
-            });
-
-            // Add tool result message
-            messages.push({
-              role: 'tool',
-              content: typeof resultValue === 'string' ? resultValue : JSON.stringify(resultValue),
-              toolCallId: toolCall.id,
-            });
+            if (batch.parallel) {
+              // Read-only tools: run concurrently
+              const results = await Promise.allSettled(
+                batch.calls.map(tc => this.executeToolCall(tc, taskId, dispatchCtx))
+              );
+              for (const r of results) {
+                if (r.status === 'fulfilled') {
+                  messages.push(r.value);
+                } else {
+                  // Tool threw — push an error message so the model knows
+                  messages.push({
+                    role: 'tool',
+                    content: `Error: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`,
+                    toolCallId: 'unknown',
+                  });
+                }
+              }
+            } else {
+              // Write/unknown tools: serial
+              for (const tc of batch.calls) {
+                if (signal.aborted) {
+                  if (record.task.status.state !== 'canceled') {
+                    this.updateStatus(taskId, 'canceled', 'Aborted during serial tool execution');
+                  }
+                  return;
+                }
+                const msg = await this.executeToolCall(tc, taskId, dispatchCtx);
+                messages.push(msg);
+              }
+            }
           }
           continue; // Loop again with tool results
         }
@@ -185,6 +199,64 @@ class TaskManager {
       // Schedule cleanup after callers have had time to read final state
       setTimeout(() => this.tasks.delete(taskId), 5_000);
     }
+  }
+
+  private partitionToolCalls(
+    calls: Array<{ id: string; name: string; args: unknown }>,
+  ): Array<{ parallel: boolean; calls: Array<{ id: string; name: string; args: unknown }> }> {
+    const batches: Array<{ parallel: boolean; calls: Array<{ id: string; name: string; args: unknown }> }> = [];
+    let current: Array<{ id: string; name: string; args: unknown }> = [];
+    let currentIsReadOnly: boolean | null = null;
+
+    for (const call of calls) {
+      const tool = toolRegistry.get(call.name);
+      const readOnly = tool?.isReadOnly ?? false;
+
+      if (currentIsReadOnly === null) {
+        currentIsReadOnly = readOnly;
+        current.push(call);
+      } else if (readOnly === currentIsReadOnly) {
+        current.push(call);
+      } else {
+        batches.push({ parallel: currentIsReadOnly, calls: current });
+        current = [call];
+        currentIsReadOnly = readOnly;
+      }
+    }
+    if (current.length > 0) {
+      batches.push({ parallel: currentIsReadOnly!, calls: current });
+    }
+    return batches;
+  }
+
+  private async executeToolCall(
+    toolCall: { id: string; name: string; args: unknown },
+    taskId: string,
+    dispatchCtx: DispatchContext,
+  ): Promise<Message> {
+    eventBus.publish(Topics.TASK_TOOL_CALL, {
+      taskId,
+      toolCall: { id: toolCall.id, name: toolCall.name, args: toolCall.args, status: 'in_progress' },
+    });
+
+    const toolResult = await dispatchSkill(
+      toolCall.name,
+      (toolCall.args ?? {}) as Record<string, unknown>,
+      dispatchCtx,
+    );
+
+    const resultValue = toolResult.ok ? toolResult.value : `Error: ${toolResult.error.message}`;
+
+    eventBus.publish(Topics.TASK_TOOL_CALL, {
+      taskId,
+      toolCall: { id: toolCall.id, name: toolCall.name, args: toolCall.args, status: toolResult.ok ? 'completed' : 'failed', result: resultValue },
+    });
+
+    return {
+      role: 'tool',
+      content: typeof resultValue === 'string' ? resultValue : JSON.stringify(resultValue),
+      toolCallId: toolCall.id,
+    };
   }
 
   private updateStatus(taskId: string, state: TaskState, message?: string) {
