@@ -3,6 +3,13 @@ import type { ToolDefinition } from '../../infra/ai/types';
 
 export type SkillProviderType = "builtin" | "worker" | "plugin" | "mcp" | "inline";
 
+/** Optional hints that flow through to ToolDefinition when skills are converted to tools */
+export interface SkillToolHints {
+  strict?: boolean;
+  cacheable?: boolean;
+  eagerInputStreaming?: boolean;
+}
+
 export interface Skill {
   id: string;
   name: string;
@@ -11,6 +18,7 @@ export interface Skill {
   providerType: SkillProviderType;
   priority: number;
   handler: (args: unknown) => Promise<Result<unknown>>;
+  toolHints?: SkillToolHints;
 }
 
 export interface SkillProvider {

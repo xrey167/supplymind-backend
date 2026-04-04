@@ -56,6 +56,9 @@ export class SkillRegistry {
       name: skill.name,
       description: skill.description,
       inputSchema: skill.inputSchema,
+      ...(skill.toolHints?.strict != null && { strict: skill.toolHints.strict }),
+      ...(skill.toolHints?.cacheable && { cacheControl: { type: 'ephemeral' as const } }),
+      ...(skill.toolHints?.eagerInputStreaming != null && { eagerInputStreaming: skill.toolHints.eagerInputStreaming }),
     }));
   }
 
