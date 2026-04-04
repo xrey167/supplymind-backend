@@ -20,9 +20,9 @@ export class McpSkillProvider implements SkillProvider {
         const manifest = await mcpClientPool.listTools(config);
         for (const tool of manifest.tools) {
           skills.push({
-            id: `mcp_${config.name}_${tool.name}`,
-            name: `${config.name}_${tool.name}`,
-            description: `[MCP:${config.name}] ${tool.description}`,
+            id: `mcp_${manifest.serverName}_${tool.name}`,
+            name: `${manifest.serverName}_${tool.name}`,
+            description: `[MCP:${manifest.serverName}] ${tool.description}`,
             inputSchema: tool.inputSchema,
             providerType: 'mcp',
             priority: this.priority,
@@ -40,8 +40,11 @@ export class McpSkillProvider implements SkillProvider {
             },
           });
         }
-      } catch {
-        // Skip unreachable MCP servers
+      } catch (error) {
+        console.warn(
+          `[McpSkillProvider] Failed to load tools from MCP server "${config.name}" (${config.id}):`,
+          error instanceof Error ? error.message : String(error),
+        );
       }
     }
 
