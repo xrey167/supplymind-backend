@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { nanoid } from 'nanoid';
 import { ok, err } from '../../core/result';
 import { toGoogleTools, toGoogleToolConfig } from './tool-format';
 import type { AgentRuntime, RunInput, RunResult, StreamEvent } from './types';
@@ -36,7 +37,7 @@ export class GoogleRawRuntime implements AgentRuntime {
       if (response.functionCalls?.length) {
         for (const fc of response.functionCalls) {
           toolCalls.push({
-            id: fc.name ?? `call_${Date.now()}`,
+            id: nanoid(),
             name: fc.name ?? '',
             args: fc.args ?? {},
           });
@@ -88,7 +89,7 @@ export class GoogleRawRuntime implements AgentRuntime {
 
         if (chunk.functionCalls?.length) {
           for (const fc of chunk.functionCalls) {
-            const id = fc.name ?? `call_${Date.now()}`;
+            const id = nanoid();
             yield { type: 'tool_call_start', data: { id, name: fc.name } };
             yield { type: 'tool_call_end', data: { id, name: fc.name, args: fc.args ?? {} } };
           }

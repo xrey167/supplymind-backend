@@ -143,6 +143,17 @@ async function handleWsSkillInvoke(event: BusEvent): Promise<void> {
 
     if (!name) {
       logger.warn({ clientId }, 'ws.skill.invoke missing skill name');
+      await eventBus.publish('ws.skill.result', {
+        clientId,
+        message: {
+          type: 'skill:result' as const,
+          requestId: data.requestId ?? 'unknown',
+          name: 'unknown',
+          ok: false,
+          error: 'Missing skill name',
+          durationMs: 0,
+        },
+      });
       return;
     }
 
@@ -164,16 +175,27 @@ async function handleWsSkillInvoke(event: BusEvent): Promise<void> {
       name,
       ok: result.ok,
       result: result.ok ? result.value : undefined,
-      error: result.ok ? undefined : (result.error as Error).message,
+      error: result.ok ? undefined : (result.error instanceof Error ? result.error.message : String(result.error)),
       durationMs,
     };
 
     // Publish to event bus so ws-server can route to the right client
-    eventBus.publish('ws.skill.result', { clientId, message: response });
+    await eventBus.publish('ws.skill.result', { clientId, message: response });
 
     logger.info({ clientId, name, ok: result.ok, durationMs }, 'Skill invoked from WebSocket');
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error({ clientId: data.clientId, name: data.name, error: err.message }, 'Failed to invoke skill from WebSocket');
+    await eventBus.publish('ws.skill.result', {
+      clientId: data.clientId,
+      message: {
+        type: 'skill:result' as const,
+        requestId: data.requestId ?? data.name,
+        name: data.name ?? 'unknown',
+        ok: false,
+        error: err.message,
+        durationMs: 0,
+      },
+    });
   }
 }

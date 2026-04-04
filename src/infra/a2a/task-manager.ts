@@ -38,7 +38,12 @@ class TaskManager {
 
     // Run async -- don't block the response
     this.executeTask(taskId, params, config).catch((error) => {
-      this.updateStatus(taskId, 'failed', error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      try {
+        this.updateStatus(taskId, 'failed', message);
+      } catch {
+        // Last-resort: updateStatus itself failed — nothing more we can do
+      }
     });
 
     return task;

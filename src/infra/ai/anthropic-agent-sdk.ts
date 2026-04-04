@@ -35,6 +35,18 @@ export class AnthropicAgentSdkRuntime implements AgentRuntime {
       const maxIterations = 10;
 
       for (let i = 0; i < maxIterations; i++) {
+        // Compute tool_choice, merging disableParallelToolUse into the same object
+        let toolChoiceParam: Record<string, unknown> | undefined;
+        if (input.toolChoice && input.tools?.length) {
+          toolChoiceParam = toAnthropicToolChoice(input.toolChoice) as Record<string, unknown>;
+        }
+        if (input.disableParallelToolUse !== undefined) {
+          toolChoiceParam = {
+            ...(toolChoiceParam ?? { type: 'auto' }),
+            disable_parallel_tool_use: input.disableParallelToolUse,
+          };
+        }
+
         const response = await this.client.messages.create({
           model: input.model,
           max_tokens: input.maxTokens ?? 4096,
@@ -42,13 +54,7 @@ export class AnthropicAgentSdkRuntime implements AgentRuntime {
           system: input.systemPrompt,
           messages,
           tools: tools as any,
-          ...(input.toolChoice && input.tools?.length ? { tool_choice: toAnthropicToolChoice(input.toolChoice) } : {}),
-          ...(input.disableParallelToolUse !== undefined ? {
-            tool_choice: {
-              ...(input.toolChoice ? toAnthropicToolChoice(input.toolChoice) : { type: 'auto' }),
-              disable_parallel_tool_use: input.disableParallelToolUse,
-            },
-          } : {}),
+          ...(toolChoiceParam ? { tool_choice: toolChoiceParam } : {}),
         } as any);
 
         const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');

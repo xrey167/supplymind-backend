@@ -69,24 +69,9 @@ export class ToolsService {
     await toolsRepo.remove(id);
   }
 
-  /** Load all tools from DB into the ToolRegistry */
-  async loadToolsFromDb(workspaceId?: string): Promise<void> {
-    const tools = await this.list(workspaceId);
-    for (const tool of tools) {
-      if (!tool.enabled) continue;
-      toolRegistry.register({
-        id: tool.id,
-        name: tool.name,
-        description: tool.description,
-        inputSchema: tool.inputSchema,
-        source: 'db',
-        priority: tool.priority,
-        enabled: tool.enabled,
-        handler: async (_args) => {
-          return err(new Error(`Handler not implemented for provider type: ${tool.providerType}`));
-        },
-      });
-    }
+  /** Load all tool definitions from DB. Registration happens when providers resolve handlers. */
+  async loadToolsFromDb(_workspaceId?: string): Promise<ToolDef[]> {
+    return this.list(_workspaceId);
   }
 }
 

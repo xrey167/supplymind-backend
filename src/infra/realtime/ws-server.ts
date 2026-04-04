@@ -94,7 +94,8 @@ class WsServer {
   private send(client: WsClient, msg: ServerMessage) {
     try {
       (client.ws as any).send(JSON.stringify(msg));
-    } catch {
+    } catch (error) {
+      logger.warn({ clientId: client.id, error: error instanceof Error ? error.message : String(error) }, 'WS send failed, removing client');
       this.clients.delete(client.id);
     }
   }
@@ -102,7 +103,10 @@ class WsServer {
   broadcast(msg: ServerMessage) {
     const data = JSON.stringify(msg);
     for (const [id, client] of this.clients) {
-      try { (client.ws as any).send(data); } catch { this.clients.delete(id); }
+      try { (client.ws as any).send(data); } catch (error) {
+        logger.warn({ clientId: id, error: error instanceof Error ? error.message : String(error) }, 'WS broadcast failed, removing client');
+        this.clients.delete(id);
+      }
     }
   }
 
@@ -110,7 +114,10 @@ class WsServer {
     const data = JSON.stringify(msg);
     for (const [id, client] of this.clients) {
       if (this.matchesSubscription(client.subscriptions, channel)) {
-        try { (client.ws as any).send(data); } catch { this.clients.delete(id); }
+        try { (client.ws as any).send(data); } catch (error) {
+          logger.warn({ clientId: id, error: error instanceof Error ? error.message : String(error) }, 'WS broadcastToSubscribed failed, removing client');
+          this.clients.delete(id);
+        }
       }
     }
   }
