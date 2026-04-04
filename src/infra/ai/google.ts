@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { ok, err } from '../../core/result';
-import { toGoogleTools } from './tool-format';
+import { toGoogleTools, toGoogleToolConfig } from './tool-format';
 import type { AgentRuntime, RunInput, RunResult, StreamEvent } from './types';
 import type { Result } from '../../core/result';
 
@@ -20,6 +20,9 @@ export class GoogleRawRuntime implements AgentRuntime {
       if (input.maxTokens) config.maxOutputTokens = input.maxTokens;
       if (input.systemPrompt) config.systemInstruction = input.systemPrompt;
       if (input.tools?.length) config.tools = toGoogleTools(input.tools);
+      if (input.toolChoice && input.tools?.length) {
+        config.toolConfig = toGoogleToolConfig(input.toolChoice);
+      }
 
       const response = await this.ai.models.generateContent({
         model: input.model,
@@ -68,6 +71,9 @@ export class GoogleRawRuntime implements AgentRuntime {
       if (input.maxTokens) config.maxOutputTokens = input.maxTokens;
       if (input.systemPrompt) config.systemInstruction = input.systemPrompt;
       if (input.tools?.length) config.tools = toGoogleTools(input.tools);
+      if (input.toolChoice && input.tools?.length) {
+        config.toolConfig = toGoogleToolConfig(input.toolChoice);
+      }
 
       const response = await this.ai.models.generateContentStream({
         model: input.model,
