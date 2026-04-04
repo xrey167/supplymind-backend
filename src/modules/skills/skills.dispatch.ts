@@ -14,7 +14,6 @@ import { captureException } from '../../infra/observability/sentry';
 import { hasPermission, getRequiredRole, Roles } from '../../core/security/rbac';
 import { workspaceSettingsService } from '../settings/workspace-settings/workspace-settings.service';
 
-
 export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
   if (context.signal?.aborted) {
     return err(new AbortError('Skill dispatch aborted', 'system'));
