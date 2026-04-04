@@ -4,7 +4,6 @@ import { taskManager } from '../../infra/a2a/task-manager';
 import { taskRepo } from '../../infra/a2a/task-repo';
 import { agentsRepo } from '../agents/agents.repo';
 import { toAgentConfig } from '../agents/agents.mapper';
-import { tasksRepo } from './tasks.repo';
 import type { A2ATask } from './tasks.types';
 
 export class TasksService {
@@ -14,16 +13,7 @@ export class TasksService {
 
     const agent = toAgentConfig(agentRow);
 
-    // Persist task to DB
-    const dbTask = await tasksRepo.create({
-      workspaceId,
-      agentId,
-      status: 'submitted',
-      input: { message, skillId, args },
-    });
-
     const task = await taskManager.send({
-      id: dbTask.id,
       skillId,
       args,
       message: { role: 'user', parts: [{ kind: 'text', text: message }] },
