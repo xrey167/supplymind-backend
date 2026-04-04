@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid';
+import { logger } from '../../config/logger';
 import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
 import type { ServerMessage, ClientMessage, WsClient } from './ws-types';
@@ -68,7 +69,8 @@ class WsServer {
           eventBus.publish('ws.a2a.send', { clientId, ...msg });
           break;
       }
-    } catch {
+    } catch (err) {
+      logger.warn({ clientId, error: err instanceof Error ? err.message : String(err) }, 'WebSocket message parse failed');
       this.send(client, { type: 'error', message: 'Invalid message format' });
     }
   }
@@ -78,21 +80,25 @@ class WsServer {
   }
 
   private send(client: WsClient, msg: ServerMessage) {
-    try { (client.ws as any).send(JSON.stringify(msg)); } catch {}
+    try {
+      (client.ws as any).send(JSON.stringify(msg));
+    } catch {
+      this.clients.delete(client.id);
+    }
   }
 
   broadcast(msg: ServerMessage) {
     const data = JSON.stringify(msg);
-    for (const client of this.clients.values()) {
-      try { (client.ws as any).send(data); } catch {}
+    for (const [id, client] of this.clients) {
+      try { (client.ws as any).send(data); } catch { this.clients.delete(id); }
     }
   }
 
   broadcastToSubscribed(channel: string, msg: ServerMessage) {
     const data = JSON.stringify(msg);
-    for (const client of this.clients.values()) {
+    for (const [id, client] of this.clients) {
       if (this.matchesSubscription(client.subscriptions, channel)) {
-        try { (client.ws as any).send(data); } catch {}
+        try { (client.ws as any).send(data); } catch { this.clients.delete(id); }
       }
     }
   }

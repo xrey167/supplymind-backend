@@ -170,23 +170,13 @@ describe('McpSkillProvider', () => {
     expect(mockCallTool.mock.calls[1][2]).toEqual({});
   });
 
-  test('skips unreachable servers and logs warning', async () => {
-    const consoleWarnMock = mock(() => {});
-    const originalWarn = console.warn;
-    console.warn = consoleWarnMock;
-
+  test('skips unreachable servers and returns empty', async () => {
     mockListTools = mock(() => Promise.reject(new Error('Connection refused')));
 
-    try {
-      const provider = new McpSkillProvider([mockConfig]);
-      const skills = await provider.loadSkills();
+    const provider = new McpSkillProvider([mockConfig]);
+    const skills = await provider.loadSkills();
 
-      expect(skills).toHaveLength(0);
-      expect(consoleWarnMock.mock.calls.length).toBe(1);
-      expect(consoleWarnMock.mock.calls[0][0]).toContain('Failed to load tools');
-    } finally {
-      console.warn = originalWarn;
-    }
+    expect(skills).toHaveLength(0);
   });
 
   test('continues loading from subsequent servers if one fails', async () => {
@@ -215,20 +205,11 @@ describe('McpSkillProvider', () => {
       return Promise.resolve(mockManifest);
     });
 
-    const consoleWarnMock = mock(() => {});
-    const originalWarn = console.warn;
-    console.warn = consoleWarnMock;
+    const provider = new McpSkillProvider([goodConfig, badConfig]);
+    const skills = await provider.loadSkills();
 
-    try {
-      const provider = new McpSkillProvider([goodConfig, badConfig]);
-      const skills = await provider.loadSkills();
-
-      expect(skills).toHaveLength(2);
-      expect(callCount).toBe(2);
-      expect(consoleWarnMock.mock.calls.length).toBe(1);
-    } finally {
-      console.warn = originalWarn;
-    }
+    expect(skills).toHaveLength(2);
+    expect(callCount).toBe(2);
   });
 
   test('handlers call pool.callTool with correct params', async () => {

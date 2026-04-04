@@ -1,4 +1,5 @@
 import { ok, err } from '../../../core/result';
+import { logger } from '../../../config/logger';
 import { mcpClientPool } from '../../../infra/mcp/client-pool';
 import type { McpServerConfig } from '../../../infra/mcp/types';
 import type { Skill, SkillProvider } from '../skills.types';
@@ -41,9 +42,9 @@ export class McpSkillProvider implements SkillProvider {
           });
         }
       } catch (error) {
-        console.warn(
-          `[McpSkillProvider] Failed to load tools from MCP server "${config.name}" (${config.id}):`,
-          error instanceof Error ? error.message : String(error),
+        logger.warn(
+          { server: config.name, configId: config.id, error: error instanceof Error ? error.message : String(error) },
+          'Failed to load tools from MCP server',
         );
       }
     }

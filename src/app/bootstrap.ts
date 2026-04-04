@@ -30,10 +30,15 @@ export async function initSubsystems(): Promise<void> {
   wsServer.init();
   logger.info('WebSocket server initialized');
 
-  // Step 3: Event consumers (logging + WS handlers)
-  initEventConsumers();
-  initWsConsumers();
-  logger.info('Event consumers initialized');
+  // Step 3: Event consumers (logging + WS handlers) — critical
+  try {
+    initEventConsumers();
+    initWsConsumers();
+    logger.info('Event consumers initialized');
+  } catch (err) {
+    logger.error({ error: err }, 'Failed to initialize event consumers');
+    throw err;
+  }
 
   // Step 4: Redis pub/sub bridge (non-critical — warn on failure)
   try {
