@@ -12,11 +12,25 @@ export interface ModelLimits {
 }
 
 export const MODEL_LIMITS: ModelLimits = {
+  // Claude 3.x (legacy)
   'claude-sonnet-4-20250514': { contextWindow: 200_000, responseMax: 8_192 },
   'claude-haiku-4-5-20251001': { contextWindow: 200_000, responseMax: 8_192 },
-  'gpt-4o': { contextWindow: 128_000, responseMax: 4_096 },
-  'gpt-4o-mini': { contextWindow: 128_000, responseMax: 4_096 },
+  // Claude 4.x
+  'claude-opus-4-5': { contextWindow: 200_000, responseMax: 32_768 },
+  'claude-opus-4-6': { contextWindow: 200_000, responseMax: 32_768 },
+  'claude-sonnet-4-5': { contextWindow: 200_000, responseMax: 16_384 },
+  'claude-sonnet-4-6': { contextWindow: 200_000, responseMax: 16_384 },
+  'claude-haiku-4-5': { contextWindow: 200_000, responseMax: 8_192 },
+  // OpenAI
+  'gpt-4o': { contextWindow: 128_000, responseMax: 16_384 },
+  'gpt-4o-mini': { contextWindow: 128_000, responseMax: 16_384 },
+  'gpt-4.1': { contextWindow: 1_000_000, responseMax: 32_768 },
+  'gpt-4.1-mini': { contextWindow: 1_000_000, responseMax: 32_768 },
+  // Google
   'gemini-2.0-flash': { contextWindow: 1_000_000, responseMax: 8_192 },
+  'gemini-2.0-flash-lite': { contextWindow: 1_000_000, responseMax: 8_192 },
+  'gemini-2.5-pro': { contextWindow: 2_000_000, responseMax: 65_536 },
+  'gemini-2.5-flash': { contextWindow: 1_000_000, responseMax: 65_536 },
 };
 
 export const DEFAULT_BUDGET: TokenBudget = {
