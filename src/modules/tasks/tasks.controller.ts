@@ -12,7 +12,7 @@ export const tasksController = {
     const workspaceId = c.get('workspaceId') as string;
     const callerId = c.get('userId') as string;
 
-    const result = await tasksService.send(parsed.agentId, parsed.message, workspaceId, callerId, parsed.skillId, parsed.args);
+    const result = await tasksService.send(parsed.agentId, parsed.message, workspaceId, callerId, parsed.skillId, parsed.args, parsed.sessionId);
     if (!result.ok) return c.json({ error: result.error.message }, 400);
     return c.json(result.value, 201);
   },

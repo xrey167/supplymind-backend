@@ -7,7 +7,7 @@ import { toAgentConfig } from '../agents/agents.mapper';
 import type { A2ATask } from './tasks.types';
 
 export class TasksService {
-  async send(agentId: string, message: string, workspaceId: string, callerId: string, skillId?: string, args?: Record<string, unknown>): Promise<Result<A2ATask>> {
+  async send(agentId: string, message: string, workspaceId: string, callerId: string, skillId?: string, args?: Record<string, unknown>, sessionId?: string): Promise<Result<A2ATask>> {
     const agentRow = await agentsRepo.findById(agentId);
     if (!agentRow) return err(new Error(`Agent not found: ${agentId}`));
 
@@ -16,6 +16,7 @@ export class TasksService {
     const task = await taskManager.send({
       skillId,
       args,
+      sessionId,
       message: { role: 'user', parts: [{ kind: 'text', text: message }] },
       agentConfig: {
         id: agent.id,

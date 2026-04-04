@@ -1,6 +1,6 @@
 import { db } from '../../infra/db/client';
 import { sessions, sessionMessages } from '../../infra/db/schema';
-import { eq, and, lt, gt, count } from 'drizzle-orm';
+import { eq, and, lt, gt, lte, count } from 'drizzle-orm';
 import type { Session, SessionMessage, AddMessageInput, SessionStatus } from './sessions.types';
 
 function estimateTokens(text: string): number {
@@ -103,6 +103,28 @@ export const sessionsRepo = {
       .limit(limit);
 
     return { messages: rows as unknown as SessionMessage[], total: Number(total) };
+  },
+
+  /**
+   * Mark all session messages created at or before the message with the given
+   * boundaryMessageId as compacted.  Messages beyond the boundary (newer) are
+   * left intact.
+   */
+  async markCompacted(sessionId: string, boundaryMessageId: string): Promise<void> {
+    // Resolve the createdAt timestamp of the boundary message
+    const [boundary] = await db
+      .select({ createdAt: sessionMessages.createdAt })
+      .from(sessionMessages)
+      .where(eq(sessionMessages.id, boundaryMessageId))
+      .limit(1);
+    if (!boundary) return;
+
+    await db.update(sessionMessages)
+      .set({ isCompacted: true })
+      .where(and(
+        eq(sessionMessages.sessionId, sessionId),
+        lte(sessionMessages.createdAt, boundary.createdAt),
+      ));
   },
 
   async expireIdleSessions(maxIdleMs: number): Promise<number> {

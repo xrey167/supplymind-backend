@@ -12,6 +12,9 @@ import type { AgentConfig } from './coordinator-config';
 import { AbortError } from '../../core/errors';
 import { toolRegistry } from '../../modules/tools/tools.registry';
 import { contextService } from '../../modules/context/context.service';
+import { sessionsService } from '../../modules/sessions/sessions.service';
+import { sessionsRepo } from '../../modules/sessions/sessions.repo';
+import type { SessionMessage } from '../../modules/sessions/sessions.types';
 import { taskRepo } from './task-repo';
 import { logger } from '../../config/logger';
 import { captureException } from '../observability/sentry';
@@ -52,6 +55,7 @@ class TaskManager {
         agentId: config.id,
         status: 'submitted',
         input: params.message ?? {},
+        sessionId: params.sessionId,
       });
     } catch (error: unknown) {
       logger.error({ taskId, error }, 'Failed to persist task to DB');
@@ -123,9 +127,18 @@ class TaskManager {
 
       // Build initial messages
       const messages: Message[] = [];
+      let userMessageContent = '';
       if (params.message) {
-        const text = params.message.parts.filter(p => p.kind === 'text').map(p => (p as any).text).join('\n');
-        messages.push({ role: 'user', content: text });
+        userMessageContent = params.message.parts.filter(p => p.kind === 'text').map(p => (p as any).text).join('\n');
+        messages.push({ role: 'user', content: userMessageContent });
+      }
+
+      // Persist initial user message to session (fire-and-forget)
+      if (params.sessionId && userMessageContent) {
+        sessionsService.addMessage(params.sessionId, {
+          role: 'user',
+          content: userMessageContent,
+        }).catch((err: unknown) => logger.warn({ err, taskId }, 'Failed to persist initial message to session'));
       }
 
       const taggedHistory: TaggedMessage[] = [];
@@ -152,6 +165,15 @@ class TaskManager {
           messages.push(msg);
           taggedHistory.push({ message: msg, roundId, iterationIndex: i });
         };
+
+        // Capture the most-recent session message ID before this turn so we
+        // can use it as the compaction boundary if the context was compacted.
+        let preTurnLastMessageId: string | undefined;
+        if (params.sessionId) {
+          const { messages: prevMsgs } = await sessionsRepo.getMessagePage(params.sessionId, { limit: 1, includeCompacted: false })
+            .catch(() => ({ messages: [] as SessionMessage[], total: 0 }));
+          preTurnLastMessageId = prevMsgs.length > 0 ? prevMsgs[prevMsgs.length - 1].id : undefined;
+        }
 
         // Prepare context: inject memories, snip old tool results, compact if needed
         const context = await contextService.prepare({
@@ -240,6 +262,20 @@ class TaskManager {
         const usage = runResult.usage ?? { inputTokens: 0, outputTokens: 0 };
         record.totalTokens.input += usage.inputTokens;
         record.totalTokens.output += usage.outputTokens;
+
+        // Mark earlier session messages as compacted if context was compacted this turn
+        if (context.wasCompacted && params.sessionId && preTurnLastMessageId) {
+          sessionsRepo.markCompacted(params.sessionId, preTurnLastMessageId)
+            .catch((err: unknown) => logger.warn({ err, taskId }, 'Failed to mark session messages as compacted'));
+        }
+
+        // Persist assistant response to session (fire-and-forget)
+        if (params.sessionId && runResult.content) {
+          sessionsService.addMessage(params.sessionId, {
+            role: 'assistant',
+            content: runResult.content,
+          }).catch((err: unknown) => logger.warn({ err, taskId, roundId }, 'Failed to persist assistant message to session'));
+        }
 
         // If there are tool calls, execute them
         if (runResult.stopReason === 'tool_use' && runResult.toolCalls?.length) {
