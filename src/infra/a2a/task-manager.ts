@@ -17,6 +17,7 @@ import { sessionsRepo } from '../../modules/sessions/sessions.repo';
 import { taskRepo } from './task-repo';
 import { logger } from '../../config/logger';
 import { captureException } from '../observability/sentry';
+import { workspaceSettingsService } from '../../modules/settings/workspace-settings/workspace-settings.service';
 
 const MAX_TOOL_CALL_ITERATIONS = 10;
 
@@ -168,12 +169,19 @@ class TaskManager {
 
       const taggedHistory: TaggedMessage[] = [];
 
+      // Fetch permission mode once per task to avoid a DB round-trip on every tool call.
+      // On failure, fall back to 'auto' (open) so the task can continue — the dispatch
+      // layer itself will fail-closed on a subsequent per-call failure if needed.
+      const permissionMode = await workspaceSettingsService.getToolPermissionMode(config.workspaceId)
+        .catch(() => 'auto' as const);
+
       const dispatchCtx: DispatchContext = {
         callerId: config.id,
         workspaceId: config.workspaceId,
         callerRole: 'agent' as const,
         traceId: taskId,
         signal,
+        cachedPermissionMode: permissionMode,
       };
 
       // Tool calling loop

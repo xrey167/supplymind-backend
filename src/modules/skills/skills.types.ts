@@ -1,6 +1,7 @@
 import type { Result } from '../../core/result';
 import type { ToolDefinition } from '../../infra/ai/types';
 import type { Role } from '../../core/security';
+import type { ToolPermissionMode } from '../settings/workspace-settings/workspace-settings.schemas';
 
 export type SkillProviderType = "builtin" | "worker" | "plugin" | "mcp" | "inline" | "agent" | "tool";
 
@@ -36,6 +37,7 @@ export interface DispatchContext {
   signal?: AbortSignal;
   taskId?: string;
   args?: Record<string, unknown>;
+  cachedPermissionMode?: ToolPermissionMode;
 }
 
 export type DispatchFn = (

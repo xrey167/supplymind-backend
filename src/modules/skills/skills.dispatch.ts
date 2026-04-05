@@ -1,4 +1,5 @@
 import type { DispatchContext, DispatchFn } from './skills.types';
+import type { ToolPermissionMode } from '../settings/workspace-settings/workspace-settings.schemas';
 import type { Result } from '../../core/result';
 import { err } from '../../core/result';
 import { AbortError, AppError } from '../../core/errors';
@@ -46,29 +47,50 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
     }
 
     // Gate 3b: Tool permission mode -- workspace-level execution policy
-    const permissionMode = await workspaceSettingsService.getToolPermissionMode(context.workspaceId);
-    if (permissionMode === 'strict') {
-      const allowedTools = await workspaceSettingsService.getAllowedToolNames(context.workspaceId);
-      if (!allowedTools.includes(skill.name)) {
-        eventBus.publish(Topics.SECURITY_PERMISSION_MODE_BLOCKED, {
-          skillId, callerRole: context.callerRole, workspaceId: context.workspaceId, mode: 'strict',
-        });
-        return err(new AppError(`Tool '${skill.name}' is not in workspace allowlist`, 403, 'TOOL_NOT_ALLOWED'));
+    // Builtin tools are trusted infrastructure — exempt from ask/strict gate.
+    if (skill.providerType !== 'builtin') {
+      let permissionMode: ToolPermissionMode;
+      if (context.cachedPermissionMode !== undefined) {
+        permissionMode = context.cachedPermissionMode;
+      } else {
+        try {
+          permissionMode = await workspaceSettingsService.getToolPermissionMode(context.workspaceId);
+        } catch (err_) {
+          logger.error({ err: err_, workspaceId: context.workspaceId, toolName: skill.name }, 'Permission mode check failed — denying tool call');
+          return err(new AppError('Unable to verify tool permission', 503, 'PERMISSION_CHECK_FAILED'));
+        }
       }
-    }
-    if (permissionMode === 'ask') {
-      const approvalId = nanoid();
-      eventBus.publish(Topics.TOOL_APPROVAL_REQUESTED, {
-        approvalId,
-        taskId: context.taskId ?? 'unknown',
-        toolName: skill.name,
-        args: context.args ?? {},
-        workspaceId: context.workspaceId,
-      });
-      const timeoutMs = await workspaceSettingsService.getApprovalTimeoutMs(context.workspaceId);
-      const approved = await createApprovalRequest(approvalId, context.workspaceId, timeoutMs);
-      if (!approved) {
-        return err(new AppError('Tool approval denied or timed out', 403, 'TOOL_APPROVAL_DENIED'));
+
+      if (permissionMode === 'strict') {
+        let allowedTools: string[];
+        try {
+          allowedTools = await workspaceSettingsService.getAllowedToolNames(context.workspaceId);
+        } catch (err_) {
+          logger.error({ err: err_, workspaceId: context.workspaceId, toolName: skill.name }, 'Allowlist check failed — denying tool call');
+          return err(new AppError('Unable to verify tool allowlist', 503, 'PERMISSION_CHECK_FAILED'));
+        }
+        if (!allowedTools.includes(skill.name)) {
+          eventBus.publish(Topics.SECURITY_PERMISSION_MODE_BLOCKED, {
+            skillId, callerRole: context.callerRole, workspaceId: context.workspaceId, mode: 'strict',
+          });
+          return err(new AppError(`Tool '${skill.name}' is not in workspace allowlist`, 403, 'TOOL_NOT_ALLOWED'));
+        }
+      }
+
+      if (permissionMode === 'ask') {
+        const approvalId = nanoid();
+        eventBus.publish(Topics.TOOL_APPROVAL_REQUESTED, {
+          approvalId,
+          taskId: context.taskId ?? 'unknown',
+          toolName: skill.name,
+          args: context.args ?? {},
+          workspaceId: context.workspaceId,
+        });
+        const timeoutMs = await workspaceSettingsService.getApprovalTimeoutMs(context.workspaceId);
+        const approved = await createApprovalRequest(approvalId, context.workspaceId, timeoutMs);
+        if (!approved) {
+          return err(new AppError('Tool approval denied or timed out', 403, 'TOOL_APPROVAL_DENIED'));
+        }
       }
     }
 
