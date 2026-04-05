@@ -1,7 +1,7 @@
 import type { MergeStrategy } from '../collaboration/collaboration.types';
 
 export type StepType = 'skill' | 'agent' | 'collaboration' | 'gate' | 'decision';
-export type OrchestrationStatus = 'submitted' | 'running' | 'paused' | 'completed' | 'failed';
+export type OrchestrationStatus = 'submitted' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
 export type ErrorStrategy = 'fail' | 'skip' | 'retry';
 
 interface StepBase {

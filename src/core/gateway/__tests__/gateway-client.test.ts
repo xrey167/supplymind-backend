@@ -128,8 +128,8 @@ describe('GatewayClient', () => {
     expect(call.params.updatedInput).toEqual({ file: '/safe.txt' });
   });
 
-  it('tool() returns cleanup function', () => {
-    const cleanup = client.tool({
+  it('tool() returns cleanup function', async () => {
+    const cleanup = await client.tool({
       name: 'my-tool',
       description: 'Test tool',
       handler: async () => ({ result: 'ok' }),
@@ -137,8 +137,8 @@ describe('GatewayClient', () => {
     expect(typeof cleanup).toBe('function');
   });
 
-  it('onHook() returns cleanup function', () => {
-    const cleanup = client.onHook('pre_tool_use', async () => {});
+  it('onHook() returns cleanup function', async () => {
+    const cleanup = await client.onHook('pre_tool_use', async () => {});
     expect(typeof cleanup).toBe('function');
   });
 });

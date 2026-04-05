@@ -80,34 +80,28 @@ export class GatewayClient {
    *
    * Returns a cleanup function to unregister the tool.
    */
-  tool(definition: {
+  async tool(definition: {
     name: string;
     description: string;
     inputSchema?: Record<string, unknown>;
     handler: (args: Record<string, unknown>) => Promise<unknown>;
-  }): () => void {
-    // Lazy import to avoid circular deps at module load
-    const register = async () => {
-      const { skillRegistry } = await import('../../modules/skills/skills.registry');
-      skillRegistry.register({
-        id: `acp:${this.context.workspaceId}:${definition.name}`,
-        name: definition.name,
-        description: definition.description,
-        inputSchema: definition.inputSchema ?? { type: 'object', properties: {} },
-        providerType: 'inline',
-        priority: 5,
-        handler: async (args) => {
-          const result = await definition.handler(args);
-          return ok(result);
-        },
-      });
-    };
-    register();
+  }): Promise<() => void> {
+    const { skillRegistry } = await import('../../modules/skills/skills.registry');
+    skillRegistry.register({
+      id: `acp:${this.context.workspaceId}:${definition.name}`,
+      name: definition.name,
+      description: definition.description,
+      inputSchema: definition.inputSchema ?? { type: 'object', properties: {} },
+      providerType: 'inline',
+      priority: 5,
+      handler: async (args) => {
+        const result = await definition.handler(args);
+        return ok(result);
+      },
+    });
 
     return () => {
-      import('../../modules/skills/skills.registry').then(({ skillRegistry }) => {
-        skillRegistry.unregister(`acp:${this.context.workspaceId}:${definition.name}`);
-      });
+      skillRegistry.unregister(definition.name);
     };
   }
 
@@ -136,11 +130,11 @@ export class GatewayClient {
    * Type-safe: when a single event is passed, the handler receives
    * the typed payload for that event.
    */
-  onHook<E extends HookEvent>(
+  async onHook<E extends HookEvent>(
     event: E | HookEvent[],
     handler: E extends HookEvent ? TypedHookHandler<E> | HookHandler : HookHandler,
     opts?: { id?: string; provider?: string },
-  ): () => void {
+  ): Promise<() => void> {
     const hookId = opts?.id ?? `acp:${this.context.workspaceId}:${Date.now()}`;
     const reg: HookRegistration = {
       id: hookId,
@@ -149,15 +143,11 @@ export class GatewayClient {
       provider: opts?.provider ?? `acp:${this.context.callerId}`,
     };
 
-    // Lazy import
-    import('../hooks/hook-registry').then(({ lifecycleHooks }) => {
-      lifecycleHooks.register(this.context.workspaceId, reg);
-    });
+    const { lifecycleHooks } = await import('../hooks/hook-registry');
+    lifecycleHooks.register(this.context.workspaceId, reg);
 
     return () => {
-      import('../hooks/hook-registry').then(({ lifecycleHooks }) => {
-        lifecycleHooks.unregister(hookId, this.context.workspaceId);
-      });
+      lifecycleHooks.unregister(hookId, this.context.workspaceId);
     };
   }
 
@@ -165,10 +155,11 @@ export class GatewayClient {
    * Streaming variant — returns an AsyncGenerator of GatewayEvents.
    * Sends a task and yields events as they arrive until done/error.
    */
-  async *streamTask(agentId: string, message: string, opts?: { sessionId?: string }): AsyncGenerator<GatewayEvent> {
+  async *streamTask(agentId: string, message: string, opts?: { sessionId?: string; timeoutMs?: number }): AsyncGenerator<GatewayEvent> {
     const queue: GatewayEvent[] = [];
     let resolve: (() => void) | null = null;
     let done = false;
+    const streamTimeout = opts?.timeoutMs ?? 600_000; // 10 minutes default
 
     const streamCtx: GatewayContext = {
       ...this.context,
@@ -201,12 +192,24 @@ export class GatewayClient {
       });
     }
 
+    const deadline = Date.now() + streamTimeout;
+
     try {
       while (!done || queue.length > 0) {
         if (queue.length > 0) {
           yield queue.shift()!;
+        } else if (Date.now() >= deadline) {
+          yield { type: 'error', data: { error: 'Stream timed out' } };
+          return;
         } else {
-          await new Promise<void>((r) => { resolve = r; });
+          const remaining = deadline - Date.now();
+          await Promise.race([
+            new Promise<void>((r) => { resolve = r; }),
+            new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), remaining)),
+          ]).catch(() => {
+            done = true;
+            queue.push({ type: 'error', data: { error: 'Stream timed out' } });
+          });
         }
       }
     } finally {

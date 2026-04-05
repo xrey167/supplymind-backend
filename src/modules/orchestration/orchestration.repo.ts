@@ -43,10 +43,10 @@ export const orchestrationRepo = {
 
   async cancel(id: string): Promise<boolean> {
     const result = await db.update(orchestrations)
-      .set({ status: 'failed' as any, completedAt: new Date(), updatedAt: new Date() })
+      .set({ status: 'cancelled' as any, completedAt: new Date(), updatedAt: new Date() }) // TODO: add 'cancelled' to DB enum via migration
       .where(and(
         eq(orchestrations.id, id),
-        inArray(orchestrations.status, ['submitted', 'running'] as any),
+        inArray(orchestrations.status, ['submitted', 'running'] as any), // TODO: add proper types after DB enum migration
       ))
       .returning({ id: orchestrations.id });
     return result.length > 0;

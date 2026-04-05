@@ -105,7 +105,7 @@ export class PluginManager {
     if (manifest.hooks?.length) {
       const { lifecycleHooks } = await import('../../core/hooks/hook-registry');
       for (const hookDef of manifest.hooks) {
-        const hookId = `plugin:${manifest.id}:${Date.now()}:${Math.random().toString(36).slice(2, 6)}`;
+        const hookId = `plugin:${manifest.id}:${crypto.randomUUID()}`;
         lifecycleHooks.register(workspaceId, {
           id: hookId,
           event: hookDef.event,

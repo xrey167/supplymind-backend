@@ -71,6 +71,14 @@ class WsServer {
           await this.handleTaskInput(client, msg);
           break;
 
+        case 'task:input:approve':
+          await this.handleTaskInputApprove(client, msg);
+          break;
+
+        case 'task:input:gate':
+          await this.handleTaskInputGate(client, msg);
+          break;
+
         case 'task:interrupt':
           await this.handleTaskInterrupt(client, msg);
           break;
@@ -325,24 +333,49 @@ class WsServer {
       return;
     }
 
-    const input = msg.input as Record<string, unknown> | undefined;
     const context = this.buildContext(client);
 
     try {
       const result = await execute({
         op: 'task.input',
-        params: {
-          taskId: msg.taskId,
-          input: input,
-          // Forward approval/gate/generic fields if present
-          approvalId: (input as any)?.approvalId,
-          approved: (input as any)?.approved,
-          orchestrationId: (input as any)?.orchestrationId,
-          stepId: (input as any)?.stepId,
-        },
+        params: { taskId: msg.taskId, input: msg.input },
         context,
       });
 
+      if (!result.ok) {
+        this.send(client, { type: 'error', message: result.error.message });
+      }
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.send(client, { type: 'error', message: errMsg });
+    }
+  }
+
+  private async handleTaskInputApprove(client: WsClient, msg: Extract<ClientMessage, { type: 'task:input:approve' }>) {
+    const context = this.buildContext(client);
+    try {
+      const result = await execute({
+        op: 'task.input',
+        params: { taskId: '', approvalId: msg.approvalId, approved: msg.approved, updatedInput: msg.updatedInput },
+        context,
+      });
+      if (!result.ok) {
+        this.send(client, { type: 'error', message: result.error.message });
+      }
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.send(client, { type: 'error', message: errMsg });
+    }
+  }
+
+  private async handleTaskInputGate(client: WsClient, msg: Extract<ClientMessage, { type: 'task:input:gate' }>) {
+    const context = this.buildContext(client);
+    try {
+      const result = await execute({
+        op: 'orchestration.gate.respond',
+        params: { orchestrationId: msg.orchestrationId, stepId: msg.stepId, approved: msg.approved },
+        context,
+      });
       if (!result.ok) {
         this.send(client, { type: 'error', message: result.error.message });
       }
