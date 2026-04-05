@@ -83,7 +83,7 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
           approvalId,
           taskId: context.taskId ?? 'unknown',
           toolName: skill.name,
-          args: context.args ?? {},
+          args: args ?? {},
           workspaceId: context.workspaceId,
         });
         const timeoutMs = await workspaceSettingsService.getApprovalTimeoutMs(context.workspaceId);
