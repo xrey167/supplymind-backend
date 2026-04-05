@@ -213,6 +213,8 @@ export async function handleBashAction(sessionId: string, args: unknown) {
         command,
         reason: classification.reason,
         matchedPattern: classification.matchedPattern,
+      }).catch((err: unknown) => {
+        logger.error({ sessionId, err }, 'Failed to publish bash warning event');
       });
     }
 
