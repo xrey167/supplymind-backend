@@ -4,16 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run --watch src/index.ts",
+    "dev": "bun --env-file .env.development run --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist",
     "start": "bun run dist/index.js",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio",
+    "db:generate": "bun --env-file .env.development run drizzle-kit generate",
+    "db:migrate": "bun --env-file .env.development run drizzle-kit migrate",
+    "db:migrate:test": "bun --env-file .env.test run drizzle-kit migrate",
+    "db:push": "bun --env-file .env.development run drizzle-kit push",
+    "db:studio": "bun --env-file .env.development run drizzle-kit studio",
+    "db:setup": "bun run db:migrate && bun run db:migrate:test && bun run seed",
     "test": "bun test",
     "test:run": "bun test",
-    "seed": "bun run scripts/seed.ts"
+    "test:integration": "bun --env-file .env.test run scripts/test-runner.ts tests/integration/",
+    "test:e2e": "bun --env-file .env.test run scripts/test-runner.ts tests/e2e/",
+    "seed": "bun --env-file .env.development run scripts/seed.ts",
+    "create-admin": "bun --env-file .env.development run scripts/create-admin.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
