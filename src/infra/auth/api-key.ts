@@ -38,6 +38,7 @@ export async function validateApiKey(token: string): Promise<ApiKeyInfo | null> 
   db.update(apiKeys)
     .set({ lastUsedAt: new Date() })
     .where(eq(apiKeys.id, row.id))
+    .execute()
     .catch((error: unknown) => { logger.warn({ keyId: row.id, error }, 'Failed to update API key lastUsedAt'); });
 
   return {
