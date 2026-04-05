@@ -1,6 +1,6 @@
 import { db } from '../../infra/db/client';
 import { sessions, sessionMessages } from '../../infra/db/schema';
-import { eq, and, lt, gt, lte, count, desc, or } from 'drizzle-orm';
+import { eq, and, lt, gt, lte, count, desc, asc, or } from 'drizzle-orm';
 import type { Session, SessionMessage, AddMessageInput, SessionStatus } from './sessions.types';
 import { logger } from '../../config/logger';
 
@@ -147,7 +147,7 @@ export const sessionsRepo = {
       .select()
       .from(sessionMessages)
       .where(eq(sessionMessages.sessionId, sessionId))
-      .orderBy(desc(sessionMessages.createdAt))
+      .orderBy(desc(sessionMessages.createdAt), desc(sessionMessages.id))
       .limit(1);
     return row ?? null;
   },

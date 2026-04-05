@@ -20,6 +20,7 @@ export const taskRepo = {
       agentId: data.agentId,
       status: data.status,
       input: data.input ?? {},
+      ...(data.sessionId !== undefined && { sessionId: data.sessionId }),
     }).onConflictDoNothing();
   },
 
@@ -38,6 +39,9 @@ export const taskRepo = {
     const limit = opts?.limit ?? 100;
     const cursor = opts?.cursor;
     const cursorDate = cursor ? new Date(cursor) : undefined;
+    if (cursorDate !== undefined && isNaN(cursorDate.getTime())) {
+      return [];
+    }
 
     const rows = await db.select().from(a2aTasks)
       .where(

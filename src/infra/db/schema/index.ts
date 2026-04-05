@@ -84,6 +84,7 @@ export const a2aTasks = pgTable('a2a_tasks', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull(),
   agentId: uuid('agent_id').notNull().references(() => agentConfigs.id),
+  sessionId: uuid('session_id').references(() => sessions.id),
   status: a2aTaskStatusEnum('status'),
   input: jsonb('input').notNull(),
   output: jsonb('output'),

@@ -186,10 +186,8 @@ class TaskManager {
       const taggedHistory: TaggedMessage[] = [];
 
       // Fetch permission mode once per task to avoid a DB round-trip on every tool call.
-      // On failure, fall back to 'auto' (open) so the task can continue — the dispatch
-      // layer itself will fail-closed on a subsequent per-call failure if needed.
-      const permissionMode = await workspaceSettingsService.getToolPermissionMode(config.workspaceId)
-        .catch(() => 'auto' as const);
+      // If this throws, executeTask catches it and marks the task failed — fail-closed.
+      const permissionMode = await workspaceSettingsService.getToolPermissionMode(config.workspaceId);
 
       const dispatchCtx: DispatchContext = {
         callerId: config.id,
