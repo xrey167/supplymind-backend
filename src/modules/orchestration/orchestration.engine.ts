@@ -1,4 +1,5 @@
 import type { OrchestrationDefinition, OrchestrationStep, StepResult, OrchestrationResult } from './orchestration.types';
+import { logger } from '../../config/logger';
 import { resolveTemplate, evaluateCondition } from './orchestration.templates';
 import * as skillsDispatch from '../skills/skills.dispatch';
 import { emitStepCompleted, emitGateWaiting } from './orchestration.events';
@@ -66,8 +67,7 @@ async function executeStep(
         case 'agent':
         case 'collaboration':
         case 'decision':
-          result = { type: step.type, status: 'executed' };
-          break;
+          throw new Error(`Step type "${step.type}" is not yet implemented. Use type "skill" or remove this step.`);
       }
 
       return { stepId: step.id, status: 'completed', result, durationMs: performance.now() - start };
@@ -104,9 +104,15 @@ export async function runOrchestration(
     );
 
     if (ready.length === 0 && pending.size > 0) {
+      const blockedSteps = Array.from(pending);
+      logger.error(
+        { orchestrationId: definition.id, blockedSteps },
+        'Orchestration deadlocked — circular dependency or unresolvable step dependencies',
+      );
       return {
         orchestrationId: definition.id ?? '',
         status: 'failed',
+        error: `Dependency deadlock: steps [${blockedSteps.join(', ')}] could not be scheduled. Check for circular dependencies.`,
         stepResults,
         totalDurationMs: performance.now() - start,
       };

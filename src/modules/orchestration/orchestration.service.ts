@@ -1,6 +1,6 @@
 import { orchestrationRepo } from './orchestration.repo';
 import { runOrchestration } from './orchestration.engine';
-import { emitOrchestrationStarted, emitOrchestrationCompleted, emitOrchestrationFailed } from './orchestration.events';
+import { emitOrchestrationStarted, emitOrchestrationCompleted, emitOrchestrationFailed, emitOrchestrationCancelled } from './orchestration.events';
 import type { OrchestrationDefinition, OrchestrationResult } from './orchestration.types';
 import { ok, err } from '../../core/result';
 import { AppError } from '../../core/errors';
@@ -71,7 +71,7 @@ export const orchestrationService = {
     const cancelled = await orchestrationRepo.cancel(id);
     if (!cancelled) return err(new AppError('Orchestration cannot be cancelled (already completed or failed)', 400, 'INVALID_STATE'));
 
-    emitOrchestrationFailed(id, workspaceId, 'Cancelled by user');
+    emitOrchestrationCancelled(id, workspaceId);
     return ok(undefined);
   },
 };

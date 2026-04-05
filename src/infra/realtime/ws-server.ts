@@ -116,6 +116,16 @@ class WsServer {
         type: 'orchestration:status',
         orchestrationId: data.orchestrationId,
         status: 'failed' as const,
+        error: data.error,
+      });
+    }));
+
+    this.subscriptionIds.push(eventBus.subscribe(Topics.ORCHESTRATION_CANCELLED, (event) => {
+      const data = event.data as { orchestrationId: string; workspaceId: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'orchestration:status',
+        orchestrationId: data.orchestrationId,
+        status: 'cancelled' as const,
       });
     }));
 
@@ -141,9 +151,20 @@ class WsServer {
     try {
       const msg: ClientMessage = JSON.parse(typeof raw === 'string' ? raw : raw.toString());
       switch (msg.type) {
-        case 'subscribe':
-          msg.channels.forEach(ch => client.subscriptions.add(ch));
+        case 'auth':
+          this.handleAuth(client, msg.token);
           break;
+        case 'subscribe': {
+          const denied = msg.channels.filter(ch => this.requiresAuth(ch) && !client.userId);
+          if (denied.length > 0) {
+            this.send(client, { type: 'error', message: `Authentication required to subscribe to: ${denied.join(', ')}` });
+            // Only add channels that don't require auth
+            msg.channels.filter(ch => !this.requiresAuth(ch)).forEach(ch => client.subscriptions.add(ch));
+          } else {
+            msg.channels.forEach(ch => client.subscriptions.add(ch));
+          }
+          break;
+        }
         case 'unsubscribe':
           msg.channels.forEach(ch => client.subscriptions.delete(ch));
           break;
@@ -175,6 +196,22 @@ class WsServer {
 
   handleClose(clientId: string) {
     this.clients.delete(clientId);
+  }
+
+  private requiresAuth(channel: string): boolean {
+    return channel.startsWith('workspace:');
+  }
+
+  private async handleAuth(client: import('./ws-types').WsClient, token: string) {
+    try {
+      const { verifyWsToken } = await import('./ws-auth');
+      const userId = await verifyWsToken(token);
+      client.userId = userId;
+      // TODO: load workspace memberships here once workspace_members table exists
+      this.send(client, { type: 'session:resumed', sessionId: client.id });
+    } catch {
+      this.send(client, { type: 'error', message: 'Authentication failed' });
+    }
   }
 
   private send(client: WsClient, msg: ServerMessage) {

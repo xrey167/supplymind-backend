@@ -11,6 +11,7 @@ export const workflowsRepo = {
       definition: data.definition,
       createdBy: data.createdBy,
     }).returning();
+    if (!row) throw new Error('Workflow template insert returned no rows');
     return row;
   },
 
@@ -32,6 +33,7 @@ export const workflowsRepo = {
       .set({ ...patch, updatedAt: new Date() })
       .where(eq(workflowTemplates.id, id))
       .returning();
+    if (!row) throw new Error('Workflow template update returned no rows — record may not exist');
     return row;
   },
 

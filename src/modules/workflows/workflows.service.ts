@@ -1,4 +1,5 @@
 import { ok, err } from '../../core/result';
+import { logger } from '../../config/logger';
 import { AppError } from '../../core/errors';
 import type { Result } from '../../core/result';
 import { workflowsRepo } from './workflows.repo';
@@ -52,12 +53,17 @@ export const workflowsService = {
       input: input ?? {},
     });
 
-    await enqueueOrchestration({
-      orchestrationId: orch.id,
-      workspaceId,
-      definition: template.definition as OrchestrationDefinition,
-      input: input ?? {},
-    });
+    try {
+      await enqueueOrchestration({
+        orchestrationId: orch.id,
+        workspaceId,
+        definition: template.definition as OrchestrationDefinition,
+        input: input ?? {},
+      });
+    } catch (error) {
+      logger.error({ error, orchestrationId: orch.id }, 'Failed to enqueue orchestration after DB write — orphaned record');
+      return err(new AppError('Failed to schedule orchestration execution. Please try again.', 503, 'QUEUE_UNAVAILABLE'));
+    }
 
     return ok({ orchestrationId: orch.id });
   },

@@ -125,7 +125,7 @@ export const messageRoleEnum = pgEnum('message_role', ['user', 'assistant', 'sys
 export const memoryTypeEnum = pgEnum('memory_type', ['domain', 'feedback', 'pattern', 'reference']);
 export const memorySourceEnum = pgEnum('memory_source', ['explicit', 'proposed', 'approved']);
 export const proposalStatusEnum = pgEnum('proposal_status', ['pending', 'approved', 'rejected']);
-export const orchestrationStatusEnum = pgEnum('orchestration_status', ['submitted', 'running', 'paused', 'completed', 'failed']);
+export const orchestrationStatusEnum = pgEnum('orchestration_status', ['submitted', 'running', 'paused', 'completed', 'failed', 'cancelled']);
 
 // Sessions
 export const sessions = pgTable('sessions', {
@@ -202,7 +202,9 @@ export const orchestrations = pgTable('orchestrations', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
   completedAt: timestamp('completed_at'),
-});
+}, (t) => [
+  index('orch_workspace_created_idx').on(t.workspaceId, t.createdAt),
+]);
 
 // Workspace settings (key-value per workspace)
 export const workspaceSettings = pgTable('workspace_settings', {
@@ -239,7 +241,9 @@ export const workflowTemplates = pgTable('workflow_templates', {
   createdBy: text('created_by').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-});
+}, (t) => [
+  index('wt_workspace_id_idx').on(t.workspaceId),
+]);
 
 // Registered A2A agents (persistent registry)
 export const registeredAgents = pgTable('registered_agents', {

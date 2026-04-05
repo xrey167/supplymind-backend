@@ -20,3 +20,7 @@ export function emitOrchestrationCompleted(id: string, workspaceId: string): voi
 export function emitOrchestrationFailed(id: string, workspaceId: string, error: string): void {
   eventBus.publish(Topics.ORCHESTRATION_FAILED, { orchestrationId: id, workspaceId, error });
 }
+
+export function emitOrchestrationCancelled(id: string, workspaceId: string): void {
+  eventBus.publish(Topics.ORCHESTRATION_CANCELLED, { orchestrationId: id, workspaceId });
+}

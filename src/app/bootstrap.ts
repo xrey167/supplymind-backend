@@ -144,7 +144,7 @@ export async function initSubsystems(): Promise<void> {
     agentWorkerHandles = startAgentWorkers(3);
     logger.info('Agent workers started');
   } catch (err) {
-    logger.error({ err }, 'Failed to start agent workers');
+    logger.error({ err }, 'Failed to start agent workers — all task execution is disabled');
   }
 
   // Step 11: Start orchestration BullMQ workers (non-critical)
@@ -153,7 +153,7 @@ export async function initSubsystems(): Promise<void> {
     startOrchestrationWorkers();
     logger.info('Orchestration workers started');
   } catch (err) {
-    logger.warn({ err }, 'Failed to start orchestration workers — continuing');
+    logger.error({ err }, 'Failed to start orchestration workers — all orchestration execution is disabled');
   }
 
   logger.info('Bootstrap complete');

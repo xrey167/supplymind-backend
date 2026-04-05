@@ -52,6 +52,7 @@ export const Topics = {
   ORCHESTRATION_GATE_WAITING: 'orchestration.gate.waiting',
   ORCHESTRATION_COMPLETED: 'orchestration.completed',
   ORCHESTRATION_FAILED: 'orchestration.failed',
+  ORCHESTRATION_CANCELLED: 'orchestration.cancelled',
   // Tool approvals
   TOOL_APPROVAL_REQUESTED: 'tool.approval_requested',
   TOOL_APPROVAL_RESOLVED: 'tool.approval_resolved',
