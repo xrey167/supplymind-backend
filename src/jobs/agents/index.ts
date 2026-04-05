@@ -1,11 +1,16 @@
 import { Worker } from 'bullmq';
+import Redis from 'ioredis';
 import type { AgentJobData } from '../../infra/queue/bullmq';
-import { redis } from '../../infra/queue/bullmq';
 import { taskManager } from '../../infra/a2a/task-manager';
+import { taskRepo } from '../../infra/a2a/task-repo';
 import { agentsService } from '../../modules/agents/agents.service';
 import { logger } from '../../config/logger';
 
+const REDIS_URL = Bun.env.REDIS_URL ?? 'redis://localhost:6379';
+
 export function startAgentWorkers(concurrency = 3): Worker<AgentJobData> {
+  const workerRedis = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
+
   const worker = new Worker<AgentJobData>(
     'agent:run',
     async (job) => {
@@ -36,11 +41,16 @@ export function startAgentWorkers(concurrency = 3): Worker<AgentJobData> {
         callerId,
       });
     },
-    { connection: redis, concurrency },
+    { connection: workerRedis, concurrency },
   );
 
   worker.on('failed', (job, err) => {
     logger.error({ jobId: job?.id, taskId: job?.data.taskId, err }, 'Agent job failed');
+    if (job?.data.taskId) {
+      taskRepo.updateStatus(job.data.taskId, 'failed', String(err)).catch((e: unknown) => {
+        logger.error({ e }, 'Failed to mark task as failed after job failure');
+      });
+    }
   });
 
   return worker;

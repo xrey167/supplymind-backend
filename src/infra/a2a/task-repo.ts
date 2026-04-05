@@ -19,7 +19,7 @@ export const taskRepo = {
       agentId: data.agentId,
       status: data.status as any,
       input: data.input ?? {},
-    });
+    }).onConflictDoNothing();
   },
 
   async updateStatus(taskId: string, status: string, output?: unknown, artifacts?: unknown) {
