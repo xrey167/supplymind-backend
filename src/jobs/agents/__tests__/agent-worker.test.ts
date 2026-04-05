@@ -20,7 +20,11 @@ class MockWorker {
   }
 }
 
-mock.module('bullmq', () => ({ Worker: MockWorker }));
+mock.module('bullmq', () => ({
+  Worker: MockWorker,
+  Queue: class MockQueue { constructor() {} add() { return Promise.resolve({}); } close() { return Promise.resolve(); } },
+  QueueEvents: class MockQueueEvents { constructor() {} on() {} close() { return Promise.resolve(); } },
+}));
 
 // ---- Redis mock ----
 mock.module('ioredis', () => ({
@@ -35,23 +39,36 @@ mock.module('../../../infra/a2a/task-repo', () => ({
   taskRepo: { updateStatus: mockUpdateStatus },
 }));
 
-// ---- agentsService mock ----
-const mockGetById = mock(async (_id: string) => ({
-  ok: true,
-  value: {
-    id: 'agent-1',
-    provider: 'openai',
-    mode: 'chat',
-    model: 'gpt-4o',
-    systemPrompt: 'You are helpful',
-    temperature: 0.7,
-    maxTokens: 2000,
-    toolIds: [],
-    workspaceId: 'ws-1',
-  },
+// ---- agentsRepo mock (mock the dependency, not the service, to avoid polluting agents.service.test.ts) ----
+const mockFindById = mock(async (_id: string) => ({
+  id: 'agent-1',
+  workspaceId: 'ws-1',
+  name: 'Test Agent',
+  provider: 'openai',
+  mode: 'chat',
+  model: 'gpt-4o',
+  systemPrompt: 'You are helpful',
+  temperature: 0.7,
+  maxTokens: 2000,
+  toolIds: [],
+  metadata: {},
+  createdAt: new Date(),
+  updatedAt: new Date(),
 }));
-mock.module('../../../modules/agents/agents.service', () => ({
-  agentsService: { getById: mockGetById },
+mock.module('../../../modules/agents/agents.repo', () => ({
+  agentsRepo: {
+    findById: mockFindById,
+    findByWorkspace: mock(async () => []),
+    create: mock(async () => ({})),
+    update: mock(async () => ({})),
+    remove: mock(async () => {}),
+  },
+  AgentsRepository: class {},
+}));
+
+// Mock event bus (agents.service publishes events)
+mock.module('../../../events/bus', () => ({
+  eventBus: { publish: mock(() => {}), subscribe: mock(() => {}), unsubscribe: mock(() => {}) },
 }));
 
 // ---- taskManager mock ----
@@ -81,7 +98,7 @@ const makeJobData = (overrides: Record<string, unknown> = {}) => ({
 });
 
 function resetMocks() {
-  mockGetById.mockClear();
+  mockFindById.mockClear();
   mockSend.mockClear();
   mockUpdateStatus.mockClear();
 }
@@ -91,12 +108,12 @@ describe('agent worker', () => {
   beforeEach(resetMocks);
 
   describe('processor', () => {
-    it('calls agentsService.getById with agentId from job data', async () => {
+    it('calls agentsRepo.findById with agentId from job data', async () => {
       const data = makeJobData();
       await capturedProcessor!({ data });
 
-      expect(mockGetById).toHaveBeenCalledTimes(1);
-      expect(mockGetById).toHaveBeenCalledWith('agent-1');
+      expect(mockFindById).toHaveBeenCalledTimes(1);
+      expect(mockFindById).toHaveBeenCalledWith('agent-1');
     });
 
     it('calls taskManager.send with correct params', async () => {
@@ -114,7 +131,7 @@ describe('agent worker', () => {
     });
 
     it('throws when agent is not found', async () => {
-      mockGetById.mockImplementationOnce(async () => ({ ok: false, error: new Error('not found') }));
+      mockFindById.mockImplementationOnce(async () => null);
 
       const data = makeJobData({ agentId: 'missing-agent' });
       await expect(capturedProcessor!({ data })).rejects.toThrow('Agent not found: missing-agent');
