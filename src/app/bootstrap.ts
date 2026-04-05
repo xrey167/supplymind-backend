@@ -147,6 +147,15 @@ export async function initSubsystems(): Promise<void> {
     logger.error({ err }, 'Failed to start agent workers');
   }
 
+  // Step 11: Start orchestration BullMQ workers (non-critical)
+  try {
+    const { startOrchestrationWorkers } = await import('../jobs/orchestrations');
+    startOrchestrationWorkers();
+    logger.info('Orchestration workers started');
+  } catch (err) {
+    logger.warn({ err }, 'Failed to start orchestration workers — continuing');
+  }
+
   logger.info('Bootstrap complete');
 }
 
