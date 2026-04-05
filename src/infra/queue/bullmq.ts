@@ -73,6 +73,10 @@ export interface OrchestrationJobData {
 
 export const orchestrationQueue = new Queue<OrchestrationJobData>('orchestration-run', { connection });
 
+export const cleanupQueue = new Queue('cleanup', { connection });
+
+export const syncQueue = new Queue('sync', { connection });
+
 export function enqueueOrchestration(data: OrchestrationJobData): Promise<Job<OrchestrationJobData>> {
   return orchestrationQueue.add('run', data, { attempts: 1, removeOnComplete: 100, removeOnFail: 200 });
 }

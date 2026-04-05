@@ -39,7 +39,14 @@
       "Bash(xargs -I {} bash -c 'echo \"=== {} ===\" && wc -l {}')",
       "Bash(sort -k2 -rn)",
       "Bash(grep -l \"TODO: Implement\" /c/Users/Xrey/SupplyMindAI/backend/src/modules/**/*.ts)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(grep -v \"^--$\\\\|ioredis\\\\|ECONN\\\\|NodeAgg\\\\|internalConnect\\\\|afterConnect\\\\|connectError\")",
+      "Bash(bun --env-file .env.test test)",
+      "Bash(DATABASE_URL=postgresql://supplymind:supplymind@localhost:5432/supplymind_dev bunx drizzle-kit:*)",
+      "Bash(DATABASE_URL=postgresql://supplymind:supplymind@localhost:5432/supplymind_dev bun run:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(Start-Process \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\")",
+      "Bash(bun add:*)"
     ]
   }
 }

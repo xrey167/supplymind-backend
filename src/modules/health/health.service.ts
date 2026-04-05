@@ -1,6 +1,7 @@
 import { db } from '../../infra/db/client';
 import { getSharedRedisClient } from '../../infra/redis/client';
 import { sql } from 'drizzle-orm';
+import { logger } from '../../config/logger';
 
 type CheckStatus = 'ok' | 'error';
 
@@ -13,7 +14,8 @@ async function checkDb(): Promise<CheckStatus> {
   try {
     await db.execute(sql`SELECT 1`);
     return 'ok';
-  } catch {
+  } catch (err) {
+    logger.warn({ err }, 'Health: DB check failed');
     return 'error';
   }
 }
@@ -22,7 +24,8 @@ async function checkRedis(): Promise<CheckStatus> {
   try {
     await getSharedRedisClient().ping();
     return 'ok';
-  } catch {
+  } catch (err) {
+    logger.warn({ err }, 'Health: Redis check failed');
     return 'error';
   }
 }

@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, lt, isNotNull } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { apiKeys } from '../../infra/db/schema';
 import type { ApiKey } from './api-keys.types';
@@ -42,5 +42,12 @@ export const apiKeysRepo = {
       .where(and(eq(apiKeys.id, id), eq(apiKeys.workspaceId, workspaceId)))
       .returning({ id: apiKeys.id });
     return result.length > 0;
+  },
+
+  async deleteExpired(): Promise<number> {
+    const result = await db.delete(apiKeys)
+      .where(and(isNotNull(apiKeys.expiresAt), lt(apiKeys.expiresAt, new Date())))
+      .returning({ id: apiKeys.id });
+    return result.length;
   },
 };

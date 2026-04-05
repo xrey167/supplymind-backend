@@ -4,7 +4,7 @@ import { skillsService } from '../modules/skills/skills.service';
 import { skillRegistry } from '../modules/skills/skills.registry';
 import { wsServer } from '../infra/realtime/ws-server';
 import { mcpClientPool } from '../infra/mcp/client-pool';
-import { createRedisPair, createRedisClient } from '../infra/redis/client';
+import { createRedisPair } from '../infra/redis/client';
 import { RedisPubSub } from '../infra/redis/pubsub';
 import { initEventConsumers } from '../events/consumers';
 import { getStateStore, closeStateStore } from '../infra/state';
@@ -15,6 +15,7 @@ import { taskRepo } from '../infra/a2a/task-repo';
 
 let redisPubSub: RedisPubSub | null = null;
 let agentWorkerHandles: { worker: import('bullmq').Worker; connection: import('ioredis').default } | null = null;
+let jobWorkerHandles: { cleanupWorker: import('bullmq').Worker; syncWorker: import('bullmq').Worker; connection: import('ioredis').default } | null = null;
 
 /**
  * Initialize all subsystems in order.
@@ -22,6 +23,10 @@ let agentWorkerHandles: { worker: import('bullmq').Worker; connection: import('i
  * Redis and MCP are non-critical — if they fail, we warn and continue.
  */
 export async function initSubsystems(): Promise<void> {
+  // Step 0: Initialize OTel tracing
+  const { initOtel } = await import('../infra/observability/otel');
+  await initOtel();
+
   // Step 1: Load skills (builtin + DB)
   try {
     await skillsService.loadSkills();
@@ -43,7 +48,8 @@ export async function initSubsystems(): Promise<void> {
   try {
     const redisUrl = Bun.env.REDIS_URL;
     if (redisUrl) {
-      const cacheClient = createRedisClient(redisUrl);
+      const { getSharedRedisClient } = await import('../infra/redis/client');
+      const cacheClient = getSharedRedisClient();
       setCacheProvider(new RedisCache(cacheClient));
       logger.info('CacheProvider: Redis');
     } else {
@@ -149,6 +155,39 @@ export async function initSubsystems(): Promise<void> {
     logger.error({ err }, 'Failed to start orchestration workers — all orchestration execution is disabled');
   }
 
+  // Step 12: Register repeatable job schedulers
+  try {
+    const { cleanupQueue, syncQueue } = await import('../infra/queue/bullmq');
+    const { Worker } = await import('bullmq');
+    const { runCleanup } = await import('../jobs/cleanup');
+    const { runSync } = await import('../jobs/sync');
+    const Redis = (await import('ioredis')).default;
+
+    const jobConnection = new Redis(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
+
+    await cleanupQueue.upsertJobScheduler('cleanup-sweep', { pattern: '*/15 * * * *' }, { name: 'cleanup' });
+    const cleanupWorker = new Worker('cleanup', async () => { await runCleanup(); }, { connection: jobConnection });
+    cleanupWorker.on('error', (err) => logger.warn({ err }, 'Cleanup worker error'));
+
+    await syncQueue.upsertJobScheduler('agent-registry-sync', { pattern: '0 * * * *' }, { name: 'agent-sync' });
+    const syncWorker = new Worker('sync', async () => { await runSync(); }, { connection: jobConnection });
+    syncWorker.on('error', (err) => logger.warn({ err }, 'Sync worker error'));
+
+    jobWorkerHandles = { cleanupWorker, syncWorker, connection: jobConnection };
+
+    logger.info('Step 12: Cleanup and sync job schedulers registered');
+  } catch (err) {
+    logger.warn({ err }, 'Step 12: Job schedulers failed to register');
+  }
+
+  // Step 13: Register computer use routes (non-critical — requires playwright)
+  try {
+    const { computerUseRoutes } = await import('../modules/computer-use/computer-use.routes');
+    app.route('/workspaces/:workspaceId/computer-use', computerUseRoutes);
+    logger.info('Computer use routes registered');
+  } catch (err) {
+    logger.warn({ err }, 'Computer use routes failed to register — continuing without computer use');
+  }
 
   logger.info('Bootstrap complete');
 }
@@ -160,9 +199,23 @@ export async function destroySubsystems(): Promise<void> {
   wsServer.destroy();
   await mcpClientPool.disconnectAll();
   await closeStateStore();
+  if (redisPubSub) {
+    try {
+      await redisPubSub.destroy();
+    } catch (err) {
+      logger.warn({ err }, 'Failed to destroy Redis pub/sub during shutdown');
+    }
+  }
+
   if (agentWorkerHandles) {
     await agentWorkerHandles.worker.close();
-    agentWorkerHandles.connection.quit();
+    await agentWorkerHandles.connection.quit();
+  }
+
+  if (jobWorkerHandles) {
+    await jobWorkerHandles.cleanupWorker.close();
+    await jobWorkerHandles.syncWorker.close();
+    await jobWorkerHandles.connection.quit();
   }
 
   // Destroy all computer use sessions (close browsers)
@@ -176,6 +229,29 @@ export async function destroySubsystems(): Promise<void> {
     }
   }
 
-  // Redis cleanup is handled by ioredis automatically on disconnect
+  // Close shared Redis
+  try {
+    const { closeSharedRedisClient } = await import('../infra/redis/client');
+    await closeSharedRedisClient();
+  } catch (err) {
+    logger.warn({ err }, 'Failed to close shared Redis client during shutdown');
+  }
+
+  // Close DB connection pool
+  try {
+    const { closeDb } = await import('../infra/db/client');
+    await closeDb();
+  } catch (err) {
+    logger.warn({ err }, 'Failed to close DB connection pool during shutdown');
+  }
+
+  // Shutdown OTel
+  try {
+    const { shutdownOtel } = await import('../infra/observability/otel');
+    await shutdownOtel();
+  } catch (err) {
+    logger.warn({ err }, 'Failed to shutdown OTel during shutdown');
+  }
+
   logger.info('Subsystems destroyed');
 }

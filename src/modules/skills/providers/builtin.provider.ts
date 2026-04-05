@@ -63,6 +63,9 @@ export class BuiltinSkillProvider implements SkillProvider {
             prompt,
           });
 
+          const { taskRepo } = await import('../../../infra/a2a/task-repo');
+          await taskRepo.updateStatus(taskId, 'input_required');
+
           // Wait for user input (5 minute timeout)
           const input = await createInputRequest(taskId, workspaceId, prompt, 5 * 60 * 1000);
 
@@ -70,6 +73,7 @@ export class BuiltinSkillProvider implements SkillProvider {
             return err(new Error('User input request timed out'));
           }
 
+          await taskRepo.updateStatus(taskId, 'working');
           return ok(input);
         },
       },
