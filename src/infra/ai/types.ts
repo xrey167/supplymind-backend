@@ -3,16 +3,28 @@ import type { Result } from '../../core/result';
 export type AgentMode = "raw" | "agent-sdk";
 export type AIProvider = "anthropic" | "openai" | "google";
 
+export type ImageContentBlock = {
+  type: "image";
+  source: { type: "base64"; media_type: "image/png" | "image/jpeg" | "image/gif" | "image/webp"; data: string };
+};
+
 export type ContentBlock =
   | { type: "text"; text: string }
   | { type: "tool_use"; id: string; name: string; input: unknown }
-  | { type: "tool_result"; toolUseId: string; content: string; isError?: boolean };
+  | { type: "tool_result"; toolUseId: string; content: string | ImageContentBlock[]; isError?: boolean }
+  | ImageContentBlock;
 
 export interface Message {
   role: "user" | "assistant" | "system" | "tool";
   content: string | ContentBlock[];
   toolCallId?: string;
 }
+
+/** Anthropic built-in beta tool types for Computer Use */
+export type BetaToolType =
+  | 'computer_20251124'
+  | 'bash_20250124'
+  | 'text_editor_20250728';
 
 export interface ToolDefinition {
   name: string;
@@ -22,6 +34,11 @@ export interface ToolDefinition {
   cacheControl?: { type: 'ephemeral' };
   eagerInputStreaming?: boolean;
   deferLoading?: boolean;
+  /** When set, this is a built-in Anthropic beta tool — overrides custom-tool format */
+  betaType?: BetaToolType;
+  /** Required when betaType is 'computer_20251124' */
+  displayWidth?: number;
+  displayHeight?: number;
 }
 
 export type ToolChoice =

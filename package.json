@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun --env-file .env.development run --watch src/index.ts",
-    "build": "bun build src/index.ts --outdir dist",
+    "build": "bun build src/index.ts --outdir dist --target bun --external playwright --external playwright-core",
     "start": "bun run dist/index.js",
     "db:generate": "bun --env-file .env.development run --bun node_modules/.bin/drizzle-kit generate",
     "db:migrate": "bun --env-file .env.development run --bun node_modules/.bin/drizzle-kit migrate",
@@ -46,6 +46,7 @@
     "nodemailer": "^8.0.4",
     "openai": "^6.33.0",
     "pino": "^10.3.1",
+    "playwright": "^1.59.1",
     "postgres": "^3.4.8",
     "react-email": "^5.2.10",
     "resend": "^6.10.0",

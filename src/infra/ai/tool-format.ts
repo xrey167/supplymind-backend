@@ -2,6 +2,17 @@ import type { ToolDefinition, ToolChoice } from './types';
 
 export function toAnthropicTools(tools: ToolDefinition[]) {
   return tools.map((t) => {
+    // Built-in Anthropic beta tools — no input_schema, type field is the discriminator
+    if (t.betaType) {
+      const tool: Record<string, unknown> = { type: t.betaType, name: t.name };
+      if (t.betaType === 'computer_20251124') {
+        tool.display_width_px = t.displayWidth ?? 1280;
+        tool.display_height_px = t.displayHeight ?? 800;
+      }
+      if (t.cacheControl) tool.cache_control = t.cacheControl;
+      return tool;
+    }
+    // Standard custom tools
     const tool: Record<string, unknown> = {
       name: t.name,
       description: t.description,

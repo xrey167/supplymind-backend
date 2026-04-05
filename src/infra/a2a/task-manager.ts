@@ -504,7 +504,12 @@ class TaskManager {
 
     return {
       role: 'tool',
-      content: typeof resultValue === 'string' ? resultValue : JSON.stringify(resultValue),
+      // Pass image content blocks through as-is; stringify other non-string values
+      content: typeof resultValue === 'string'
+        ? resultValue
+        : Array.isArray(resultValue)
+          ? (resultValue as any)
+          : JSON.stringify(resultValue),
       toolCallId: toolCall.id,
     };
   }

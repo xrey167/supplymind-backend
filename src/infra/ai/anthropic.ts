@@ -32,7 +32,10 @@ export class AnthropicRawRuntime implements AgentRuntime {
                   return {
                     type: 'tool_result' as const,
                     tool_use_id: block.toolUseId!,
-                    content: block.content ?? '',
+                    content: Array.isArray(block.content)
+                      ? block.content.map((b) => ({ type: 'image' as const, source: b.source }))
+                      : (block.content ?? ''),
+                    is_error: block.isError,
                   };
                 }),
           })),
@@ -57,7 +60,13 @@ export class AnthropicRawRuntime implements AgentRuntime {
         };
       }
 
-      const response = await this.client.messages.create(params, { signal: input.signal });
+      const hasBetaTools = input.tools?.some(t => t.betaType) ?? false;
+      const response = hasBetaTools
+        ? await this.client.beta.messages.create(
+            { ...params, betas: ['computer-use-2025-11-24'] } as any,
+            { signal: input.signal },
+          )
+        : await this.client.messages.create(params, { signal: input.signal });
 
       let content = '';
       const toolCalls: RunResult['toolCalls'] = [];
@@ -138,7 +147,13 @@ export class AnthropicRawRuntime implements AgentRuntime {
         };
       }
 
-      const stream = this.client.messages.stream(params, { signal: combinedSignal });
+      const hasBetaTools = input.tools?.some(t => t.betaType) ?? false;
+      const stream = hasBetaTools
+        ? this.client.beta.messages.stream(
+            { ...params, betas: ['computer-use-2025-11-24'] } as any,
+            { signal: combinedSignal },
+          )
+        : this.client.messages.stream(params, { signal: combinedSignal });
 
       // Track tool_use blocks for tool_call_end
       const toolBlocks = new Map<number, { id: string; name: string; argsJson: string }>();
