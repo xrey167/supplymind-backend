@@ -52,7 +52,7 @@ async function executeStep(
           const prompt = step.gatePrompt
             ? resolveTemplate(step.gatePrompt, stepResults, input)
             : 'Approval required to continue';
-          emitGateWaiting(input._orchestrationId as string ?? '', step.id, prompt);
+          emitGateWaiting(input._orchestrationId as string ?? '', step.id, prompt, workspaceId);
           if (onGate) {
             const approved = await onGate(step.id, prompt);
             if (!approved) {
@@ -120,7 +120,7 @@ export async function runOrchestration(
     for (const result of results) {
       stepResults[result.stepId] = result;
       pending.delete(result.stepId);
-      emitStepCompleted(input._orchestrationId as string ?? '', result.stepId, result.status);
+      emitStepCompleted(input._orchestrationId as string ?? '', result.stepId, result.status, workspaceId);
 
       if (result.status === 'completed' || result.status === 'skipped') {
         completed.add(result.stepId);

@@ -70,6 +70,54 @@ class WsServer {
       });
     });
 
+    // Forward orchestration events to workspace subscribers
+    eventBus.subscribe(Topics.ORCHESTRATION_STARTED, (event) => {
+      const data = event.data as { orchestrationId: string; workspaceId: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'orchestration:status',
+        orchestrationId: data.orchestrationId,
+        status: 'running' as const,
+      });
+    });
+
+    eventBus.subscribe(Topics.ORCHESTRATION_STEP_COMPLETED, (event) => {
+      const data = event.data as { orchestrationId: string; stepId: string; status: string; workspaceId: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'orchestration:status',
+        orchestrationId: data.orchestrationId,
+        status: data.status as any,
+        stepId: data.stepId,
+      });
+    });
+
+    eventBus.subscribe(Topics.ORCHESTRATION_GATE_WAITING, (event) => {
+      const data = event.data as { orchestrationId: string; stepId: string; prompt: string; workspaceId: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'orchestration:gate',
+        orchestrationId: data.orchestrationId,
+        stepId: data.stepId,
+        prompt: data.prompt,
+      });
+    });
+
+    eventBus.subscribe(Topics.ORCHESTRATION_COMPLETED, (event) => {
+      const data = event.data as { orchestrationId: string; workspaceId: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'orchestration:status',
+        orchestrationId: data.orchestrationId,
+        status: 'completed' as const,
+      });
+    });
+
+    eventBus.subscribe(Topics.ORCHESTRATION_FAILED, (event) => {
+      const data = event.data as { orchestrationId: string; workspaceId: string; error: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'orchestration:status',
+        orchestrationId: data.orchestrationId,
+        status: 'failed' as const,
+      });
+    });
+
     // Route skill:result back to the requesting WS client
     eventBus.subscribe('ws.skill.result', (event) => {
       const data = event.data as any;
