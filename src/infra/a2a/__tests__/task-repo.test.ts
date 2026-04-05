@@ -1,7 +1,20 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test';
 
 // Mock the DB module before importing task-repo
-const mockWhere = mock(async () => []);
+// queryResult builds a thenable that also supports .orderBy().limit() for paginated queries
+let _queryRows: any[] = [];
+function queryResult() {
+  const obj: any = {
+    orderBy: (..._args: any[]) => ({
+      limit: () => Promise.resolve(_queryRows),
+    }),
+    then: (resolve: any, reject: any) => Promise.resolve(_queryRows).then(resolve, reject),
+    catch: (reject: any) => Promise.resolve(_queryRows).catch(reject),
+  };
+  return obj;
+}
+
+const mockWhere = mock(() => queryResult());
 const mockFrom = mock(() => ({ where: mockWhere }));
 const mockSelect = mock(() => ({ from: mockFrom }));
 
@@ -41,10 +54,10 @@ function makeRow(overrides: Record<string, unknown> = {}) {
 
 describe('taskRepo.findByStatus', () => {
   beforeEach(() => {
-    mockWhere.mockReset();
+    
     mockFrom.mockReset();
     mockSelect.mockReset();
-    mockWhere.mockResolvedValue([]);
+    _queryRows = [];
     mockFrom.mockReturnValue({ where: mockWhere });
     mockSelect.mockReturnValue({ from: mockFrom });
   });
@@ -56,7 +69,7 @@ describe('taskRepo.findByStatus', () => {
 
   test('maps DB rows to A2ATask shape', async () => {
     const row = makeRow({ id: 'task-abc', status: 'working' });
-    mockWhere.mockResolvedValue([row]);
+    _queryRows = [row];
 
     const result = await taskRepo.findByStatus('working');
 
@@ -72,7 +85,7 @@ describe('taskRepo.findByStatus', () => {
       makeRow({ id: 'task-1', status: 'submitted' }),
       makeRow({ id: 'task-2', status: 'submitted' }),
     ];
-    mockWhere.mockResolvedValue(rows);
+    _queryRows = rows;
 
     const result = await taskRepo.findByStatus('submitted');
 
@@ -84,7 +97,7 @@ describe('taskRepo.findByStatus', () => {
     const artifacts = [{ parts: [{ kind: 'text', text: 'hello' }] }];
     const history = [{ role: 'agent', parts: [{ kind: 'text', text: 'response' }] }];
     const row = makeRow({ id: 'task-3', status: 'completed', artifacts, history });
-    mockWhere.mockResolvedValue([row]);
+    _queryRows = [row];
 
     const result = await taskRepo.findByStatus('completed');
 
@@ -94,7 +107,7 @@ describe('taskRepo.findByStatus', () => {
 
   test('defaults artifacts and history to empty arrays when null in DB', async () => {
     const row = makeRow({ id: 'task-4', status: 'failed', artifacts: null, history: null });
-    mockWhere.mockResolvedValue([row]);
+    _queryRows = [row];
 
     const result = await taskRepo.findByStatus('failed');
 
@@ -112,17 +125,17 @@ describe('taskRepo.findByStatus', () => {
 
 describe('taskRepo.findByWorkspace', () => {
   beforeEach(() => {
-    mockWhere.mockReset();
+    
     mockFrom.mockReset();
     mockSelect.mockReset();
-    mockWhere.mockResolvedValue([]);
+    _queryRows = [];
     mockFrom.mockReturnValue({ where: mockWhere });
     mockSelect.mockReturnValue({ from: mockFrom });
   });
 
   test('with workspaceId uses where filter', async () => {
     const row = makeRow({ id: 'task-ws', workspaceId: 'ws-abc' });
-    mockWhere.mockResolvedValue([row]);
+    _queryRows = [row];
 
     const result = await taskRepo.findByWorkspace('ws-abc');
 
@@ -131,24 +144,21 @@ describe('taskRepo.findByWorkspace', () => {
     expect(mockWhere).toHaveBeenCalled();
   });
 
-  test('without workspaceId returns all tasks and does not call where', async () => {
-    const rows = [makeRow({ id: 'task-a' }), makeRow({ id: 'task-b' })];
-    mockFrom.mockResolvedValue(rows);
-    mockSelect.mockReturnValue({ from: mockFrom });
+  test('invalid cursor string returns empty array without querying', async () => {
+    _queryRows = [makeRow({ id: 'task-a' }), makeRow({ id: 'task-b' })];
 
-    const result = await taskRepo.findByWorkspace(undefined);
+    const result = await taskRepo.findByWorkspace('ws-abc', { cursor: 'not-a-date' });
 
-    expect(result).toHaveLength(2);
-    expect(mockWhere).not.toHaveBeenCalled();
+    expect(result).toHaveLength(0);
   });
 });
 
 describe('taskRepo.findById', () => {
   beforeEach(() => {
-    mockWhere.mockReset();
+    
     mockFrom.mockReset();
     mockSelect.mockReset();
-    mockWhere.mockResolvedValue([]);
+    _queryRows = [];
     mockFrom.mockReturnValue({ where: mockWhere });
     mockSelect.mockReturnValue({ from: mockFrom });
   });
@@ -160,7 +170,7 @@ describe('taskRepo.findById', () => {
 
   test('returns task when found', async () => {
     const row = makeRow({ id: 'task-found', status: 'completed' });
-    mockWhere.mockResolvedValue([row]);
+    _queryRows = [row];
 
     const result = await taskRepo.findById('task-found');
 

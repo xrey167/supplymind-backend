@@ -57,7 +57,7 @@ export interface AgentJobData {
   sessionId?: string;
 }
 
-export const agentQueue = new Queue<AgentJobData>('agent:run', { connection });
+export const agentQueue = new Queue<AgentJobData>('agent-run', { connection });
 
 export function enqueueAgentRun(data: AgentJobData): Promise<Job<AgentJobData>> {
   return agentQueue.add('run', data, { attempts: 1, removeOnComplete: 100, removeOnFail: 200 });
