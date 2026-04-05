@@ -92,6 +92,18 @@ export const taskRepo = {
     }));
   },
 
+  async findStale(status: TaskState, olderThanMs: number): Promise<A2ATask[]> {
+    const cutoff = new Date(Date.now() - olderThanMs);
+    const rows = await db.select().from(a2aTasks)
+      .where(and(eq(a2aTasks.status, status), lt(a2aTasks.updatedAt, cutoff)));
+    return rows.map(row => ({
+      id: row.id,
+      status: { state: (row.status ?? 'submitted') as A2ATask['status']['state'] },
+      artifacts: (row.artifacts as A2ATask['artifacts']) ?? [],
+      history: (row.history as A2ATask['history']) ?? [],
+    }));
+  },
+
   async addDependency(taskId: string, dependsOnTaskId: string): Promise<void> {
     await db.insert(taskDependencies).values({ taskId, dependsOnTaskId });
   },
