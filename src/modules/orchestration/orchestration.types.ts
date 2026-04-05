@@ -1,3 +1,5 @@
+import type { MergeStrategy } from '../collaboration/collaboration.types';
+
 export type StepType = 'skill' | 'agent' | 'collaboration' | 'gate' | 'decision';
 export type OrchestrationStatus = 'submitted' | 'running' | 'paused' | 'completed' | 'failed';
 export type ErrorStrategy = 'fail' | 'skip' | 'retry';
@@ -28,7 +30,7 @@ export interface CollaborationStep extends StepBase {
   type: 'collaboration';
   strategy: 'fan_out' | 'consensus' | 'debate' | 'map_reduce';
   agentIds: string[];
-  mergeStrategy?: string;
+  mergeStrategy?: MergeStrategy;
   maxRounds?: number;
 }
 
