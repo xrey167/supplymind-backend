@@ -30,7 +30,7 @@ export const orchestrationRoutes = new OpenAPIHono();
 
 orchestrationRoutes.openapi(createRoute_, async (c) => {
   const body = c.req.valid('json');
-  const workspaceId = c.req.param('workspaceId') ?? 'default';
+  const workspaceId = c.get('workspaceId') as string;
   const orch = await orchestrationService.create({ workspaceId, ...body });
   return c.json(orch, 201);
 });
