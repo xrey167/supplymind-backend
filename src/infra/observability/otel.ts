@@ -6,7 +6,7 @@ const tracer = trace.getTracer('supplymind-backend');
 let provider: import('@opentelemetry/sdk-trace-base').BasicTracerProvider | null = null;
 
 export async function initOtel(): Promise<void> {
-  const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+  const endpoint = Bun.env.OTEL_EXPORTER_OTLP_ENDPOINT;
   if (!endpoint) {
     logger.info('OTel: no OTEL_EXPORTER_OTLP_ENDPOINT — traces disabled');
     return;
@@ -18,7 +18,7 @@ export async function initOtel(): Promise<void> {
     const { Resource } = await import('@opentelemetry/resources');
     const { ATTR_SERVICE_NAME } = await import('@opentelemetry/semantic-conventions');
 
-    const serviceName = process.env.OTEL_SERVICE_NAME ?? 'supplymind-backend';
+    const serviceName = Bun.env.OTEL_SERVICE_NAME ?? 'supplymind-backend';
     const resource = new Resource({ [ATTR_SERVICE_NAME]: serviceName });
     const exporter = new OTLPTraceExporter({ url: `${endpoint}/v1/traces` });
 

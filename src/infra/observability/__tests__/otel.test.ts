@@ -5,7 +5,7 @@ describe('OTel initialization', () => {
     delete process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
     const { initOtel, shutdownOtel } = await import('../otel');
     // Should not throw
-    initOtel();
+    await initOtel();
     await shutdownOtel();
   });
 

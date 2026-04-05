@@ -7,8 +7,8 @@ export class RedisPubSub {
 
   constructor(
     private bus: EventBus,
-    private publisher: Pick<Redis, 'publish'>,
-    private subscriber?: Pick<Redis, 'psubscribe' | 'on'>,
+    private publisher: Pick<Redis, 'publish' | 'quit'>,
+    private subscriber?: Pick<Redis, 'psubscribe' | 'on' | 'quit'>,
   ) {}
 
   /** Forward events matching a bus pattern to Redis channels */
@@ -54,5 +54,15 @@ export class RedisPubSub {
         }
       });
     }
+  }
+
+  /** Unsubscribe bus listeners and close Redis connections */
+  async destroy(): Promise<void> {
+    for (const id of this.outboundIds) {
+      this.bus.unsubscribe(id);
+    }
+    this.outboundIds = [];
+    await this.publisher.quit();
+    if (this.subscriber) await this.subscriber.quit();
   }
 }

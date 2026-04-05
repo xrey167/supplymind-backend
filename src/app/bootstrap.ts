@@ -199,15 +199,23 @@ export async function destroySubsystems(): Promise<void> {
   wsServer.destroy();
   await mcpClientPool.disconnectAll();
   await closeStateStore();
+  if (redisPubSub) {
+    try {
+      await redisPubSub.destroy();
+    } catch (err) {
+      logger.warn({ err }, 'Failed to destroy Redis pub/sub during shutdown');
+    }
+  }
+
   if (agentWorkerHandles) {
     await agentWorkerHandles.worker.close();
-    agentWorkerHandles.connection.quit();
+    await agentWorkerHandles.connection.quit();
   }
 
   if (jobWorkerHandles) {
     await jobWorkerHandles.cleanupWorker.close();
     await jobWorkerHandles.syncWorker.close();
-    jobWorkerHandles.connection.quit();
+    await jobWorkerHandles.connection.quit();
   }
 
   // Destroy all computer use sessions (close browsers)
