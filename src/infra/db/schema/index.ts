@@ -229,6 +229,18 @@ export const apiKeys = pgTable('api_keys', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
+// Workflow templates
+export const workflowTemplates = pgTable('workflow_templates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  definition: jsonb('definition').notNull(),
+  createdBy: text('created_by').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 // Registered A2A agents (persistent registry)
 export const registeredAgents = pgTable('registered_agents', {
   id: uuid('id').primaryKey().defaultRandom(),
