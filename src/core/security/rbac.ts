@@ -44,7 +44,7 @@ export function isValidRole(role: string): role is Role {
 }
 
 /** Default required role per skill provider type */
-export const PROVIDER_REQUIRED_ROLE: Record<string, Role> = {
+export const PROVIDER_REQUIRED_ROLE: Record<import('../../modules/skills/skills.types').SkillProviderType, Role> = {
   inline: 'admin',      // inline code execution — admin only
   agent: 'operator',    // A2A agent delegation — operator+
   mcp: 'operator',      // external server calls — operator+

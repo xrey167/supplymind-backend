@@ -9,17 +9,12 @@ export type CreateMcpData = Omit<
   'id' | 'createdAt' | 'updatedAt' | 'toolManifestCache' | 'cacheExpiresAt'
 >;
 
-function toRow(row: McpServerRow): McpServerRow {
-  return row;
-}
-
 export class McpRepo {
   async findByWorkspace(workspaceId: string): Promise<McpServerRow[]> {
-    const rows = await db
+    return db
       .select()
       .from(mcpServerConfigs)
       .where(eq(mcpServerConfigs.workspaceId, workspaceId));
-    return rows.map(toRow);
   }
 
   /**
@@ -28,11 +23,10 @@ export class McpRepo {
    * return an empty array unless the schema is migrated to allow null.
    */
   async findGlobal(): Promise<McpServerRow[]> {
-    const rows = await db
+    return db
       .select()
       .from(mcpServerConfigs)
       .where(isNull(mcpServerConfigs.workspaceId));
-    return rows.map(toRow);
   }
 
   async findById(id: string): Promise<McpServerRow | undefined> {

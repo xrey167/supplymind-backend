@@ -71,7 +71,7 @@ export interface RecallResult {
   metadata: Record<string, unknown>;
   expiresAt?: Date;
   createdAt: Date;
-  updatedAt: string;
+  updatedAt: Date;
   scope: 'workspace' | 'agent';
   stale: boolean;
   staleDays: number;

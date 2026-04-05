@@ -2,6 +2,7 @@ import { eq, and } from 'drizzle-orm';
 import { db } from '../db/client';
 import { apiKeys } from '../db/schema';
 import type { Role } from '../../core/security';
+import { logger } from '../../config/logger';
 
 export interface ApiKeyInfo {
   id: string;
@@ -37,7 +38,7 @@ export async function validateApiKey(token: string): Promise<ApiKeyInfo | null> 
   db.update(apiKeys)
     .set({ lastUsedAt: new Date() })
     .where(eq(apiKeys.id, row.id))
-    .catch(() => {}); // best-effort
+    .catch((error: unknown) => { logger.warn({ keyId: row.id, error }, 'Failed to update API key lastUsedAt'); });
 
   return {
     id: row.id,
