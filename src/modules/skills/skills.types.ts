@@ -36,7 +36,6 @@ export interface DispatchContext {
   traceId?: string;
   signal?: AbortSignal;
   taskId?: string;
-  args?: Record<string, unknown>;
   cachedPermissionMode?: ToolPermissionMode;
 }
 
