@@ -52,8 +52,18 @@ async function executeStep(
           const prompt = step.gatePrompt
             ? resolveTemplate(step.gatePrompt, stepResults, input)
             : 'Approval required to continue';
-          emitGateWaiting(input._orchestrationId as string ?? '', step.id, prompt);
-          if (onGate) {
+          const orchestrationId = input._orchestrationId as string ?? '';
+          emitGateWaiting(orchestrationId, step.id, prompt);
+
+          // Use the state-based gate system if we have an orchestrationId,
+          // otherwise fall back to the callback for programmatic callers.
+          if (orchestrationId) {
+            const { createGateRequest } = await import('../../infra/state/orchestration-gates');
+            const approved = await createGateRequest(orchestrationId, step.id, workspaceId, 5 * 60 * 1000);
+            if (!approved) {
+              return { stepId: step.id, status: 'failed', error: 'Gate rejected by user', durationMs: performance.now() - start };
+            }
+          } else if (onGate) {
             const approved = await onGate(step.id, prompt);
             if (!approved) {
               return { stepId: step.id, status: 'failed', error: 'Gate rejected by user', durationMs: performance.now() - start };

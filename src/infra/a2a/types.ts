@@ -44,7 +44,11 @@ export interface Artifact {
 export type Part =
   | { kind: 'text'; text: string }
   | { kind: 'data'; data: Record<string, unknown> }
-  | { kind: 'file'; file: { name: string; mimeType: string; bytes: string } };
+  | { kind: 'file'; file: { name: string; mimeType: string; bytes: string } }
+  | { kind: 'form'; form: { schema: Record<string, unknown>; initialValues?: Record<string, unknown> } }
+  | { kind: 'table'; table: { columns: string[]; rows: unknown[][] } }
+  | { kind: 'chart'; chart: { type: string; data: unknown; options?: Record<string, unknown> } }
+  | { kind: 'action'; action: { label: string; actionId: string; variant?: string } };
 
 export interface A2AMessage {
   role: 'user' | 'agent';

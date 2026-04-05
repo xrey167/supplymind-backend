@@ -53,9 +53,7 @@ class WsServer {
           break;
 
         case 'task:input':
-          // Not yet implemented
-          logger.warn({ clientId }, 'task:input not yet implemented');
-          this.send(client, { type: 'error', message: 'task:input is not yet implemented' });
+          await this.handleTaskInput(client, msg);
           break;
 
         case 'a2a:send':
@@ -284,6 +282,39 @@ class WsServer {
     }
   }
 
+  private async handleTaskInput(client: WsClient, msg: Extract<ClientMessage, { type: 'task:input' }>) {
+    if (!msg.taskId) {
+      this.send(client, { type: 'error', message: 'Missing taskId in task input request' });
+      return;
+    }
+
+    const input = msg.input as Record<string, unknown> | undefined;
+    const context = this.buildContext(client);
+
+    try {
+      const result = await execute({
+        op: 'task.input',
+        params: {
+          taskId: msg.taskId,
+          input: input,
+          // Forward approval/gate/generic fields if present
+          approvalId: (input as any)?.approvalId,
+          approved: (input as any)?.approved,
+          orchestrationId: (input as any)?.orchestrationId,
+          stepId: (input as any)?.stepId,
+        },
+        context,
+      });
+
+      if (!result.ok) {
+        this.send(client, { type: 'error', message: result.error.message });
+      }
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.send(client, { type: 'error', message: errMsg });
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Context & event forwarding
   // ---------------------------------------------------------------------------
@@ -330,6 +361,9 @@ class WsServer {
         break;
       case 'approval_required':
         this.send(client, { type: 'tool:approval_required', ...(data as any) });
+        break;
+      case 'input_required':
+        this.send(client, { type: 'session:input_required', sessionId: tid, prompt: data.prompt as string });
         break;
     }
   }

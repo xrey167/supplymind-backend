@@ -21,6 +21,7 @@ export type GatewayOp =
   | 'memory.reject'
   | 'orchestration.start'
   | 'orchestration.gate.respond'
+  | 'task.input'
   | 'collaboration.start'
   | 'a2a.delegate';
 
@@ -37,6 +38,7 @@ export type GatewayEventType =
   | 'round_completed'
   | 'error'
   | 'approval_required'
+  | 'input_required'
   | 'done';
 
 export interface GatewayEvent {

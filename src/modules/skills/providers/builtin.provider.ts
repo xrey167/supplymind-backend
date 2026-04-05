@@ -1,5 +1,8 @@
-import { ok } from '../../../core/result';
+import { ok, err } from '../../../core/result';
 import type { Skill, SkillProvider } from '../skills.types';
+import { eventBus } from '../../../events/bus';
+import { Topics } from '../../../events/topics';
+import { createInputRequest } from '../../../infra/state/task-inputs';
 
 export class BuiltinSkillProvider implements SkillProvider {
   type = 'builtin' as const;
@@ -33,6 +36,42 @@ export class BuiltinSkillProvider implements SkillProvider {
         providerType: 'builtin',
         priority: this.priority,
         handler: async () => ok({ status: 'ok', timestamp: new Date().toISOString() }),
+      },
+      {
+        id: 'builtin:request_user_input',
+        name: 'request_user_input',
+        description: 'Pause execution and ask the user a question. Returns their response.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            prompt: { type: 'string', description: 'The question to ask the user' },
+            taskId: { type: 'string', description: 'The task requesting input' },
+          },
+          required: ['prompt', 'taskId'],
+        },
+        providerType: 'builtin',
+        priority: this.priority,
+        handler: async (args, ctx) => {
+          const prompt = args.prompt as string;
+          const taskId = args.taskId as string;
+          const workspaceId = ctx?.workspaceId ?? 'default';
+
+          // Publish input_required event so the UI knows to prompt the user
+          eventBus.publish(Topics.TASK_INPUT_REQUIRED, {
+            taskId,
+            workspaceId,
+            prompt,
+          });
+
+          // Wait for user input (5 minute timeout)
+          const input = await createInputRequest(taskId, workspaceId, prompt, 5 * 60 * 1000);
+
+          if (input === null) {
+            return err(new Error('User input request timed out'));
+          }
+
+          return ok(input);
+        },
       },
     ];
   }

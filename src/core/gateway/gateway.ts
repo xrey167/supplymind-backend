@@ -82,6 +82,41 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
       return ok(tasks);
     }
 
+    case 'task.input': {
+      const taskId = params.taskId as string;
+      const input = params.input;
+
+      // Route 1: tool approval response
+      if (params.approvalId) {
+        const { resolveApproval } = await import('../../infra/state/tool-approvals');
+        const resolved = resolveApproval(params.approvalId as string, context.workspaceId, !!params.approved);
+        return resolved
+          ? ok({ approvalId: params.approvalId, resolved: true })
+          : err(new NotFoundError(`Approval not found or expired: ${params.approvalId}`));
+      }
+
+      // Route 2: orchestration gate response
+      if (params.orchestrationId && params.stepId) {
+        const { resolveGate } = await import('../../infra/state/orchestration-gates');
+        const resolved = resolveGate(
+          params.orchestrationId as string,
+          params.stepId as string,
+          context.workspaceId,
+          !!params.approved,
+        );
+        return resolved
+          ? ok({ orchestrationId: params.orchestrationId, stepId: params.stepId, resolved: true })
+          : err(new NotFoundError(`Gate not found or expired: ${params.orchestrationId}:${params.stepId}`));
+      }
+
+      // Route 3: generic mid-task user input
+      const { resolveInput } = await import('../../infra/state/task-inputs');
+      const resolved = resolveInput(taskId, context.workspaceId, input);
+      return resolved
+        ? ok({ taskId, resolved: true })
+        : err(new NotFoundError(`No pending input request for task: ${taskId}`));
+    }
+
     // ------------------------------------------------------------------
     // Agents
     // ------------------------------------------------------------------
@@ -174,11 +209,16 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
     }
 
     case 'orchestration.gate.respond': {
-      const { orchestrationService } = await import('../../modules/orchestration/orchestration.service');
-      // Gate responses are handled through the onGate callback during orchestration run.
-      // This op is a placeholder for protocol adapters that need to resolve pending gates.
-      logger.warn({ op }, 'orchestration.gate.respond not yet wired to gateway');
-      return ok({ acknowledged: true });
+      const { resolveGate } = await import('../../infra/state/orchestration-gates');
+      const resolved = resolveGate(
+        params.orchestrationId as string,
+        params.stepId as string,
+        context.workspaceId,
+        !!params.approved,
+      );
+      return resolved
+        ? ok({ orchestrationId: params.orchestrationId, stepId: params.stepId, resolved: true })
+        : err(new NotFoundError(`Gate not found or expired: ${params.orchestrationId}:${params.stepId}`));
     }
 
     // ------------------------------------------------------------------
