@@ -2,6 +2,9 @@ import { createMiddleware } from 'hono/factory';
 import { ForbiddenError } from '../../core/errors';
 import { logger } from '../../config/logger';
 import { mcpService } from '../../modules/mcp/mcp.service';
+import { db } from '../../infra/db/client';
+import { workspaceMembers } from '../../infra/db/schema';
+import { and, eq } from 'drizzle-orm';
 
 export const workspaceMiddleware = createMiddleware(async (c, next) => {
   const workspaceId = c.req.param('workspaceId') ?? c.req.header('X-Workspace-Id');
@@ -17,19 +20,29 @@ export const workspaceMiddleware = createMiddleware(async (c, next) => {
     logger.warn({ err, workspaceId }, 'Failed to lazy-load workspace MCP servers');
   });
 
-  // Membership verification — check if caller belongs to this workspace
+  // Membership verification
   const callerId = c.get('callerId') as string | undefined;
   if (callerId?.startsWith('apikey:')) {
-    // API keys bypass membership check (they're workspace-scoped by design)
+    // API keys are workspace-scoped by design — bypass membership check
     return next();
   }
 
-  // TODO: Once workspace_members table is available, verify membership:
-  // const isMember = await db.select().from(workspaceMembers)
-  //   .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, callerId)))
-  //   .limit(1);
-  // if (!isMember.length) throw new ForbiddenError('Not a member of this workspace');
+  if (callerId) {
+    const [member] = await db.select({ role: workspaceMembers.role })
+      .from(workspaceMembers)
+      .where(and(
+        eq(workspaceMembers.workspaceId, workspaceId),
+        eq(workspaceMembers.userId, callerId),
+      ))
+      .limit(1);
 
-  logger.debug({ workspaceId, callerId }, 'Workspace context set (membership check pending)');
+    if (!member) {
+      throw new ForbiddenError('Not a member of this workspace');
+    }
+
+    c.set('callerRole', member.role);
+  }
+
+  logger.debug({ workspaceId, callerId }, 'Workspace context set');
   return next();
 });

@@ -4,6 +4,8 @@ import { execute, bridgeTaskEvents } from '../../core/gateway';
 import type { GatewayContext, GatewayEvent } from '../../core/gateway';
 import type { ServerMessage, ClientMessage, WsClient } from './ws-types';
 import { BoundedSet } from '../../core/utils/bounded-set';
+import { eventBus } from '../../events/bus';
+import { Topics } from '../../events/topics';
 
 class WsServer {
   private clients = new Map<string, WsClient>();
@@ -12,12 +14,104 @@ class WsServer {
   private streamCleanups = new Map<string, Set<() => void>>();
   /** Per-client message dedup — prevents echoed/replayed messages from being processed twice */
   private messageDedup = new Map<string, BoundedSet>();
+  /** EventBus subscription IDs for broadcast subscriptions (unsubscribed on destroy) */
+  private subscriptionIds: string[] = [];
 
   init() {
     // Heartbeat every 30s
     this.heartbeatInterval = setInterval(() => {
       this.broadcast({ type: 'heartbeat' });
     }, 30_000);
+
+    // Forward task events to subscribed clients
+    const taskTopics = [
+      Topics.TASK_STATUS, Topics.TASK_TEXT_DELTA, Topics.TASK_TOOL_CALL,
+      Topics.TASK_ARTIFACT, Topics.TASK_ERROR, Topics.TASK_COMPLETED,
+    ];
+    for (const topic of taskTopics) {
+      this.subscriptionIds.push(eventBus.subscribe(topic, (event) => {
+        const data = event.data as any;
+        this.broadcastToSubscribed(`task:${data.taskId}`, { ...data, type: topic } as any);
+      }));
+    }
+
+    this.subscriptionIds.push(eventBus.subscribe(Topics.TASK_THINKING_DELTA, (event) => {
+      const data = event.data as any;
+      this.broadcastToSubscribed(`task:${data.taskId}`, {
+        type: 'task:thinking_delta', taskId: data.taskId, thinking: data.thinking,
+      });
+    }));
+
+    this.subscriptionIds.push(eventBus.subscribe(Topics.TASK_ROUND_COMPLETED, (event) => {
+      const data = event.data as any;
+      this.broadcastToSubscribed(`task:${data.taskId}`, {
+        type: 'task:round_completed', taskId: data.taskId, roundId: data.roundId,
+        iterationIndex: data.iterationIndex, toolCallCount: data.toolCallCount,
+        tokenUsage: data.tokenUsage, totalTokens: data.totalTokens,
+      });
+    }));
+
+    this.subscriptionIds.push(eventBus.subscribe(Topics.SKILL_INVOKED, (event) => {
+      this.broadcastToSubscribed('events:skill.*', {
+        type: 'event', topic: Topics.SKILL_INVOKED, data: event.data, timestamp: new Date().toISOString(),
+      });
+    }));
+
+    // Forward tool approval requests to workspace subscribers
+    this.subscriptionIds.push(eventBus.subscribe(Topics.TOOL_APPROVAL_REQUESTED, (event) => {
+      const data = event.data as { approvalId: string; taskId: string; toolName: string; args: unknown; workspaceId: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'tool:approval_required',
+        approvalId: data.approvalId, taskId: data.taskId,
+        toolName: data.toolName, args: data.args, workspaceId: data.workspaceId,
+      });
+    }));
+
+    // Forward orchestration events to workspace subscribers
+    this.subscriptionIds.push(eventBus.subscribe(Topics.ORCHESTRATION_STARTED, (event) => {
+      const data = event.data as { orchestrationId: string; workspaceId: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'orchestration:status', orchestrationId: data.orchestrationId, status: 'running' as const,
+      });
+    }));
+
+    this.subscriptionIds.push(eventBus.subscribe(Topics.ORCHESTRATION_STEP_COMPLETED, (event) => {
+      const data = event.data as { orchestrationId: string; stepId: string; status: string; workspaceId: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'orchestration:status', orchestrationId: data.orchestrationId,
+        status: data.status as any, stepId: data.stepId,
+      });
+    }));
+
+    this.subscriptionIds.push(eventBus.subscribe(Topics.ORCHESTRATION_GATE_WAITING, (event) => {
+      const data = event.data as { orchestrationId: string; stepId: string; prompt: string; workspaceId: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'orchestration:gate', orchestrationId: data.orchestrationId,
+        stepId: data.stepId, prompt: data.prompt,
+      });
+    }));
+
+    this.subscriptionIds.push(eventBus.subscribe(Topics.ORCHESTRATION_COMPLETED, (event) => {
+      const data = event.data as { orchestrationId: string; workspaceId: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'orchestration:status', orchestrationId: data.orchestrationId, status: 'completed' as const,
+      });
+    }));
+
+    this.subscriptionIds.push(eventBus.subscribe(Topics.ORCHESTRATION_FAILED, (event) => {
+      const data = event.data as { orchestrationId: string; workspaceId: string; error: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'orchestration:status', orchestrationId: data.orchestrationId,
+        status: 'failed' as const, error: data.error,
+      });
+    }));
+
+    this.subscriptionIds.push(eventBus.subscribe(Topics.ORCHESTRATION_CANCELLED, (event) => {
+      const data = event.data as { orchestrationId: string; workspaceId: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'orchestration:status', orchestrationId: data.orchestrationId, status: 'cancelled' as const,
+      });
+    }));
   }
 
   handleOpen(ws: any): string {
@@ -47,9 +141,32 @@ class WsServer {
       }
 
       switch (msg.type) {
-        case 'subscribe':
-          msg.channels.forEach(ch => client.subscriptions.add(ch));
+        case 'auth':
+          await this.handleAuth(client, msg.token);
           break;
+
+        case 'subscribe': {
+          const denied: string[] = [];
+          const allowed: string[] = [];
+          for (const ch of msg.channels) {
+            if (!this.requiresAuth(ch)) {
+              allowed.push(ch);
+            } else if (!client.userId) {
+              denied.push(ch);
+            } else if (ch.startsWith('workspace:')) {
+              const wsId = ch.slice('workspace:'.length);
+              if (client.allowedWorkspaceIds?.has(wsId)) allowed.push(ch);
+              else denied.push(ch);
+            } else {
+              allowed.push(ch);
+            }
+          }
+          if (denied.length > 0) {
+            this.send(client, { type: 'error', message: `Not authorized to subscribe to: ${denied.join(', ')}` });
+          }
+          allowed.forEach(ch => client.subscriptions.add(ch));
+          break;
+        }
 
         case 'unsubscribe':
           msg.channels.forEach(ch => client.subscriptions.delete(ch));
@@ -386,13 +503,37 @@ class WsServer {
   }
 
   // ---------------------------------------------------------------------------
+  // Auth helpers
+  // ---------------------------------------------------------------------------
+
+  private requiresAuth(channel: string): boolean {
+    return channel.startsWith('workspace:');
+  }
+
+  private async handleAuth(client: WsClient, token: string) {
+    try {
+      const { verifyWsToken } = await import('./ws-auth');
+      const { userId, workspaceIds } = await verifyWsToken(token);
+      client.userId = userId;
+      client.allowedWorkspaceIds = workspaceIds;
+      this.send(client, { type: 'session:resumed', sessionId: client.id });
+    } catch {
+      this.send(client, { type: 'error', message: 'Authentication failed' });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Context & event forwarding
   // ---------------------------------------------------------------------------
 
   private buildContext(client: WsClient, onEvent?: (event: GatewayEvent) => void): GatewayContext {
+    // workspaceId: use the first workspace the client is a member of, or 'default' for unauthenticated
+    const workspaceId = client.allowedWorkspaceIds
+      ? (client.allowedWorkspaceIds.values().next().value ?? 'default')
+      : 'default';
     return {
       callerId: client.userId ?? client.id,
-      workspaceId: (client as any).workspaceId ?? 'default', // TODO: extract from WS auth
+      workspaceId,
       callerRole: 'operator' as const,
       traceId: nanoid(8),
       onEvent,
@@ -512,7 +653,8 @@ class WsServer {
 
   destroy() {
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
-    // Clean up all stream subscriptions
+    for (const id of this.subscriptionIds) eventBus.unsubscribe(id);
+    this.subscriptionIds = [];
     for (const cleanups of this.streamCleanups.values()) {
       for (const cleanup of cleanups) cleanup();
     }

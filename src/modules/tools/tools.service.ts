@@ -76,7 +76,7 @@ export class ToolsService {
             const { workerRegistry } = await import('../../infra/a2a/worker-registry');
             const agentUrl = config.agentUrl;
             if (!agentUrl) return err(new Error(`Agent handler for "${tool.name}" requires agentUrl`));
-            const result = await workerRegistry.delegate(agentUrl, { skillId: tool.name, args });
+            const result = await workerRegistry.delegate(agentUrl, { skillId: tool.name, args: args as Record<string, unknown> });
             return ok(result);
           } catch (error) {
             return err(error instanceof Error ? error : new Error(String(error)));

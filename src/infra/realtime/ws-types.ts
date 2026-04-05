@@ -16,13 +16,14 @@ export type ServerMessage =
   | { type: 'session:input_required'; sessionId: string; prompt: string }
   | { type: 'session:resumed'; sessionId: string }
   | { type: 'memory:proposal'; proposal: { id: string; agentId: string; title: string; content: string; evidence?: string; type: string } }
-  | { type: 'orchestration:status'; orchestrationId: string; status: OrchestrationStatus; stepId?: string }
+  | { type: 'orchestration:status'; orchestrationId: string; status: OrchestrationStatus; stepId?: string; error?: string }
   | { type: 'orchestration:gate'; orchestrationId: string; stepId: string; prompt: string }
   | { type: 'task:thinking_delta'; taskId: string; thinking: string }
   | { type: 'task:round_completed'; taskId: string; roundId: string; iterationIndex: number; toolCallCount: number; tokenUsage: { input: number; output: number }; totalTokens: { input: number; output: number } }
   | { type: 'tool:approval_required'; approvalId: string; taskId: string; toolName: string; args: unknown; workspaceId: string };
 
 export type ClientMessage =
+  | { type: 'auth'; token: string }
   | { type: 'task:send'; agentId: string; messages: unknown[] }
   | { type: 'task:cancel'; taskId: string }
   | { type: 'task:interrupt'; taskId: string }
@@ -44,4 +45,6 @@ export interface WsClient {
   ws: unknown; // Bun ServerWebSocket
   subscriptions: Set<string>;
   userId?: string;
+  /** Workspace IDs this client is authenticated to access. Set after a successful 'auth' message. */
+  allowedWorkspaceIds?: Set<string>;
 }

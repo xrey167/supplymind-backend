@@ -47,24 +47,27 @@ orchestrationRoutes.openapi(createRoute_, async (c) => {
 });
 
 orchestrationRoutes.openapi(runRoute, async (c) => {
-  const { id } = c.req.valid('param');
   const workspaceId = c.get('workspaceId') as string;
+  const { id } = c.req.valid('param');
   const orch = await orchestrationService.get(id);
-  if (!orch) return c.json({ error: 'Orchestration not found' }, 404);
-  if (orch.workspaceId !== workspaceId) return c.json({ error: 'Not found' }, 404);
+  if (!orch || orch.workspaceId !== workspaceId) return c.json({ error: 'Orchestration not found' }, 404);
+
   const definition = orch.definition as OrchestrationDefinition;
   const input = (orch.input as Record<string, unknown>) ?? {};
 
-  await enqueueOrchestration({ orchestrationId: id, workspaceId, definition, input });
+  try {
+    await enqueueOrchestration({ orchestrationId: id, workspaceId, definition, input });
+  } catch {
+    return c.json({ error: 'Failed to schedule orchestration execution. Please try again.' }, 503);
+  }
   return c.json({ orchestrationId: id, status: 'submitted' });
 });
 
 orchestrationRoutes.openapi(getRoute, async (c) => {
-  const { id } = c.req.valid('param');
   const workspaceId = c.get('workspaceId') as string;
+  const { id } = c.req.valid('param');
   const orch = await orchestrationService.get(id);
-  if (!orch) return c.json({ error: 'Orchestration not found' }, 404);
-  if (orch.workspaceId !== workspaceId) return c.json({ error: 'Not found' }, 404);
+  if (!orch || orch.workspaceId !== workspaceId) return c.json({ error: 'Orchestration not found' }, 404);
   return c.json(orch);
 });
 
@@ -72,7 +75,10 @@ orchestrationRoutes.openapi(listRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const { limit, cursor } = c.req.valid('query');
   const rows = await orchestrationService.list(workspaceId, { limit, cursor });
-  const nextCursor = rows.length === (limit ?? 20) ? rows[rows.length - 1]?.createdAt?.toISOString() : null;
+  const lastRow = rows[rows.length - 1];
+  const nextCursor = rows.length === (limit ?? 20) && lastRow?.createdAt && lastRow?.id
+    ? `${lastRow.createdAt.toISOString()}|${lastRow.id}`
+    : null;
   return c.json({ data: rows, nextCursor });
 });
 

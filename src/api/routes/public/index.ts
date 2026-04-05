@@ -58,7 +58,12 @@ publicRoutes.post('/a2a', async (c) => {
     if (!configuredKey) {
       return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'A2A endpoint not configured (missing A2A_API_KEY)' } }, 503);
     }
-    if (token !== configuredKey) {
+    // Constant-time comparison to prevent timing side-channel attacks
+    const keyBuf = Buffer.from(token);
+    const confBuf = Buffer.from(configuredKey);
+    const keysMatch = keyBuf.length === confBuf.length &&
+      crypto.timingSafeEqual(keyBuf, confBuf);
+    if (!keysMatch) {
       return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Invalid API key' } }, 401);
     }
     context = { callerId: 'a2a', workspaceId: 'public', callerRole: 'operator' };

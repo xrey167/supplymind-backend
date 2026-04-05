@@ -17,6 +17,20 @@ mock.module('../../../infra/observability/sentry', () => ({
   Sentry: {},
 }));
 
+// Mock DB — tests don't hit a real database
+let mockMemberRows: { role: string }[] = [];
+mock.module('../../../infra/db/client', () => ({
+  db: {
+    select: mock(() => ({
+      from: mock(() => ({
+        where: mock(() => ({
+          limit: mock(() => Promise.resolve(mockMemberRows)),
+        })),
+      })),
+    })),
+  },
+}));
+
 const { workspaceMiddleware } = await import('../workspace');
 const { errorHandler } = await import('../error-handler');
 
@@ -41,6 +55,7 @@ function buildHeaderApp() {
 }
 
 describe('workspaceMiddleware', () => {
+  beforeEach(() => { mockMemberRows = []; });
   describe('when workspaceId is absent from both param and header', () => {
     it('should return 403', async () => {
       const app = buildHeaderApp();
@@ -106,9 +121,11 @@ describe('workspaceMiddleware', () => {
     });
   });
 
-  describe('membership check bypass for API key callers', () => {
-    it('should not throw for a regular (non-apikey) caller when membership check is pending', async () => {
+  describe('membership enforcement for regular callers', () => {
+    it('should return 403 when user is not a member of the workspace', async () => {
+      // mockDbSelect returns [] by default — no membership found
       const app = new Hono();
+      app.onError(errorHandler);
       app.use('/ws/:workspaceId/*', async (c, next) => {
         c.set('callerId', 'user-regular-123');
         await next();
@@ -118,7 +135,25 @@ describe('workspaceMiddleware', () => {
         c.json({ workspaceId: c.get('workspaceId') }),
       );
       const res = await app.request('/ws/ws-789/data');
+      expect(res.status).toBe(403);
+    });
+
+    it('should allow access when user is a member', async () => {
+      mockMemberRows = [{ role: 'member' }];
+      const app = new Hono();
+      app.onError(errorHandler);
+      app.use('/ws/:workspaceId/*', async (c, next) => {
+        c.set('callerId', 'user-member-456');
+        await next();
+      });
+      app.use('/ws/:workspaceId/*', workspaceMiddleware);
+      app.get('/ws/:workspaceId/data', (c) =>
+        c.json({ workspaceId: c.get('workspaceId'), role: c.get('callerRole') }),
+      );
+      const res = await app.request('/ws/ws-789/data');
       expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.role).toBe('member');
     });
   });
 });
