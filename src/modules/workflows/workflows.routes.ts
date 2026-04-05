@@ -140,7 +140,7 @@ WorkflowRoutes.openapi(deleteTemplateRoute, async (c) => {
 WorkflowRoutes.openapi(runTemplateRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const { id } = c.req.valid('param');
-  const body = await c.req.json().catch(() => ({})) as { sessionId?: string; input?: Record<string, unknown> };
+  const body = (c.req.valid('json') ?? {}) as { sessionId?: string; input?: Record<string, unknown> };
   const result = await workflowsService.runTemplate(id, workspaceId, body.sessionId, body.input);
   if (!result.ok) return c.json({ error: result.error.message }, 404);
   return c.json({ data: result.value }, 202);
