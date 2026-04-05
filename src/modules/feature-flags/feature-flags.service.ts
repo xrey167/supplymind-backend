@@ -1,40 +1,14 @@
-import { logger } from '../../config/logger';
 import { DEFAULT_FLAGS, type FlagValue } from '../../config/flags';
 import { workspaceSettingsRepo } from '../settings/workspace-settings/workspace-settings.repo';
+import { getCacheProvider } from '../../infra/cache';
+import { logger } from '../../config/logger';
 
 const FLAG_NAMESPACE = 'feature-flag:';
 const CACHE_TTL_MS = 60_000;
 
-class FlagCache {
-  private cache = new Map<string, { value: unknown; expiresAt: number }>();
-
-  get(key: string): unknown | undefined {
-    const entry = this.cache.get(key);
-    if (!entry) return undefined;
-    if (Date.now() > entry.expiresAt) {
-      this.cache.delete(key);
-      return undefined;
-    }
-    return entry.value;
-  }
-
-  set(key: string, value: unknown, ttlMs: number): void {
-    this.cache.set(key, { value, expiresAt: Date.now() + ttlMs });
-  }
-
-  invalidate(workspaceId: string): void {
-    const prefix = `${workspaceId}:`;
-    for (const k of this.cache.keys()) {
-      if (k.startsWith(prefix)) this.cache.delete(k);
-    }
-  }
-}
-
-const flagCache = new FlagCache();
-
 class FeatureFlagsService {
   private cacheKey(workspaceId: string, flag: string): string {
-    return `${workspaceId}:${flag}`;
+    return `ff:${workspaceId}:${flag}`;
   }
 
   private dbKey(flag: string): string {
@@ -43,13 +17,14 @@ class FeatureFlagsService {
 
   async getValue<T extends FlagValue = FlagValue>(workspaceId: string, flag: string): Promise<T> {
     const cKey = this.cacheKey(workspaceId, flag);
-    const cached = flagCache.get(cKey);
-    if (cached !== undefined) return cached as T;
+    const cache = getCacheProvider();
+    const cached = await cache.get<T>(cKey);
+    if (cached !== undefined) return cached;
 
     try {
       const row = await workspaceSettingsRepo.get(workspaceId, this.dbKey(flag));
       const value = (row?.value ?? DEFAULT_FLAGS[flag] ?? null) as T;
-      flagCache.set(cKey, value, CACHE_TTL_MS);
+      await cache.set(cKey, value, CACHE_TTL_MS);
       return value;
     } catch (err) {
       logger.warn({ workspaceId, flag, err }, 'FlagService: DB read failed, using default');
@@ -63,13 +38,14 @@ class FeatureFlagsService {
 
   async setFlag(workspaceId: string, flag: string, value: FlagValue): Promise<void> {
     await workspaceSettingsRepo.set(workspaceId, this.dbKey(flag), value);
-    flagCache.invalidate(workspaceId);
+    await getCacheProvider().clear(`ff:${workspaceId}:`);
   }
 
   async getAll(workspaceId: string): Promise<Record<string, FlagValue>> {
-    const cKey = `${workspaceId}:__all__`;
-    const cached = flagCache.get(cKey);
-    if (cached !== undefined) return cached as Record<string, FlagValue>;
+    const cKey = `ff:${workspaceId}:__all__`;
+    const cache = getCacheProvider();
+    const cached = await cache.get<Record<string, FlagValue>>(cKey);
+    if (cached !== undefined) return cached;
 
     const result: Record<string, FlagValue> = { ...DEFAULT_FLAGS };
     try {
@@ -83,12 +59,12 @@ class FeatureFlagsService {
     } catch (err) {
       logger.warn({ workspaceId, err }, 'FlagService: getAll failed, returning defaults');
     }
-    flagCache.set(cKey, result, CACHE_TTL_MS);
+    await cache.set(cKey, result, CACHE_TTL_MS);
     return result;
   }
 
-  invalidateCache(workspaceId: string): void {
-    flagCache.invalidate(workspaceId);
+  async invalidateCache(workspaceId: string): Promise<void> {
+    await getCacheProvider().clear(`ff:${workspaceId}:`);
   }
 }
 

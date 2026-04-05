@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { featureFlagsService } from './feature-flags.service';
 import { setFlagBodySchema, flagsResponseSchema } from './feature-flags.schemas';
+import { hasPermission } from '../../core/security/rbac';
 
 export const FeatureFlagsRoutes = new OpenAPIHono();
 
@@ -36,7 +37,7 @@ FeatureFlagsRoutes.openapi(listFlagsRoute, async (c) => {
 FeatureFlagsRoutes.openapi(setFlagRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const callerRole = c.get('callerRole') as string | undefined;
-  if (!callerRole || callerRole !== 'admin') {
+  if (!callerRole || !hasPermission(callerRole, 'admin')) {
     return c.json({ error: 'Admin role required' }, 403);
   }
   const { flag, value } = c.req.valid('json');

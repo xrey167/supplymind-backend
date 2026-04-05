@@ -1,6 +1,5 @@
 import { usageRepo } from './usage.repo';
 import { calculateCost, resolveProvider } from './pricing';
-import { logger } from '../../config/logger';
 import type { RecordUsageInput } from './usage.types';
 
 function periodToSince(period: 'day' | 'week' | 'month' | 'all'): Date {
@@ -62,6 +61,3 @@ export const usageService = {
     return usageRepo.totalCost(workspaceId, since);
   },
 };
-
-// Suppress unused import warning — logger is available for future use
-void logger;

@@ -1,3 +1,5 @@
+import type { AIProvider } from '../../infra/ai/types';
+
 type PricingEntry = { input: number; output: number };
 
 // USD per 1,000,000 tokens
@@ -28,7 +30,7 @@ export function calculateCost(model: string, inputTokens: number, outputTokens: 
   return (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
 }
 
-export function resolveProvider(model: string): 'anthropic' | 'openai' | 'google' {
+export function resolveProvider(model: string): AIProvider {
   if (model.startsWith('claude')) return 'anthropic';
   if (model.startsWith('gpt') || model.startsWith('o1') || model.startsWith('o2') || model.startsWith('o3') || model.startsWith('o4')) return 'openai';
   if (model.startsWith('gemini')) return 'google';
