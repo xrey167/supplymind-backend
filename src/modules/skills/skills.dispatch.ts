@@ -139,7 +139,10 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
 
     // Execute with concurrency control
     const start = Date.now();
-    const result = await skillExecutor.execute(skillId, () => skillRegistry.invoke(skillId, args, context));
+    const result = await skillExecutor.execute(skillId, () => skillRegistry.invoke(skillId, args, context), {
+      concurrencySafe: skill.concurrencySafe,
+      timeoutMs: skill.timeoutMs,
+    });
     const durationMs = Date.now() - start;
 
     span.setAttribute('duration_ms', durationMs);

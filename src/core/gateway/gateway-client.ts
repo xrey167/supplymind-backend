@@ -5,6 +5,7 @@ import type { Role } from '../security';
 import type { HookEvent, HookHandler, HookRegistration, HookPayloadMap, TypedHookHandler } from '../hooks/hook-registry';
 import type { Result } from '../result';
 import { ok } from '../result';
+import type { PluginManifest } from '../../modules/plugins/plugin-manifest';
 
 /**
  * Typed programmatic client for the gateway (Agent-to-Code protocol).
@@ -108,6 +109,20 @@ export class GatewayClient {
         skillRegistry.unregister(`acp:${this.context.workspaceId}:${definition.name}`);
       });
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Plug-and-play: Plugin installation (customers install plugin bundles)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Install a plugin manifest for this client's workspace.
+   * Registers all skills, hooks, and config from the manifest.
+   * Returns a cleanup function to uninstall.
+   */
+  async plugin(manifest: PluginManifest): Promise<() => Promise<void>> {
+    const { pluginManager } = await import('../../modules/plugins/plugin-manifest');
+    return pluginManager.install(manifest, this.context.workspaceId);
   }
 
   // ---------------------------------------------------------------------------

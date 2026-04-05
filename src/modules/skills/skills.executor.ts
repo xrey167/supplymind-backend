@@ -1,3 +1,10 @@
+export interface ExecuteOptions {
+  /** If true, skip per-skill concurrency limit. */
+  concurrencySafe?: boolean;
+  /** Override timeout for this call. */
+  timeoutMs?: number;
+}
+
 export class SkillExecutor {
   maxGlobalConcurrency = 20;
   maxPerSkillConcurrency = 5;
@@ -7,20 +14,20 @@ export class SkillExecutor {
   private activeGlobal = 0;
   private activePerSkill: Map<string, number> = new Map();
 
-  async execute<T>(skillId: string, fn: () => Promise<T>): Promise<T> {
+  async execute<T>(skillId: string, fn: () => Promise<T>, opts?: ExecuteOptions): Promise<T> {
     const perSkill = this.activePerSkill.get(skillId) ?? 0;
 
     if (this.activeGlobal >= this.maxGlobalConcurrency) {
       throw new Error(`Global concurrency limit (${this.maxGlobalConcurrency}) exceeded`);
     }
-    if (perSkill >= this.maxPerSkillConcurrency) {
+    if (!opts?.concurrencySafe && perSkill >= this.maxPerSkillConcurrency) {
       throw new Error(`Per-skill concurrency limit (${this.maxPerSkillConcurrency}) exceeded for ${skillId}`);
     }
 
     this.activeGlobal++;
     this.activePerSkill.set(skillId, perSkill + 1);
 
-    const timeoutMs = this.perSkillTimeouts.get(skillId) ?? this.defaultTimeoutMs;
+    const timeoutMs = opts?.timeoutMs ?? this.perSkillTimeouts.get(skillId) ?? this.defaultTimeoutMs;
 
     try {
       const result = await Promise.race([
