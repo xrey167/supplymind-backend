@@ -95,6 +95,10 @@ export const taskRepo = {
     );
   },
 
+  async getAllDependencies(): Promise<{ taskId: string; dependsOnTaskId: string }[]> {
+    return db.select().from(taskDependencies);
+  },
+
   async getDependencies(taskId: string): Promise<{ blockedBy: string[]; blocks: string[] }> {
     const [blockedByRows, blocksRows] = await Promise.all([
       db.select().from(taskDependencies).where(eq(taskDependencies.taskId, taskId)),

@@ -98,8 +98,20 @@ export class TasksService {
   }
 
   async addDependency(taskId: string, dependsOnTaskId: string): Promise<Result<void>> {
-    // Cycle detection via BFS: walk all transitive blockers of dependsOnTaskId.
-    // If taskId appears, adding this edge would create a cycle.
+    // Cycle detection: load all edges once, then BFS in memory
+    const allEdges = await taskRepo.getAllDependencies();
+    const adjList = new Map<string, string[]>();
+    for (const edge of allEdges) {
+      const deps = adjList.get(edge.taskId) ?? [];
+      deps.push(edge.dependsOnTaskId);
+      adjList.set(edge.taskId, deps);
+    }
+    // Also add the proposed edge
+    const proposedDeps = adjList.get(taskId) ?? [];
+    proposedDeps.push(dependsOnTaskId);
+    adjList.set(taskId, proposedDeps);
+
+    // BFS from dependsOnTaskId — if we reach taskId, there's a cycle
     const visited = new Set<string>();
     const queue: string[] = [dependsOnTaskId];
 
@@ -111,8 +123,7 @@ export class TasksService {
       if (visited.has(current)) continue;
       visited.add(current);
 
-      const { blockedBy } = await taskRepo.getDependencies(current);
-      for (const dep of blockedBy) {
+      for (const dep of adjList.get(current) ?? []) {
         if (!visited.has(dep)) queue.push(dep);
       }
     }
