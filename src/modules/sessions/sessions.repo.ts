@@ -2,6 +2,7 @@ import { db } from '../../infra/db/client';
 import { sessions, sessionMessages } from '../../infra/db/schema';
 import { eq, and, lt, gt, lte, count, desc, or } from 'drizzle-orm';
 import type { Session, SessionMessage, AddMessageInput, SessionStatus } from './sessions.types';
+import { logger } from '../../config/logger';
 
 function estimateTokens(text: string): number {
   // ~4 chars/token for natural language, ~2.5 for code. Use 3.2 as balanced estimate.
@@ -123,9 +124,15 @@ export const sessionsRepo = {
     const [boundary] = await db
       .select({ createdAt: sessionMessages.createdAt })
       .from(sessionMessages)
-      .where(eq(sessionMessages.id, boundaryMessageId))
+      .where(and(
+        eq(sessionMessages.id, boundaryMessageId),
+        eq(sessionMessages.sessionId, sessionId),
+      ))
       .limit(1);
-    if (!boundary) return;
+    if (!boundary) {
+      logger.warn({ sessionId, boundaryMessageId }, 'markCompacted: boundary message not found — skipping compaction');
+      return;
+    }
 
     await db.update(sessionMessages)
       .set({ isCompacted: true })
