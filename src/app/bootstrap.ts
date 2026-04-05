@@ -186,8 +186,11 @@ export async function destroySubsystems(): Promise<void> {
   try {
     const { sessionManager } = await import('../modules/computer-use/computer-use.session');
     await sessionManager.destroyAll();
-  } catch {
-    // ignore if computer use was never loaded
+  } catch (err) {
+    const isImportError = err instanceof Error && err.message.includes('Cannot find module');
+    if (!isImportError) {
+      logger.warn({ err }, 'Computer use session cleanup failed during shutdown');
+    }
   }
 
   // Redis cleanup is handled by ioredis automatically on disconnect

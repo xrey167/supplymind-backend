@@ -40,10 +40,10 @@ const listSessionsRoute = createRoute({
 computerUseRoutes.openapi(listSessionsRoute, (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const result = computerUseService.listSessions(workspaceId);
-  const sessions = result.ok
-    ? result.value.map(s => ({ ...s, createdAt: s.createdAt.toISOString() }))
-    : [];
-  return c.json({ sessions });
+  if (!result.ok) {
+    return c.json({ error: result.error.message }, 500);
+  }
+  return c.json({ sessions: result.value.map(s => ({ ...s, createdAt: s.createdAt.toISOString() })) });
 });
 
 // DELETE /sessions/:sessionId — destroy session

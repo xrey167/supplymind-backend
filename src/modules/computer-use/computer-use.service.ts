@@ -49,12 +49,17 @@ export const computerUseService = {
     return ok(sessionManager.listForWorkspace(workspaceId));
   },
 
-  async screenshot(sessionId: string, workspaceId: string) {
+  async screenshot(sessionId: string, workspaceId: string): Promise<Result<Buffer>> {
     const session = sessionManager.get(sessionId);
     if (!session) return err(new AppError('Session not found', 404, 'NOT_FOUND'));
     if (session.workspaceId !== workspaceId) return err(new AppError('Session not found', 404, 'NOT_FOUND'));
-    const buf = await session.page.screenshot({ type: 'png' });
-    return ok(buf);
+    try {
+      const buf = await session.page.screenshot({ type: 'png' });
+      return ok(buf);
+    } catch (error) {
+      logger.error({ sessionId, error: error instanceof Error ? error.message : String(error) }, 'Screenshot failed');
+      return err(error instanceof Error ? error : new AppError(String(error), 500, 'INTERNAL_ERROR'));
+    }
   },
 
   async runTask(sessionId: string, workspaceId: string, input: RunTaskInput): Promise<Result<{ output: string; iterations: number }>> {
@@ -87,10 +92,19 @@ export const computerUseService = {
       if (!result.ok) return err(result.error);
 
       const { content, toolCalls, stopReason } = result.value;
-      if (content) finalOutput = content;
 
-      // Append assistant turn
-      messages.push({ role: 'assistant', content: content || '' });
+      // Build assistant message content with text + tool_use blocks
+      const assistantContent: Array<{ type: string; [key: string]: unknown }> = [];
+      if (content) {
+        assistantContent.push({ type: 'text', text: content });
+        finalOutput = content;
+      }
+      if (toolCalls?.length) {
+        for (const tc of toolCalls) {
+          assistantContent.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.args });
+        }
+      }
+      messages.push({ role: 'assistant', content: assistantContent as any });
 
       if (stopReason === 'end_turn' || !toolCalls?.length) break;
 
@@ -116,7 +130,11 @@ export const computerUseService = {
           content: Array.isArray(resultContent) ? resultContent as any : String(resultContent),
         });
 
-        logger.debug({ sessionId, tool: tc.name, ok: toolResult.ok }, 'Computer use tool executed');
+        if (!toolResult.ok) {
+          logger.warn({ sessionId, tool: tc.name, error: toolResult.error.message }, 'Computer use tool failed');
+        } else {
+          logger.debug({ sessionId, tool: tc.name }, 'Computer use tool executed');
+        }
       }
     }
 

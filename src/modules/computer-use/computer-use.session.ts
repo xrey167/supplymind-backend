@@ -48,7 +48,11 @@ class ComputerUseSessionManager {
     if (!session) return;
 
     if (session.bashProcess) {
-      session.bashProcess.kill();
+      try {
+        session.bashProcess.kill();
+      } catch {
+        // process already exited
+      }
     }
     try {
       await session.browser.close();

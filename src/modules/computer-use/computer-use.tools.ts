@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+import { tmpdir } from 'os';
 import { spawn } from 'child_process';
 import { ok, err } from '../../core/result';
 import { AppError } from '../../core/errors';
@@ -178,7 +179,14 @@ export async function handleBashAction(sessionId: string, args: unknown) {
       const shell = isWindows ? 'cmd.exe' : '/bin/bash';
       const proc = spawn(shell, [], {
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, TERM: 'dumb' },
+        env: {
+          PATH: process.env.PATH,
+          HOME: process.env.HOME ?? '/tmp',
+          TEMP: process.env.TEMP,
+          TMP: process.env.TMP,
+          TERM: 'dumb',
+          LANG: process.env.LANG,
+        },
       });
       session.bashProcess = proc as any;
     }
@@ -189,18 +197,19 @@ export async function handleBashAction(sessionId: string, args: unknown) {
     const output = await new Promise<string>((resolve, reject) => {
       const chunks: string[] = [];
       const timeout = setTimeout(() => {
+        proc.stdout.off('data', onData);
+        proc.stderr.off('data', onData);
         reject(new Error(`Bash command timed out after ${BASH_TIMEOUT_MS}ms`));
       }, BASH_TIMEOUT_MS);
 
       const onData = (data: Buffer) => {
-        const text = data.toString();
-        chunks.push(text);
-        if (text.includes(BASH_SENTINEL)) {
+        chunks.push(data.toString());
+        const full = chunks.join('');
+        const sentinelIdx = full.indexOf(BASH_SENTINEL);
+        if (sentinelIdx !== -1) {
           clearTimeout(timeout);
           proc.stdout.off('data', onData);
           proc.stderr.off('data', onData);
-          const full = chunks.join('');
-          const sentinelIdx = full.indexOf(BASH_SENTINEL);
           resolve(full.slice(0, sentinelIdx).trimEnd());
         }
       };
@@ -236,6 +245,11 @@ export async function handleTextEditorAction(sessionId: string, args: unknown) {
   try {
     if (filePath && !path.isAbsolute(filePath)) {
       return err(new AppError(`Path must be absolute: ${filePath}`, 400, 'INVALID_INPUT'));
+    }
+
+    const sandboxBase = path.join(tmpdir(), 'cu-sessions', sessionId);
+    if (filePath && !filePath.startsWith(sandboxBase)) {
+      return err(new AppError(`File operations are restricted to the session sandbox: ${sandboxBase}`, 403, 'FORBIDDEN'));
     }
 
     switch (command) {
