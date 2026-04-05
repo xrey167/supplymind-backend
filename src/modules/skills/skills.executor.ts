@@ -49,4 +49,20 @@ export class SkillExecutor {
   }
 }
 
+/**
+ * Partition tool calls into concurrent-safe and exclusive batches.
+ * Concurrent-safe calls run in parallel; exclusive calls run sequentially.
+ */
+export function partitionToolCalls<T extends { concurrencySafe?: boolean }>(
+  calls: T[],
+): { concurrent: T[]; exclusive: T[] } {
+  const concurrent: T[] = [];
+  const exclusive: T[] = [];
+  for (const call of calls) {
+    if (call.concurrencySafe) concurrent.push(call);
+    else exclusive.push(call);
+  }
+  return { concurrent, exclusive };
+}
+
 export const skillExecutor = new SkillExecutor();
