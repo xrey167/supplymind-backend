@@ -149,23 +149,6 @@ export async function initSubsystems(): Promise<void> {
     logger.error({ err }, 'Failed to start orchestration workers — all orchestration execution is disabled');
   }
 
-  // Step 11: Start orchestration BullMQ workers (non-critical)
-  try {
-    const { startOrchestrationWorkers } = await import('../jobs/orchestrations');
-    startOrchestrationWorkers();
-    logger.info('Orchestration workers started');
-  } catch (err) {
-    logger.warn({ err }, 'Failed to start orchestration workers — continuing');
-  }
-
-  // Step 12: Register computer use routes (non-critical — requires playwright)
-  try {
-    const { computerUseRoutes } = await import('../modules/computer-use/computer-use.routes');
-    app.route('/workspaces/:workspaceId/computer-use', computerUseRoutes);
-    logger.info('Computer use routes registered');
-  } catch (err) {
-    logger.warn({ err }, 'Computer use routes failed to register — continuing without computer use');
-  }
 
   logger.info('Bootstrap complete');
 }

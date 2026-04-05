@@ -18,6 +18,7 @@ import { taskRepo } from './task-repo';
 import { logger } from '../../config/logger';
 import { captureException } from '../observability/sentry';
 import { workspaceSettingsService } from '../../modules/settings/workspace-settings/workspace-settings.service';
+import { usageService } from '../../modules/usage/usage.service';
 
 const MAX_TOOL_CALL_ITERATIONS = 10;
 
@@ -314,6 +315,17 @@ class TaskManager {
         const usage = runResult.usage ?? { inputTokens: 0, outputTokens: 0 };
         record.totalTokens.input += usage.inputTokens;
         record.totalTokens.output += usage.outputTokens;
+
+        // Record usage for billing — fire-and-forget
+        usageService.record({
+          workspaceId: config.workspaceId,
+          agentId: config.id,
+          sessionId: params.sessionId,
+          taskId,
+          model: config.model,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+        }).catch((recordErr: unknown) => logger.error({ taskId, err: recordErr }, 'Failed to record AI usage'));
 
         // Mark earlier session messages as compacted if context was compacted this turn
         if (context.wasCompacted && params.sessionId && preTurnLastMessageId) {

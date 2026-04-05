@@ -27,3 +27,20 @@ export function createRedisPair(url: string): {
     subscriber: new Redis(url),
   };
 }
+
+let sharedClient: Redis | null = null;
+
+export function getSharedRedisClient(): Redis {
+  if (!sharedClient) {
+    const url = Bun.env.REDIS_URL ?? 'redis://localhost:6379';
+    sharedClient = new Redis(url);
+  }
+  return sharedClient;
+}
+
+export async function closeSharedRedisClient(): Promise<void> {
+  if (sharedClient) {
+    await sharedClient.quit();
+    sharedClient = null;
+  }
+}
