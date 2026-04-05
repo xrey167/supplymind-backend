@@ -45,9 +45,9 @@ export class McpService {
    */
   async ensureWorkspaceLoaded(workspaceId: string): Promise<void> {
     if (this.loadedWorkspaces.has(workspaceId)) return;
-    this.loadedWorkspaces.add(workspaceId);
     const configs = await mcpRepo.findByWorkspace(workspaceId);
     await this.loadConfigs(configs);
+    this.loadedWorkspaces.add(workspaceId);
   }
 
   private async loadConfigs(configs: McpServerRow[]): Promise<void> {
