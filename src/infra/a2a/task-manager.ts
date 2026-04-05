@@ -162,7 +162,10 @@ class TaskManager {
       const messages: Message[] = [];
       let userMessageContent = '';
       if (params.message) {
-        userMessageContent = params.message.parts.filter(p => p.kind === 'text').map(p => (p as any).text).join('\n');
+        userMessageContent = params.message.parts
+          .filter((p): p is { kind: 'text'; text: string } => p.kind === 'text')
+          .map(p => p.text)
+          .join('\n');
         messages.push({ role: 'user', content: userMessageContent });
       }
 
