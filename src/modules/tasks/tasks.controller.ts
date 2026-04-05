@@ -12,8 +12,14 @@ export const tasksController = {
     const workspaceId = c.get('workspaceId') as string;
     const callerId = c.get('userId') as string;
 
-    const result = await tasksService.send(parsed.agentId, parsed.message, workspaceId, callerId, parsed.skillId, parsed.args, parsed.sessionId);
+    const result = await tasksService.send(parsed.agentId, parsed.message, workspaceId, callerId, parsed.skillId, parsed.args, parsed.sessionId, parsed.runMode);
     if (!result.ok) return c.json({ error: result.error.message }, 400);
+
+    // Background mode: return queued job info immediately
+    if ('queued' in result.value && result.value.queued) {
+      return c.json({ taskId: result.value.taskId, jobId: result.value.jobId, status: 'queued' }, 202);
+    }
+
     return c.json(result.value, 201);
   },
 

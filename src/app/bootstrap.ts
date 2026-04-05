@@ -137,6 +137,15 @@ export async function initSubsystems(): Promise<void> {
     logger.warn({ err }, 'Failed to load registered agents — continuing without');
   }
 
+  // Step 10: Start agent BullMQ workers (non-critical)
+  try {
+    const { startAgentWorkers } = await import('../jobs/agents/index');
+    startAgentWorkers(3);
+    logger.info('Agent workers started');
+  } catch (err) {
+    logger.warn({ err }, 'Failed to start agent workers');
+  }
+
   logger.info('Bootstrap complete');
 }
 

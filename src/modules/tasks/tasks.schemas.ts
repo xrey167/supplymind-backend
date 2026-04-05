@@ -5,6 +5,8 @@ export const taskSendSchema = z.object({
   message: z.string().min(1),
   skillId: z.string().optional(),
   args: z.record(z.unknown()).optional(),
+  sessionId: z.string().optional(),
+  runMode: z.enum(['foreground', 'background']).default('foreground').optional(),
 });
 
 export const taskIdParamSchema = z.object({

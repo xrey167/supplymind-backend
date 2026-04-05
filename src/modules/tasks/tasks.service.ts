@@ -1,23 +1,62 @@
+import { nanoid } from 'nanoid';
 import { ok, err } from '../../core/result';
 import type { Result } from '../../core/result';
 import { taskManager } from '../../infra/a2a/task-manager';
 import { taskRepo } from '../../infra/a2a/task-repo';
 import { agentsRepo } from '../agents/agents.repo';
 import { toAgentConfig } from '../agents/agents.mapper';
+import { enqueueAgentRun } from '../../infra/queue/bullmq';
+import type { A2AMessage } from '../../infra/a2a/types';
 import type { A2ATask } from './tasks.types';
 
 export class TasksService {
-  async send(agentId: string, message: string, workspaceId: string, callerId: string, skillId?: string, args?: Record<string, unknown>, sessionId?: string): Promise<Result<A2ATask>> {
+  async send(
+    agentId: string,
+    message: string,
+    workspaceId: string,
+    callerId: string,
+    skillId?: string,
+    args?: Record<string, unknown>,
+    sessionId?: string,
+    runMode?: 'foreground' | 'background',
+  ): Promise<Result<A2ATask | { taskId: string; jobId: string | undefined; queued: true }>> {
     const agentRow = await agentsRepo.findById(agentId);
     if (!agentRow) return err(new Error(`Agent not found: ${agentId}`));
 
     const agent = toAgentConfig(agentRow);
+    const a2aMessage: A2AMessage = { role: 'user', parts: [{ kind: 'text', text: message }] };
 
+    if (runMode === 'background') {
+      const taskId = nanoid();
+
+      // Pre-create task record so GET /tasks/:id works immediately
+      await taskRepo.create({
+        id: taskId,
+        workspaceId,
+        agentId,
+        status: 'submitted',
+        input: a2aMessage,
+        sessionId,
+      });
+
+      const job = await enqueueAgentRun({
+        taskId,
+        agentId,
+        workspaceId,
+        callerId,
+        message: a2aMessage,
+        sessionId,
+      });
+
+      return ok({ taskId, jobId: job.id, queued: true as const });
+    }
+
+    // Foreground: existing path
     const task = await taskManager.send({
       skillId,
       args,
       sessionId,
-      message: { role: 'user', parts: [{ kind: 'text', text: message }] },
+      message: a2aMessage,
       agentConfig: {
         id: agent.id,
         provider: agent.provider,
