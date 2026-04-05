@@ -1,6 +1,6 @@
 import { db } from '../../infra/db/client';
 import { sessions, sessionMessages } from '../../infra/db/schema';
-import { eq, and, lt, gt, lte, count } from 'drizzle-orm';
+import { eq, and, lt, gt, lte, count, desc } from 'drizzle-orm';
 import type { Session, SessionMessage, AddMessageInput, SessionStatus } from './sessions.types';
 
 function estimateTokens(text: string): number {
@@ -125,6 +125,16 @@ export const sessionsRepo = {
         eq(sessionMessages.sessionId, sessionId),
         lte(sessionMessages.createdAt, boundary.createdAt),
       ));
+  },
+
+  async getLatestMessage(sessionId: string): Promise<SessionMessage | null> {
+    const [row] = await db
+      .select()
+      .from(sessionMessages)
+      .where(eq(sessionMessages.sessionId, sessionId))
+      .orderBy(desc(sessionMessages.createdAt))
+      .limit(1);
+    return row ?? null;
   },
 
   async expireIdleSessions(maxIdleMs: number): Promise<number> {

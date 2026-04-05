@@ -14,7 +14,6 @@ import { toolRegistry } from '../../modules/tools/tools.registry';
 import { contextService } from '../../modules/context/context.service';
 import { sessionsService } from '../../modules/sessions/sessions.service';
 import { sessionsRepo } from '../../modules/sessions/sessions.repo';
-import type { SessionMessage } from '../../modules/sessions/sessions.types';
 import { taskRepo } from './task-repo';
 import { logger } from '../../config/logger';
 import { captureException } from '../observability/sentry';
@@ -133,12 +132,18 @@ class TaskManager {
         messages.push({ role: 'user', content: userMessageContent });
       }
 
-      // Persist initial user message to session (fire-and-forget)
+      // Persist initial user message to session — awaited so the boundary capture
+      // in the first iteration sees this message rather than racing against it.
+      let initialMessageId: string | undefined;
       if (params.sessionId && userMessageContent) {
-        sessionsService.addMessage(params.sessionId, {
+        const initialMsg = await sessionsService.addMessage(params.sessionId, {
           role: 'user',
           content: userMessageContent,
-        }).catch((err: unknown) => logger.warn({ err, taskId }, 'Failed to persist initial message to session'));
+        }).catch((err: unknown) => {
+          logger.error({ err, taskId }, 'Failed to persist initial message to session');
+          return null;
+        });
+        initialMessageId = initialMsg?.id;
       }
 
       const taggedHistory: TaggedMessage[] = [];
@@ -168,11 +173,16 @@ class TaskManager {
 
         // Capture the most-recent session message ID before this turn so we
         // can use it as the compaction boundary if the context was compacted.
+        // On the first iteration use the already-awaited initial message to avoid
+        // an extra DB round-trip and eliminate any race with the persist above.
         let preTurnLastMessageId: string | undefined;
         if (params.sessionId) {
-          const { messages: prevMsgs } = await sessionsRepo.getMessagePage(params.sessionId, { limit: 1, includeCompacted: false })
-            .catch(() => ({ messages: [] as SessionMessage[], total: 0 }));
-          preTurnLastMessageId = prevMsgs.length > 0 ? prevMsgs[prevMsgs.length - 1].id : undefined;
+          if (i === 0) {
+            preTurnLastMessageId = initialMessageId;
+          } else {
+            const latest = await sessionsRepo.getLatestMessage(params.sessionId).catch(() => null);
+            preTurnLastMessageId = latest?.id;
+          }
         }
 
         // Prepare context: inject memories, snip old tool results, compact if needed
@@ -266,7 +276,7 @@ class TaskManager {
         // Mark earlier session messages as compacted if context was compacted this turn
         if (context.wasCompacted && params.sessionId && preTurnLastMessageId) {
           sessionsRepo.markCompacted(params.sessionId, preTurnLastMessageId)
-            .catch((err: unknown) => logger.warn({ err, taskId }, 'Failed to mark session messages as compacted'));
+            .catch((err: unknown) => logger.error({ err, taskId }, 'Failed to mark session messages as compacted'));
         }
 
         // Persist assistant response to session (fire-and-forget)
@@ -274,7 +284,7 @@ class TaskManager {
           sessionsService.addMessage(params.sessionId, {
             role: 'assistant',
             content: runResult.content,
-          }).catch((err: unknown) => logger.warn({ err, taskId, roundId }, 'Failed to persist assistant message to session'));
+          }).catch((err: unknown) => logger.error({ err, taskId, roundId }, 'Failed to persist assistant message to session'));
         }
 
         // If there are tool calls, execute them
