@@ -11,6 +11,7 @@ import {
   customType,
   primaryKey,
   uniqueIndex,
+  index,
 } from 'drizzle-orm/pg-core';
 
 const vector = customType<{ data: number[]; driverParam: string }>({
@@ -82,7 +83,7 @@ export const mcpServerConfigs = pgTable('mcp_server_configs', {
 export const a2aTasks = pgTable('a2a_tasks', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull(),
-  agentId: uuid('agent_id').notNull(),
+  agentId: uuid('agent_id').notNull().references(() => agentConfigs.id),
   status: a2aTaskStatusEnum('status'),
   input: jsonb('input').notNull(),
   output: jsonb('output'),
@@ -91,18 +92,21 @@ export const a2aTasks = pgTable('a2a_tasks', {
   metadata: jsonb('metadata').default({}),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-});
+}, (t) => [
+  index('a2a_tasks_status_idx').on(t.status),
+]);
 
 export const taskDependencies = pgTable('task_dependencies', {
   taskId: uuid('task_id').notNull().references(() => a2aTasks.id, { onDelete: 'cascade' }),
   dependsOnTaskId: uuid('depends_on_task_id').notNull().references(() => a2aTasks.id, { onDelete: 'cascade' }),
 }, (t) => [
   primaryKey({ columns: [t.taskId, t.dependsOnTaskId] }),
+  index('task_deps_depends_on_idx').on(t.dependsOnTaskId),
 ]);
 
 export const toolCallLogs = pgTable('tool_call_logs', {
   id: uuid('id').primaryKey().defaultRandom(),
-  taskId: uuid('task_id').notNull(),
+  taskId: uuid('task_id').notNull().references(() => a2aTasks.id, { onDelete: 'cascade' }),
   skillName: text('skill_name').notNull(),
   status: toolCallStatusEnum('status'),
   input: jsonb('input').notNull(),
@@ -110,7 +114,9 @@ export const toolCallLogs = pgTable('tool_call_logs', {
   durationMs: integer('duration_ms'),
   error: text('error'),
   createdAt: timestamp('created_at').defaultNow(),
-});
+}, (t) => [
+  index('tcl_task_id_idx').on(t.taskId),
+]);
 
 // New enums
 export const sessionStatusEnum = pgEnum('session_status', ['created', 'active', 'paused', 'closed', 'expired']);
@@ -124,7 +130,7 @@ export const orchestrationStatusEnum = pgEnum('orchestration_status', ['submitte
 export const sessions = pgTable('sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull(),
-  agentId: uuid('agent_id'),
+  agentId: uuid('agent_id').references(() => agentConfigs.id),
   status: sessionStatusEnum('status').notNull().default('created'),
   metadata: jsonb('metadata').default({}),
   tokenCount: integer('token_count').default(0),
@@ -136,7 +142,7 @@ export const sessions = pgTable('sessions', {
 // Session messages
 export const sessionMessages = pgTable('session_messages', {
   id: uuid('id').primaryKey().defaultRandom(),
-  sessionId: uuid('session_id').notNull(),
+  sessionId: uuid('session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
   role: messageRoleEnum('role').notNull(),
   content: text('content').notNull(),
   toolCallId: text('tool_call_id'),
@@ -144,7 +150,9 @@ export const sessionMessages = pgTable('session_messages', {
   tokenEstimate: integer('token_estimate'),
   isCompacted: boolean('is_compacted').default(false),
   createdAt: timestamp('created_at').defaultNow(),
-});
+}, (t) => [
+  index('sm_session_compacted_idx').on(t.sessionId, t.isCompacted),
+]);
 
 // Agent memories
 export const agentMemories = pgTable('agent_memories', {
@@ -167,12 +175,12 @@ export const agentMemories = pgTable('agent_memories', {
 export const memoryProposals = pgTable('memory_proposals', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull(),
-  agentId: uuid('agent_id').notNull(),
+  agentId: uuid('agent_id').notNull().references(() => agentConfigs.id),
   type: memoryTypeEnum('type').notNull(),
   title: text('title').notNull(),
   content: text('content').notNull(),
   evidence: text('evidence'),
-  sessionId: uuid('session_id'),
+  sessionId: uuid('session_id').references(() => sessions.id),
   status: proposalStatusEnum('status').notNull().default('pending'),
   rejectionReason: text('rejection_reason'),
   createdAt: timestamp('created_at').defaultNow(),
@@ -183,7 +191,7 @@ export const memoryProposals = pgTable('memory_proposals', {
 export const orchestrations = pgTable('orchestrations', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull(),
-  sessionId: uuid('session_id'),
+  sessionId: uuid('session_id').references(() => sessions.id),
   name: text('name'),
   definition: jsonb('definition').notNull(),
   status: orchestrationStatusEnum('status').notNull().default('submitted'),
