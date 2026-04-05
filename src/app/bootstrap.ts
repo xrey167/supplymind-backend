@@ -7,7 +7,6 @@ import { mcpClientPool } from '../infra/mcp/client-pool';
 import { createRedisPair, createRedisClient } from '../infra/redis/client';
 import { RedisPubSub } from '../infra/redis/pubsub';
 import { initEventConsumers } from '../events/consumers';
-import { initWsConsumers } from '../events/consumers/ws-consumers';
 import { getStateStore, closeStateStore } from '../infra/state';
 import { setCacheProvider } from '../infra/cache';
 import { RedisCache } from '../infra/cache/redis-cache';
@@ -58,10 +57,10 @@ export async function initSubsystems(): Promise<void> {
   wsServer.init();
   logger.info('WebSocket server initialized');
 
-  // Step 3: Event consumers (logging + WS handlers) — critical
+  // Step 3: Event consumers (logging/observability) — critical
+  // Note: WS consumers removed — ws-server now calls the gateway directly
   try {
     initEventConsumers();
-    initWsConsumers();
     logger.info('Event consumers initialized');
   } catch (err) {
     logger.error({ error: err }, 'Failed to initialize event consumers');
@@ -145,6 +144,15 @@ export async function initSubsystems(): Promise<void> {
     logger.info('Agent workers started');
   } catch (err) {
     logger.error({ err }, 'Failed to start agent workers');
+  }
+
+  // Step 11: Start orchestration BullMQ workers (non-critical)
+  try {
+    const { startOrchestrationWorkers } = await import('../jobs/orchestrations');
+    startOrchestrationWorkers();
+    logger.info('Orchestration workers started');
+  } catch (err) {
+    logger.warn({ err }, 'Failed to start orchestration workers — continuing');
   }
 
   logger.info('Bootstrap complete');

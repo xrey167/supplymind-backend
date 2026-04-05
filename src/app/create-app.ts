@@ -5,6 +5,7 @@ import { wsServer } from '../infra/realtime/ws-server';
 import { errorHandler } from '../api/middlewares/error-handler';
 import { publicRoutes } from '../api/routes/public';
 import { workspaceRoutes } from '../api/routes/workspace';
+import { handleMcpRequest } from '../infra/mcp/server';
 import { initSubsystems, destroySubsystems } from './bootstrap';
 
 export async function createApp() {
@@ -37,6 +38,12 @@ export async function createApp() {
 
   // Workspace-scoped routes (auth required): /api/v1/workspaces/:workspaceId/*
   app.route('/api/v1/workspaces/:workspaceId', workspaceRoutes);
+
+  // MCP server endpoint (Streamable HTTP) — auth via Bearer token in request
+  app.all('/mcp', async (c) => {
+    const response = await handleMcpRequest(c.req.raw);
+    return response;
+  });
 
   // Initialize all subsystems (skills, WS, event consumers, Redis, MCP)
   await initSubsystems();
