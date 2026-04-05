@@ -142,10 +142,28 @@ export class AnthropicRawRuntime implements AgentRuntime {
 
       // Track tool_use blocks for tool_call_end
       const toolBlocks = new Map<number, { id: string; name: string; argsJson: string }>();
+      let doneUsage = { inputTokens: 0, outputTokens: 0 };
+      let doneStopReason: string | undefined;
 
       for await (const event of stream) {
         kick();
-        if (event.type === 'content_block_start') {
+        if (event.type === 'message_start') {
+          const msgStart = event as any;
+          if (msgStart.message?.usage?.input_tokens !== undefined) {
+            doneUsage.inputTokens = msgStart.message.usage.input_tokens;
+          }
+        } else if (event.type === 'message_delta') {
+          const msgDelta = event as any;
+          if (msgDelta.usage?.output_tokens !== undefined) {
+            doneUsage.outputTokens = msgDelta.usage.output_tokens;
+          }
+          if (msgDelta.delta?.stop_reason) {
+            const sr = msgDelta.delta.stop_reason as string;
+            doneStopReason = sr === 'tool_use' ? 'tool_use'
+              : sr === 'max_tokens' ? 'max_tokens'
+              : 'end_turn';
+          }
+        } else if (event.type === 'content_block_start') {
           const block = (event as any).content_block;
           if (block?.type === 'tool_use') {
             toolBlocks.set((event as any).index, { id: block.id, name: block.name, argsJson: '' });
@@ -169,7 +187,7 @@ export class AnthropicRawRuntime implements AgentRuntime {
             toolBlocks.delete((event as any).index);
           }
         } else if (event.type === 'message_stop') {
-          yield { type: 'done', data: {} };
+          yield { type: 'done', data: { usage: doneUsage, stopReason: doneStopReason } };
         }
       }
     } catch (err) {

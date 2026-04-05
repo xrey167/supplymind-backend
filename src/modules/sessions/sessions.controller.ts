@@ -1,10 +1,11 @@
 import type { Context } from 'hono';
 import { sessionsService } from './sessions.service';
+import { transcriptQuerySchema } from './sessions.schemas';
 
 export const sessionsController = {
   async create(c: Context) {
     const body = await c.req.json();
-    const workspaceId = c.req.param('workspaceId') ?? 'default';
+    const workspaceId = (c.get('workspaceId') as string | undefined) ?? c.req.param('workspaceId');
     const session = await sessionsService.create({ workspaceId, ...body });
     return c.json(session, 201);
   },
@@ -24,6 +25,20 @@ export const sessionsController = {
   async getMessages(c: Context) {
     const messages = await sessionsService.getMessages(c.req.param('id'));
     return c.json(messages);
+  },
+
+  async getTranscript(c: Context) {
+    const id = c.req.param('id');
+    const query = transcriptQuerySchema.parse(c.req.query());
+    const workspaceId = c.get('workspaceId') as string | undefined;
+
+    const session = await sessionsService.get(id);
+    if (!session || session.workspaceId !== workspaceId) {
+      return c.json({ error: 'Session not found' }, 404);
+    }
+
+    const result = await sessionsService.getTranscript(id, query);
+    return c.json(result);
   },
 
   async resume(c: Context) {

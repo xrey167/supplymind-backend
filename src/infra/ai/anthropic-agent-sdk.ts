@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ok, err } from '../../core/result';
 import { toAnthropicTools, toAnthropicToolChoice } from './tool-format';
+import { AnthropicRawRuntime } from './anthropic';
 import type { AgentRuntime, RunInput, RunResult, StreamEvent } from './types';
 import type { Result } from '../../core/result';
 
@@ -9,8 +10,10 @@ export type ToolExecutor = (name: string, args: unknown) => Promise<unknown>;
 export class AnthropicAgentSdkRuntime implements AgentRuntime {
   private client: Anthropic;
   private toolExecutor?: ToolExecutor;
+  private readonly apiKey: string | undefined;
 
   constructor(apiKey?: string) {
+    this.apiKey = apiKey;
     this.client = new Anthropic({ apiKey: apiKey ?? Bun.env.ANTHROPIC_API_KEY });
   }
 
@@ -108,16 +111,7 @@ export class AnthropicAgentSdkRuntime implements AgentRuntime {
   }
 
   async *stream(input: RunInput): AsyncIterable<StreamEvent> {
-    try {
-      const result = await this.run(input);
-      if (result.ok) {
-        yield { type: 'text_delta', data: { text: result.value.content } };
-        yield { type: 'done', data: {} };
-      } else {
-        yield { type: 'error', data: { error: result.error.message } };
-      }
-    } catch (error) {
-      yield { type: 'error', data: { error: error instanceof Error ? error.message : String(error) } };
-    }
+    const rawRuntime = new AnthropicRawRuntime(this.apiKey);
+    yield* rawRuntime.stream(input);
   }
 }

@@ -6,6 +6,8 @@ const REDIS_URL = Bun.env.REDIS_URL ?? 'redis://localhost:6379';
 // Shared Redis connection for BullMQ
 const connection = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
 
+export { connection as redis };
+
 // Skill execution queue
 export const skillQueue = new Queue('skill-execution', { connection });
 
@@ -43,6 +45,22 @@ export function createSkillWorker(
   });
 
   return worker;
+}
+
+// Agent execution queue
+export interface AgentJobData {
+  taskId: string;
+  agentId: string;
+  workspaceId: string;
+  callerId: string;
+  message: import('../a2a/types').A2AMessage;
+  sessionId?: string;
+}
+
+export const agentQueue = new Queue<AgentJobData>('agent:run', { connection });
+
+export function enqueueAgentRun(data: AgentJobData): Promise<Job<AgentJobData>> {
+  return agentQueue.add('run', data, { attempts: 1, removeOnComplete: 100, removeOnFail: 200 });
 }
 
 // Enqueue a skill execution and wait for result

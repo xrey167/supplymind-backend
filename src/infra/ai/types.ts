@@ -57,10 +57,11 @@ export interface RunResult {
 
 export type StreamEvent =
   | { type: "text_delta"; data: { text: string } }
+  | { type: "thinking_delta"; data: { thinking: string } }
   | { type: "tool_call_start"; data: { id: string; name: string } }
   | { type: "tool_call_delta"; data: { delta: string } }
   | { type: "tool_call_end"; data: { id: string; name: string; args: unknown } }
-  | { type: "done"; data: Record<string, unknown> }
+  | { type: "done"; data: { usage?: { inputTokens: number; outputTokens: number }; stopReason?: string } }
   | { type: "error"; data: { error: string } };
 
 export interface AgentRuntime {

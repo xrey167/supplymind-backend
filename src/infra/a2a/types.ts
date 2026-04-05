@@ -26,12 +26,14 @@ export interface AgentSkill {
 }
 
 export type TaskState = 'submitted' | 'working' | 'input_required' | 'completed' | 'failed' | 'canceled';
+export type ToolCallStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 
 export interface A2ATask {
   id: string;
   status: { state: TaskState; message?: string };
   artifacts?: Artifact[];
   history?: A2AMessage[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface Artifact {

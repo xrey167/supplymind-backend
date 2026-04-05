@@ -128,6 +128,8 @@ export class GoogleRawRuntime implements AgentRuntime {
       ]);
 
       const iterator = response[Symbol.asyncIterator]();
+      let doneUsage: { inputTokens: number; outputTokens: number } | undefined;
+      let doneStopReason: string | undefined;
 
       while (true) {
         // Race each chunk against the combined abort signal so cancellation is
@@ -152,6 +154,21 @@ export class GoogleRawRuntime implements AgentRuntime {
         kick(); // reset watchdog on each chunk
         const chunk = next.value;
 
+        if (chunk.usageMetadata) {
+          doneUsage = {
+            inputTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+            outputTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
+          };
+        }
+
+        const chunkFinishReason = (chunk as any).candidates?.[0]?.finishReason as string | undefined;
+        if (chunkFinishReason) {
+          doneStopReason = chunkFinishReason === 'STOP' ? 'end_turn'
+            : chunkFinishReason === 'MAX_TOKENS' ? 'max_tokens'
+            : chunkFinishReason === 'TOOL_CALLS' ? 'tool_use'
+            : 'end_turn';
+        }
+
         if (chunk.text) {
           yield { type: 'text_delta', data: { text: chunk.text } };
         }
@@ -165,7 +182,7 @@ export class GoogleRawRuntime implements AgentRuntime {
         }
       }
 
-      yield { type: 'done', data: {} };
+      yield { type: 'done', data: { usage: doneUsage, stopReason: doneStopReason } };
     } catch (err) {
       if (watchdogController.signal.aborted) {
         yield { type: 'error', data: { error: `Stream watchdog timeout after ${watchdogMs}ms` } };

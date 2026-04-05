@@ -6,5 +6,6 @@ export const sessionsRoutes = new Hono()
   .get('/:id', sessionsController.get)
   .post('/:id/messages', sessionsController.addMessage)
   .get('/:id/messages', sessionsController.getMessages)
+  .get('/:id/transcript', sessionsController.getTranscript)
   .post('/:id/resume', sessionsController.resume)
   .post('/:id/close', sessionsController.close);

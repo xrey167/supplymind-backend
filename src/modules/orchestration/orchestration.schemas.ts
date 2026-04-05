@@ -14,7 +14,10 @@ const stepSchema = z.object({
   dependsOn: z.array(z.string()).optional(),
   onError: z.enum(['fail', 'skip', 'retry']).optional(),
   maxRetries: z.number().optional(),
-  when: z.string().optional(),
+  when: z.string().regex(
+    /^[^{}]*(\$\{[^}]+\}[^{}]*)*\s*(>=|<=|>|<|===|!==|==|!=)\s*.+$|^\$\{[^}]+\}$/,
+    'when must be a template expression (${steps.id.result}) or comparison (${steps.id.result.field} > value)',
+  ).optional(),
   label: z.string().optional(),
 });
 

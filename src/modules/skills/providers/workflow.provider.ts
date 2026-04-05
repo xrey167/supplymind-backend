@@ -34,7 +34,7 @@ export class WorkflowSkillProvider implements SkillProvider {
         },
         providerType: 'builtin',
         priority: this.priority,
-        handler: async (args) => {
+        handler: async (args, context) => {
           try {
             const { workflow, input } = args as { workflow: WorkflowDefinition; input?: Record<string, unknown> };
             const dispatch = async (
@@ -43,9 +43,9 @@ export class WorkflowSkillProvider implements SkillProvider {
               text: string,
             ): Promise<string> => {
               const result = await dispatchSkill(skillId, { ...skillArgs, text }, {
-                callerId: 'workflow-engine',
-                workspaceId: 'default', // TODO: pass from context
-                callerRole: 'agent',
+                callerId: context?.callerId ?? 'workflow-engine',
+                workspaceId: context?.workspaceId ?? 'default',
+                callerRole: 'agent' as const,
               });
               if (!result.ok) throw new Error(result.error.message);
               return typeof result.value === 'string' ? result.value : JSON.stringify(result.value);

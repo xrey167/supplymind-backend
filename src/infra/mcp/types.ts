@@ -1,6 +1,6 @@
 export interface McpServerConfig {
   id: string;
-  workspaceId: string;
+  workspaceId: string | null;
   name: string;
   transport: 'stdio' | 'sse' | 'streamable-http';
   url?: string;

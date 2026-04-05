@@ -1,6 +1,7 @@
 import { sessionsRepo } from './sessions.repo';
 import { emitSessionCreated, emitSessionPaused, emitSessionResumed, emitSessionClosed } from './sessions.events';
 import type { Session, SessionMessage, AddMessageInput } from './sessions.types';
+import type { Message } from '../../infra/ai/types';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 
@@ -57,5 +58,36 @@ export const sessionsService = {
 
   async expireIdleSessions(maxIdleMs = DEFAULT_IDLE_TIMEOUT_MS): Promise<number> {
     return sessionsRepo.expireIdleSessions(maxIdleMs);
+  },
+
+  async getTranscript(
+    sessionId: string,
+    opts: { limit?: number; cursor?: string; includeCompacted?: boolean },
+  ): Promise<{ messages: SessionMessage[]; nextCursor: string | null; total: number }> {
+    const { messages, total } = await sessionsRepo.getMessagePage(sessionId, opts);
+    const limit = opts.limit ?? 50;
+    const nextCursor = messages.length === limit ? messages[messages.length - 1].id : null;
+    return { messages, nextCursor, total };
+  },
+
+  async buildContextMessages(sessionId: string): Promise<Message[]> {
+    // Single query: fetch all messages (compacted + active), then split in code
+    const allMessages = await sessionsRepo.getMessages(sessionId, { limit: 1000 });
+    const summaries: Message[] = [];
+    const active: Message[] = [];
+
+    for (const m of allMessages) {
+      if (m.isCompacted && m.role === 'system') {
+        summaries.push({ role: 'system', content: m.content });
+      } else if (!m.isCompacted) {
+        active.push({
+          role: m.role as 'user' | 'assistant' | 'system' | 'tool',
+          content: m.content,
+          ...(m.toolCallId ? { toolCallId: m.toolCallId } : {}),
+        });
+      }
+    }
+
+    return [...summaries, ...active];
   },
 };

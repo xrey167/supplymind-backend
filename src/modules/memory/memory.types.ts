@@ -58,3 +58,21 @@ export interface RecallInput {
   agentId?: string;
   limit?: number;
 }
+
+export interface RecallResult {
+  id: string;
+  workspaceId: string;
+  agentId?: string;
+  type: MemoryType;
+  title: string;
+  content: string;
+  confidence: number;
+  source: MemorySource;
+  metadata: Record<string, unknown>;
+  expiresAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  scope: 'workspace' | 'agent';
+  stale: boolean;
+  staleDays: number;
+}

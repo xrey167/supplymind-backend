@@ -6,6 +6,13 @@ import { contextService } from '../../../modules/context/context.service';
 import { taskManager } from '../task-manager';
 import { eventBus } from '../../../events/bus';
 import { toolRegistry } from '../../../modules/tools/tools.registry';
+import { taskRepo } from '../task-repo';
+
+// Mock taskRepo so DB calls don't block (no live DB in tests)
+const taskRepoCreateSpy = spyOn(taskRepo, 'create').mockResolvedValue(undefined as any);
+const taskRepoGetBlockersSpy = spyOn(taskRepo, 'getBlockers').mockResolvedValue([]);
+const taskRepoUpdateStatusSpy = spyOn(taskRepo, 'updateStatus').mockResolvedValue(undefined as any);
+const taskRepoLogToolCallSpy = spyOn(taskRepo, 'logToolCall').mockResolvedValue(undefined as any);
 
 // Mock createRuntime via spyOn so it's properly restored and doesn't bleed
 const mockRun = mock(() => Promise.resolve({ ok: true, value: { content: 'done', stopReason: 'end_turn' } }));
@@ -37,6 +44,10 @@ afterAll(() => {
   dispatchSpy.mockRestore();
   toolDefsSpy.mockRestore();
   contextSpy.mockRestore();
+  taskRepoCreateSpy.mockRestore();
+  taskRepoGetBlockersSpy.mockRestore();
+  taskRepoUpdateStatusSpy.mockRestore();
+  taskRepoLogToolCallSpy.mockRestore();
 });
 
 function baseConfig() {
@@ -749,6 +760,64 @@ describe('TaskManager', () => {
       // Messages from different iterations must have different roundIds
       const uniqueRoundIds = new Set(roundIds);
       expect(uniqueRoundIds.size).toBeGreaterThan(1);
+    });
+
+    test('TASK_ROUND_COMPLETED event includes tokenUsage with actual values from runtime', async () => {
+      const roundEvents: any[] = [];
+      eventBus.subscribe('task.round.completed', (e) => roundEvents.push(e.data));
+
+      mockRun.mockImplementation(async () => ({
+        ok: true,
+        value: {
+          content: 'calling tool',
+          stopReason: 'tool_use',
+          toolCalls: [{ id: 'tc-token-1', name: 'echo', args: {} }],
+          usage: { inputTokens: 150, outputTokens: 75 },
+        },
+      }));
+
+      // Second call ends the loop
+      let callCount = 0;
+      mockRun.mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            ok: true,
+            value: {
+              content: 'calling tool',
+              stopReason: 'tool_use',
+              toolCalls: [{ id: 'tc-token-1', name: 'echo', args: {} }],
+              usage: { inputTokens: 150, outputTokens: 75 },
+            },
+          };
+        }
+        return {
+          ok: true,
+          value: {
+            content: 'final',
+            stopReason: 'end_turn',
+            usage: { inputTokens: 50, outputTokens: 25 },
+          },
+        };
+      });
+
+      const task = await taskManager.send({
+        message: { role: 'user', parts: [{ kind: 'text' as const, text: 'token usage test' }] },
+        agentConfig: baseConfig(),
+        callerId: 'caller-1',
+      });
+
+      await flush(200);
+
+      expect(roundEvents.length).toBeGreaterThan(0);
+      const firstRound = roundEvents[0];
+      expect(firstRound.taskId).toBe(task.id);
+      expect(firstRound.tokenUsage).toBeDefined();
+      expect(firstRound.tokenUsage.input).toBe(150);
+      expect(firstRound.tokenUsage.output).toBe(75);
+      expect(firstRound.totalTokens).toBeDefined();
+      expect(firstRound.totalTokens.input).toBe(150);
+      expect(firstRound.totalTokens.output).toBe(75);
     });
 
     test('TASK_ROUND_COMPLETED event is emitted with correct taskId and iterationIndex', async () => {

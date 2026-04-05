@@ -1,0 +1,9 @@
+ALTER TABLE "a2a_tasks" ADD COLUMN "session_id" uuid;--> statement-breakpoint
+ALTER TABLE "a2a_tasks" ADD CONSTRAINT "a2a_tasks_agent_id_agent_configs_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agent_configs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "a2a_tasks" ADD CONSTRAINT "a2a_tasks_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "memory_proposals" ADD CONSTRAINT "memory_proposals_agent_id_agent_configs_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agent_configs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "memory_proposals" ADD CONSTRAINT "memory_proposals_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "orchestrations" ADD CONSTRAINT "orchestrations_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "session_messages" ADD CONSTRAINT "session_messages_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_agent_id_agent_configs_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agent_configs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "tool_call_logs" ADD CONSTRAINT "tool_call_logs_task_id_a2a_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."a2a_tasks"("id") ON DELETE cascade ON UPDATE no action;

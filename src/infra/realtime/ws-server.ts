@@ -26,10 +26,47 @@ class WsServer {
       });
     }
 
+    // Forward TASK_THINKING_DELTA to subscribed clients
+    eventBus.subscribe(Topics.TASK_THINKING_DELTA, (event) => {
+      const data = event.data as any;
+      this.broadcastToSubscribed(`task:${data.taskId}`, {
+        type: 'task:thinking_delta',
+        taskId: data.taskId,
+        thinking: data.thinking,
+      });
+    });
+
+    // Forward TASK_ROUND_COMPLETED with token usage to subscribed clients
+    eventBus.subscribe(Topics.TASK_ROUND_COMPLETED, (event) => {
+      const data = event.data as any;
+      this.broadcastToSubscribed(`task:${data.taskId}`, {
+        type: 'task:round_completed',
+        taskId: data.taskId,
+        roundId: data.roundId,
+        iterationIndex: data.iterationIndex,
+        toolCallCount: data.toolCallCount,
+        tokenUsage: data.tokenUsage,
+        totalTokens: data.totalTokens,
+      });
+    });
+
     // Subscribe to skill events
     eventBus.subscribe(Topics.SKILL_INVOKED, (event) => {
       this.broadcastToSubscribed('events:skill.*', {
         type: 'event', topic: Topics.SKILL_INVOKED, data: event.data, timestamp: new Date().toISOString(),
+      });
+    });
+
+    // Forward tool approval requests to workspace subscribers
+    eventBus.subscribe(Topics.TOOL_APPROVAL_REQUESTED, (event) => {
+      const data = event.data as { approvalId: string; taskId: string; toolName: string; args: unknown; workspaceId: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'tool:approval_required',
+        approvalId: data.approvalId,
+        taskId: data.taskId,
+        toolName: data.toolName,
+        args: data.args,
+        workspaceId: data.workspaceId,
       });
     });
 

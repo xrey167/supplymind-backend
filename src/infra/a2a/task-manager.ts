@@ -5,16 +5,19 @@ import * as skillsRegistryModule from '../../modules/skills/skills.registry';
 import * as skillsDispatch from '../../modules/skills/skills.dispatch';
 import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
-import type { Message, RunInput } from '../ai/types';
+import type { Message, RunInput, RunResult } from '../ai/types';
 import type { DispatchContext } from '../../modules/skills/skills.types';
 import type { A2ATask, TaskState, TaskSendParams, A2AMessage } from './types';
 import type { AgentConfig } from './coordinator-config';
 import { AbortError } from '../../core/errors';
 import { toolRegistry } from '../../modules/tools/tools.registry';
 import { contextService } from '../../modules/context/context.service';
+import { sessionsService } from '../../modules/sessions/sessions.service';
+import { sessionsRepo } from '../../modules/sessions/sessions.repo';
 import { taskRepo } from './task-repo';
 import { logger } from '../../config/logger';
 import { captureException } from '../observability/sentry';
+import { workspaceSettingsService } from '../../modules/settings/workspace-settings/workspace-settings.service';
 
 const MAX_TOOL_CALL_ITERATIONS = 10;
 
@@ -23,14 +26,35 @@ interface TaskRecord {
   agentId: string;
   workspaceId: string;
   controller: AbortController;
+  totalTokens: { input: number; output: number };
 }
+
+const TASK_EVICTION_MS = 5 * 60 * 1000; // evict completed tasks after 5 minutes
 
 class TaskManager {
   private tasks = new Map<string, TaskRecord>();
 
+  /** Schedule eviction of a terminal task from the in-memory map */
+  private scheduleEviction(taskId: string) {
+    setTimeout(() => { this.tasks.delete(taskId); }, TASK_EVICTION_MS);
+  }
+
   async send(params: TaskSendParams & { agentConfig: AgentConfig; callerId: string }): Promise<A2ATask> {
     const taskId = params.id ?? nanoid();
     const config = params.agentConfig;
+
+    // Guard: when a pre-created taskId is supplied (e.g. BullMQ retry), check if the task
+    // already reached a terminal state in DB and skip re-execution if so.
+    if (params.id) {
+      const existingTask = await taskRepo.findById(params.id).catch(() => null);
+      if (existingTask) {
+        const TERMINAL = new Set(['completed', 'failed', 'canceled']);
+        if (TERMINAL.has(existingTask.status.state)) {
+          logger.info({ taskId, state: existingTask.status.state }, 'Task already in terminal state — skipping re-execution');
+          return existingTask;
+        }
+      }
+    }
 
     const task: A2ATask = {
       id: taskId,
@@ -40,21 +64,52 @@ class TaskManager {
     };
 
     const controller = new AbortController();
-    const record: TaskRecord = { task, agentId: config.id, workspaceId: config.workspaceId, controller };
+    const record: TaskRecord = { task, agentId: config.id, workspaceId: config.workspaceId, controller, totalTokens: { input: 0, output: 0 } };
     this.tasks.set(taskId, record);
 
-    // Persist to DB (best-effort — don't fail the task if DB write fails)
-    taskRepo.create({
-      id: taskId,
-      workspaceId: config.workspaceId,
-      agentId: config.id,
-      status: 'submitted',
-      input: params.message ?? {},
-    }).catch((error: unknown) => {
-      logger.error({ taskId, error }, 'Failed to persist task to DB');
-    });
+    // Persist to DB — awaited so the row exists before getBlockers queries it
+    try {
+      await taskRepo.create({
+        id: taskId,
+        workspaceId: config.workspaceId,
+        agentId: config.id,
+        status: 'submitted',
+        input: params.message ?? {},
+        sessionId: params.sessionId,
+      });
+    } catch (error: unknown) {
+      logger.error({ taskId, error }, 'Failed to persist task to DB — aborting execution');
+      this.updateStatus(taskId, 'failed', 'Failed to persist task');
+      return task;
+    }
 
     eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'submitted', workspaceId: config.workspaceId });
+
+    // Check blockers — on timeout or error, leave as submitted (do not start)
+    let blockers: string[] = [];
+    try {
+      const blockersPromise = taskRepo.getBlockers(taskId);
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 500));
+      const result = await Promise.race([blockersPromise, timeoutPromise]);
+      if (result === null) {
+        // DB too slow — stay submitted, do not execute
+        logger.warn({ taskId }, 'Blocker check timed out — leaving task as submitted');
+        return task;
+      }
+      blockers = result;
+    } catch (err) {
+      logger.warn({ taskId, err }, 'Blocker check failed — leaving task as submitted');
+      return task;
+    }
+
+    if (blockers.length > 0) {
+      logger.info({ taskId, blockers }, 'Task has active blockers, not starting');
+      task.status = { state: 'submitted', message: `Blocked by tasks: ${blockers.join(', ')}` };
+      taskRepo.updateStatus(taskId, 'submitted').catch((error: unknown) => {
+        logger.error({ taskId, error }, 'Failed to update blocked task status in DB');
+      });
+      return task;
+    }
 
     // Run async -- don't block the response
     this.executeTask(taskId, params, config).catch((error) => {
@@ -105,19 +160,42 @@ class TaskManager {
 
       // Build initial messages
       const messages: Message[] = [];
+      let userMessageContent = '';
       if (params.message) {
-        const text = params.message.parts.filter(p => p.kind === 'text').map(p => (p as any).text).join('\n');
-        messages.push({ role: 'user', content: text });
+        userMessageContent = params.message.parts
+          .filter((p): p is { kind: 'text'; text: string } => p.kind === 'text')
+          .map(p => p.text)
+          .join('\n');
+        messages.push({ role: 'user', content: userMessageContent });
+      }
+
+      // Persist initial user message to session — awaited so the boundary capture
+      // in the first iteration sees this message rather than racing against it.
+      let initialMessageId: string | undefined;
+      if (params.sessionId && userMessageContent) {
+        const initialMsg = await sessionsService.addMessage(params.sessionId, {
+          role: 'user',
+          content: userMessageContent,
+        }).catch((err: unknown) => {
+          logger.error({ err, taskId }, 'Failed to persist initial message to session');
+          return null;
+        });
+        initialMessageId = initialMsg?.id;
       }
 
       const taggedHistory: TaggedMessage[] = [];
 
+      // Fetch permission mode once per task to avoid a DB round-trip on every tool call.
+      // If this throws, executeTask catches it and marks the task failed — fail-closed.
+      const permissionMode = await workspaceSettingsService.getToolPermissionMode(config.workspaceId);
+
       const dispatchCtx: DispatchContext = {
         callerId: config.id,
         workspaceId: config.workspaceId,
-        callerRole: 'agent',
+        callerRole: 'agent' as const,
         traceId: taskId,
         signal,
+        cachedPermissionMode: permissionMode,
       };
 
       // Tool calling loop
@@ -134,6 +212,20 @@ class TaskManager {
           messages.push(msg);
           taggedHistory.push({ message: msg, roundId, iterationIndex: i });
         };
+
+        // Capture the most-recent session message ID before this turn so we
+        // can use it as the compaction boundary if the context was compacted.
+        // On the first iteration use the already-awaited initial message to avoid
+        // an extra DB round-trip and eliminate any race with the persist above.
+        let preTurnLastMessageId: string | undefined;
+        if (params.sessionId) {
+          if (i === 0) {
+            preTurnLastMessageId = initialMessageId;
+          } else {
+            const latest = await sessionsRepo.getLatestMessage(params.sessionId).catch(() => null);
+            preTurnLastMessageId = latest?.id;
+          }
+        }
 
         // Prepare context: inject memories, snip old tool results, compact if needed
         const context = await contextService.prepare({
@@ -165,9 +257,43 @@ class TaskManager {
           signal,
         };
 
-        const result = await runtime.run(input);
-        if (!result.ok) {
-          this.updateStatus(taskId, 'failed', result.error.message);
+        let accumulatedContent = '';
+        const streamToolCalls: Array<{ id: string; name: string; args: unknown }> = [];
+        let streamUsage: { inputTokens: number; outputTokens: number } | undefined;
+        let streamStopReason: RunResult['stopReason'] = 'end_turn';
+        let streamError: string | null = null;
+
+        for await (const event of runtime.stream(input)) {
+          if (signal.aborted) break;
+          switch (event.type) {
+            case 'text_delta':
+              accumulatedContent += event.data.text;
+              eventBus.publish(Topics.TASK_TEXT_DELTA, { taskId, delta: event.data.text });
+              break;
+            case 'thinking_delta':
+              eventBus.publish(Topics.TASK_THINKING_DELTA, { taskId, thinking: event.data.thinking });
+              break;
+            case 'tool_call_end':
+              streamToolCalls.push({ id: event.data.id, name: event.data.name, args: event.data.args });
+              break;
+            case 'done': {
+              const { usage, stopReason: sr } = event.data;
+              if (usage) streamUsage = usage;
+              if (sr === 'tool_use' || sr === 'max_tokens' || sr === 'pause_turn') {
+                streamStopReason = sr;
+              } else if (sr) {
+                streamStopReason = 'end_turn';
+              }
+              break;
+            }
+            case 'error':
+              streamError = event.data.error;
+              break;
+          }
+        }
+
+        if (streamError) {
+          this.updateStatus(taskId, 'failed', streamError);
           return;
         }
 
@@ -178,7 +304,30 @@ class TaskManager {
           return;
         }
 
-        const runResult = result.value;
+        const runResult: RunResult = {
+          content: accumulatedContent,
+          toolCalls: streamToolCalls.length > 0 ? streamToolCalls : undefined,
+          usage: streamUsage,
+          stopReason: streamStopReason,
+        };
+
+        const usage = runResult.usage ?? { inputTokens: 0, outputTokens: 0 };
+        record.totalTokens.input += usage.inputTokens;
+        record.totalTokens.output += usage.outputTokens;
+
+        // Mark earlier session messages as compacted if context was compacted this turn
+        if (context.wasCompacted && params.sessionId && preTurnLastMessageId) {
+          sessionsRepo.markCompacted(params.sessionId, preTurnLastMessageId)
+            .catch((err: unknown) => logger.error({ err, taskId }, 'Failed to mark session messages as compacted'));
+        }
+
+        // Persist assistant response to session (fire-and-forget)
+        if (params.sessionId && runResult.content) {
+          sessionsService.addMessage(params.sessionId, {
+            role: 'assistant',
+            content: runResult.content,
+          }).catch((err: unknown) => logger.error({ err, taskId, roundId }, 'Failed to persist assistant message to session'));
+        }
 
         // If there are tool calls, execute them
         if (runResult.stopReason === 'tool_use' && runResult.toolCalls?.length) {
@@ -232,6 +381,8 @@ class TaskManager {
             roundId,
             iterationIndex: i,
             toolCallCount: runResult.toolCalls?.length ?? 0,
+            tokenUsage: { input: usage.inputTokens, output: usage.outputTokens },
+            totalTokens: { input: record.totalTokens.input, output: record.totalTokens.output },
           });
           continue; // Loop again with tool results
         }
@@ -244,6 +395,8 @@ class TaskManager {
             roundId,
             iterationIndex: i,
             toolCallCount: 0,
+            tokenUsage: { input: usage.inputTokens, output: usage.outputTokens },
+            totalTokens: { input: record.totalTokens.input, output: record.totalTokens.output },
           });
           continue;
         }
@@ -261,6 +414,10 @@ class TaskManager {
             roundId: t.roundId,
           }));
           currentRecord.task.status = { state: 'completed' };
+          currentRecord.task.metadata = {
+            ...currentRecord.task.metadata,
+            totalTokens: currentRecord.totalTokens,
+          };
         }
 
         taskRepo.updateStatus(taskId, 'completed', runResult.content, currentRecord?.task.artifacts).catch((error: unknown) => {
@@ -268,14 +425,16 @@ class TaskManager {
         });
         eventBus.publish(Topics.TASK_COMPLETED, { taskId, output: runResult.content });
         eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'completed', workspaceId: config.workspaceId });
+        this.scheduleEviction(taskId);
         return;
       }
 
       // Max iterations reached
       this.updateStatus(taskId, 'failed', 'Max tool call iterations reached');
     } finally {
-      // Schedule cleanup after callers have had time to read final state
-      setTimeout(() => this.tasks.delete(taskId), 60_000);
+      // No cleanup — in-memory record persists until server restart.
+      // DB is the source of truth for historical tasks.
+      // AbortController remains accessible for the task's lifetime in this process.
     }
   }
 
@@ -359,6 +518,30 @@ class TaskManager {
         logger.error({ taskId, state, error }, 'Failed to update task status in DB');
         captureException(error, { taskId, state });
       });
+      if (state === 'completed' || state === 'failed' || state === 'canceled') {
+        this.scheduleEviction(taskId);
+        this.tryUnblockDependents(taskId).catch((error: unknown) => {
+          logger.warn({ taskId, error }, 'Failed to check/unblock dependent tasks');
+        });
+      }
+    }
+  }
+
+  /**
+   * After a task reaches a terminal state, check if any tasks were blocked by it.
+   * For each dependent that has no remaining active blockers, emit an unblock event
+   * so the system can re-enqueue execution.
+   */
+  private async tryUnblockDependents(completedTaskId: string) {
+    const deps = await taskRepo.getDependencies(completedTaskId);
+    if (deps.blocks.length === 0) return;
+
+    for (const dependentId of deps.blocks) {
+      const remainingBlockers = await taskRepo.getBlockers(dependentId);
+      if (remainingBlockers.length > 0) continue;
+
+      logger.info({ taskId: dependentId, unblockedBy: completedTaskId }, 'All blockers resolved — task ready for execution');
+      eventBus.publish(Topics.TASK_UNBLOCKED, { taskId: dependentId, unblockedBy: completedTaskId });
     }
   }
 
@@ -381,6 +564,7 @@ class TaskManager {
     record.task.status = { state: 'canceled' };
     eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'canceled', workspaceId: record.workspaceId });
     eventBus.publish(Topics.TASK_CANCELED, { taskId, workspaceId: record.workspaceId });
+    this.scheduleEviction(taskId);
     return record.task;
   }
 

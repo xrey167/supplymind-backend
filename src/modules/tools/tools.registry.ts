@@ -148,11 +148,13 @@ class ToolRegistry {
   }
 
   private syncToSkillRegistry(tool: RegisteredTool): void {
-    const providerType = tool.source === 'db' ? 'inline'
-      : tool.source === 'plugin' ? 'plugin'
+    // Preserve actual providerType from metadata if available (DB tools carry their real type),
+    // otherwise infer from source
+    const providerType = (tool.metadata?.providerType as Skill['providerType']) ??
+      (tool.source === 'plugin' ? 'plugin'
       : tool.source === 'mcp' ? 'mcp'
       : tool.source === 'builtin' ? 'builtin'
-      : 'inline';
+      : 'inline');
 
     const skill: Skill = {
       id: tool.id,
