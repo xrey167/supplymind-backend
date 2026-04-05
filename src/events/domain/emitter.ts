@@ -4,11 +4,10 @@ import { materialStrategy } from './strategies/material.strategy';
 import { orderStrategy } from './strategies/order.strategy';
 import { logisticsStrategy } from './strategies/logistics.strategy';
 import { forecastStrategy } from './strategies/forecast.strategy';
+import { eventBus } from '../bus';
+import { logger } from '../../config/logger';
 
-// TODO: Wire to EventBus (custom bus with wildcard topics, dead letters, replay)
-// See src/events/bus.ts for the implementation
-
-const strategyMap: Record<EntityType, DomainEventStrategy<any>> = {
+const strategyMap: Record<string, DomainEventStrategy<any>> = {
   supplier: supplierStrategy,
   material: materialStrategy,
   order: orderStrategy,
@@ -17,46 +16,69 @@ const strategyMap: Record<EntityType, DomainEventStrategy<any>> = {
 };
 
 /**
- * Evaluate entity data through its domain event strategy and emit any resulting events.
+ * Evaluate entity data through its domain event strategy and publish resulting events.
  *
- * TODO: Wire to eventBus — emit each DomainEvent to its topic
- * TODO: Persist events to audit log / event store
- * TODO: Support batch evaluation (multiple entities at once)
- * TODO: Add dead letter handling for failed event emissions
- * TODO: Add rate limiting to prevent event storms
- * TODO: Integrate with agent auto-triage (critical events → spawn investigation agent)
+ * Each event is published to the EventBus on its topic. Errors are logged but don't
+ * propagate — domain event emission is non-blocking by design.
  */
 export function emitDomainEvents(
-  entityType: EntityType,
+  entityType: EntityType | string,
   data: unknown,
   context: StrategyContext,
 ): DomainEvent[] {
   const strategy = strategyMap[entityType];
   if (!strategy) {
-    // TODO: Log warning for unknown entity type
+    logger.warn({ entityType }, 'No domain event strategy registered for entity type');
     return [];
   }
 
   const events = strategy.evaluate(data, context);
 
-  // TODO: Publish each event to eventBus
-  // for (const event of events) {
-  //   eventBus.emit(event.topic, event);
-  // }
+  // Publish each event to EventBus (fire-and-forget)
+  for (const event of events) {
+    eventBus.publish(event.topic, event).catch((err) => {
+      logger.error({ eventId: event.id, topic: event.topic, error: err }, 'Failed to publish domain event');
+    });
+  }
+
+  if (events.length > 0) {
+    logger.debug({ entityType, eventCount: events.length, workspaceId: context.workspaceId }, 'Domain events emitted');
+  }
 
   return events;
 }
 
 /**
+ * Batch evaluate multiple entities and emit their domain events.
+ */
+export function emitDomainEventsBatch(
+  items: Array<{ entityType: EntityType | string; data: unknown }>,
+  context: StrategyContext,
+): DomainEvent[] {
+  const all: DomainEvent[] = [];
+  for (const item of items) {
+    all.push(...emitDomainEvents(item.entityType, item.data, context));
+  }
+  return all;
+}
+
+/**
  * Register a custom strategy for a new entity type (plugin extensibility).
  *
- * TODO: Implement — allows plugins/modules to add domain event strategies
- * for custom entity types beyond the built-in supply chain ones.
+ * Customers call this to add domain event strategies for custom entity types
+ * beyond the built-in supply chain ones.
  */
 export function registerStrategy(
   entityType: string,
   strategy: DomainEventStrategy<any>,
 ): void {
-  // TODO: Validate entityType, check for conflicts, register
-  (strategyMap as any)[entityType] = strategy;
+  if (strategyMap[entityType]) {
+    logger.warn({ entityType }, 'Overwriting existing domain event strategy');
+  }
+  strategyMap[entityType] = strategy;
+}
+
+/** List all registered entity types (for admin/debug). */
+export function listStrategies(): string[] {
+  return Object.keys(strategyMap);
 }

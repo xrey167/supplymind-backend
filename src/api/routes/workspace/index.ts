@@ -1,6 +1,8 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middlewares/auth';
 import { workspaceMiddleware } from '../../middlewares/workspace';
+import { auditMiddleware } from '../../middlewares/audit';
+import { rateLimitMiddleware } from '../../middlewares/rate-limit';
 import { AgentsRoutes } from '../../../modules/agents';
 import { ToolsRoutes } from '../../../modules/tools';
 import { SkillsRoutes } from '../../../modules/skills';
@@ -13,12 +15,15 @@ import { orchestrationRoutes } from '../../../modules/orchestration/orchestratio
 import { agentRegistryRoutes } from '../../../modules/agent-registry/agent-registry.routes';
 import { mcpRoutes } from '../../../modules/mcp/mcp.routes';
 import { workspaceSettingsRoutes } from '../../../modules/settings/workspace-settings/workspace-settings.routes';
+import { ApiKeysRoutes } from '../../../modules/api-keys';
 
 const workspaceRoutes = new OpenAPIHono();
 
-// All workspace routes require auth + workspace context
+// All workspace routes require auth + workspace context + audit + rate limiting
 workspaceRoutes.use('*', authMiddleware);
 workspaceRoutes.use('*', workspaceMiddleware);
+workspaceRoutes.use('*', auditMiddleware);
+workspaceRoutes.use('*', rateLimitMiddleware);
 
 // Mount module routes
 workspaceRoutes.route('/agents', AgentsRoutes);
@@ -33,5 +38,6 @@ workspaceRoutes.route('/orchestrations', orchestrationRoutes);
 workspaceRoutes.route('/agent-registry', agentRegistryRoutes);
 workspaceRoutes.route('/mcp', mcpRoutes);
 workspaceRoutes.route('/settings', workspaceSettingsRoutes);
+workspaceRoutes.route('/api-keys', ApiKeysRoutes);
 
 export { workspaceRoutes };
