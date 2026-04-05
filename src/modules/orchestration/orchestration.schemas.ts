@@ -21,6 +21,8 @@ const stepSchema = z.object({
   label: z.string().optional(),
 });
 
+export const orchestrationIdParamSchema = z.object({ id: z.string().uuid() });
+
 export const createOrchestrationSchema = z.object({
   name: z.string().optional(),
   definition: z.object({

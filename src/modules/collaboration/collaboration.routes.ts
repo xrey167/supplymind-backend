@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { collaborate } from './collaboration.engine';
 import { dispatchSkill } from '../skills/skills.dispatch';
 import type { CollabDispatchFn } from './collaboration.types';

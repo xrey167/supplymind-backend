@@ -14,6 +14,17 @@ export const recallSchema = z.object({
   limit: z.number().int().min(1).max(50).optional(),
 });
 
+export const memoryIdParamSchema = z.object({ id: z.string().uuid() });
+export const proposalIdParamSchema = z.object({ id: z.string().uuid() });
+
+export const memoryListQuerySchema = z.object({
+  agentId: z.string().uuid().optional(),
+});
+
+export const rejectProposalSchema = z.object({
+  reason: z.string().optional(),
+});
+
 export const proposeMemorySchema = z.object({
   type: z.enum(['domain', 'feedback', 'pattern', 'reference']),
   title: z.string().min(1),
