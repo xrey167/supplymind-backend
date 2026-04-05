@@ -166,7 +166,9 @@ describe('memoryService', () => {
       expect(hybridSearchMock).toHaveBeenCalledTimes(1);
       expect(hybridSearchMock).toHaveBeenCalledWith('supply chain', 'ws-1', undefined, 5);
       expect(results).toHaveLength(1);
-      expect(results[0]).toEqual(mockMemory);
+      // recall wraps results with toRecallResult — check core identity fields
+      expect(results[0].id).toBe(mockMemory.id);
+      expect(results[0].content).toBe(mockMemory.content);
     });
 
     test('should fall back to text search when hybrid search throws', async () => {
@@ -176,7 +178,8 @@ describe('memoryService', () => {
 
       expect(repoMocks.search).toHaveBeenCalledTimes(1);
       expect(repoMocks.search).toHaveBeenCalledWith('supply chain', 'ws-1', undefined, 5);
-      expect(results).toEqual([mockMemory]);
+      expect(results).toHaveLength(1);
+      expect(results[0].id).toBe(mockMemory.id);
     });
 
     test('should fall back to text search when hybrid search returns empty results', async () => {
@@ -215,6 +218,65 @@ describe('memoryService', () => {
       await memoryService.recall({ query: 'test', workspaceId: 'ws-1', agentId: 'agent-1', limit: 3 });
 
       expect(repoMocks.search).toHaveBeenCalledWith('test', 'ws-1', 'agent-1', 3);
+    });
+
+    // ---- Staleness assertions ----
+
+    test('memory 31+ days old → stale: true', async () => {
+      const oldDate = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+      const staleMemory: typeof mockMemory = { ...mockMemory, id: 'mem-stale', updatedAt: oldDate };
+      hybridSearchMock.mockImplementation(async () => [{ id: 'mem-stale', score: 0.9 }]);
+      repoMocks.get.mockImplementation(async () => staleMemory);
+
+      const results = await memoryService.recall({ query: 'stale', workspaceId: 'ws-1' });
+
+      expect(results[0].stale).toBe(true);
+      expect(results[0].staleDays).toBeGreaterThanOrEqual(31);
+    });
+
+    test('memory updated today → stale: false, staleDays === 0', async () => {
+      const freshMemory: typeof mockMemory = { ...mockMemory, id: 'mem-fresh', updatedAt: new Date() };
+      hybridSearchMock.mockImplementation(async () => [{ id: 'mem-fresh', score: 0.9 }]);
+      repoMocks.get.mockImplementation(async () => freshMemory);
+
+      const results = await memoryService.recall({ query: 'fresh', workspaceId: 'ws-1' });
+
+      expect(results[0].stale).toBe(false);
+      expect(results[0].staleDays).toBe(0);
+    });
+
+    test('memory exactly 30 days old → stale: false (threshold is > 30)', async () => {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const borderMemory: typeof mockMemory = { ...mockMemory, id: 'mem-30', updatedAt: thirtyDaysAgo };
+      hybridSearchMock.mockImplementation(async () => [{ id: 'mem-30', score: 0.9 }]);
+      repoMocks.get.mockImplementation(async () => borderMemory);
+
+      const results = await memoryService.recall({ query: 'border', workspaceId: 'ws-1' });
+
+      expect(results[0].stale).toBe(false);
+      expect(results[0].staleDays).toBe(30);
+    });
+
+    test('scope is "agent" when agentId set, "workspace" when not', async () => {
+      // memory with agentId
+      const agentMemory: typeof mockMemory = { ...mockMemory, id: 'mem-agent', agentId: 'agent-42', updatedAt: new Date() };
+      // memory without agentId
+      const workspaceMemory: typeof mockMemory = { ...mockMemory, id: 'mem-ws', agentId: undefined as unknown as string, updatedAt: new Date() };
+
+      hybridSearchMock.mockImplementation(async () => [
+        { id: 'mem-agent', score: 0.9 },
+        { id: 'mem-ws', score: 0.8 },
+      ]);
+      repoMocks.get.mockImplementation(async (id: string) =>
+        id === 'mem-agent' ? agentMemory : workspaceMemory,
+      );
+
+      const results = await memoryService.recall({ query: 'scope', workspaceId: 'ws-1' });
+
+      const agentResult = results.find((r) => r.id === 'mem-agent');
+      const wsResult = results.find((r) => r.id === 'mem-ws');
+      expect(agentResult?.scope).toBe('agent');
+      expect(wsResult?.scope).toBe('workspace');
     });
   });
 
