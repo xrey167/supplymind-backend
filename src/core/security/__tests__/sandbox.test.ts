@@ -106,6 +106,62 @@ describe('runInSandbox', () => {
     }
   });
 
+  test('should block fetch when allowNetwork is false', async () => {
+    const result = await runInSandbox({
+      code: 'try { await fetch("http://example.com"); return "fetched"; } catch (e) { return e.message; }',
+      args: {},
+      policy: { ...defaultPolicy, allowNetwork: false },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.value).toContain('Network access is disabled');
+    }
+  });
+
+  test('should block Bun.write outside allowedPaths', async () => {
+    const tmpDir = require('os').tmpdir().replace(/\\/g, '/');
+    const result = await runInSandbox({
+      code: `try { await Bun.write("${tmpDir}/sandbox-test-blocked.txt", "data"); return "written"; } catch (e) { return e.message; }`,
+      args: {},
+      policy: { ...defaultPolicy, allowedPaths: ['/nonexistent-dir'], deniedPaths: [] },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.value).toContain('not in sandbox allowlist');
+    }
+  });
+
+  test('should block Bun.write to deniedPaths', async () => {
+    const tmpDir = require('os').tmpdir().replace(/\\/g, '/');
+    const result = await runInSandbox({
+      code: `try { await Bun.write("${tmpDir}/sandbox-test-denied.txt", "data"); return "written"; } catch (e) { return e.message; }`,
+      args: {},
+      policy: { ...defaultPolicy, allowedPaths: [], deniedPaths: [tmpDir] },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.value).toContain('blocked by sandbox policy');
+    }
+  });
+
+  test('should allow fetch when allowNetwork is true', async () => {
+    // Just verify fetch isn't blocked — the actual fetch may fail due to DNS, but shouldn't throw sandbox error
+    const result = await runInSandbox({
+      code: 'try { await fetch("http://0.0.0.0:1"); return "attempted"; } catch (e) { return e.message; }',
+      args: {},
+      policy: { ...defaultPolicy, allowNetwork: true },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // Should NOT contain the sandbox policy message
+      expect(String(result.value.value)).not.toContain('Network access is disabled');
+    }
+  });
+
   test('should handle syntax errors in code', async () => {
     const result = await runInSandbox({
       code: 'return {{{;',

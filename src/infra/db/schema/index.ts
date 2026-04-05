@@ -222,7 +222,7 @@ export const apiKeys = pgTable('api_keys', {
 // Registered A2A agents (persistent registry)
 export const registeredAgents = pgTable('registered_agents', {
   id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: text('workspace_id').notNull(),
+  workspaceId: uuid('workspace_id').notNull(),
   url: text('url').notNull(),
   agentCard: jsonb('agent_card').notNull(),
   apiKeyHash: text('api_key_hash'),

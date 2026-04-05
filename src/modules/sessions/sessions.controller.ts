@@ -5,7 +5,7 @@ import { transcriptQuerySchema } from './sessions.schemas';
 export const sessionsController = {
   async create(c: Context) {
     const body = await c.req.json();
-    const workspaceId = c.req.param('workspaceId') ?? 'default';
+    const workspaceId = (c.get('workspaceId') as string | undefined) ?? c.req.param('workspaceId');
     const session = await sessionsService.create({ workspaceId, ...body });
     return c.json(session, 201);
   },

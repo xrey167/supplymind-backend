@@ -34,8 +34,6 @@ export class McpService {
 
   /**
    * Called at bootstrap — load global (workspaceId IS NULL) MCP servers.
-   * With the current schema (workspaceId notNull) this will always be a no-op,
-   * but is kept for forward compatibility.
    */
   async loadGlobalServers(): Promise<void> {
     const configs = await mcpRepo.findGlobal();

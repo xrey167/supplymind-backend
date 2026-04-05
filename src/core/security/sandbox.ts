@@ -19,6 +19,61 @@ export interface SandboxRunResult {
   durationMs: number;
 }
 
+function buildRunnerScript(policy: SandboxPolicy): string {
+  const networkGuard = !policy.allowNetwork ? `
+// Block network access
+const blocked = () => { throw new Error('Network access is disabled by sandbox policy'); };
+globalThis.fetch = blocked;
+globalThis.XMLHttpRequest = blocked;
+globalThis.WebSocket = blocked;
+` : '';
+
+  const allowedPaths = JSON.stringify(policy.allowedPaths ?? []);
+  const deniedPaths = JSON.stringify(policy.deniedPaths ?? []);
+  const fsGuard = `
+// Filesystem access control
+const __allowedPaths = ${allowedPaths};
+const __deniedPaths = ${deniedPaths};
+const __path = require('path');
+
+function __checkPath(p) {
+  const resolved = __path.resolve(p);
+  for (const denied of __deniedPaths) {
+    if (resolved.startsWith(denied)) throw new Error('Access denied: path blocked by sandbox policy: ' + p);
+  }
+  if (__allowedPaths.length > 0) {
+    const allowed = __allowedPaths.some(a => resolved.startsWith(a));
+    if (!allowed) throw new Error('Access denied: path not in sandbox allowlist: ' + p);
+  }
+}
+
+// Wrap Bun.file to enforce path restrictions
+const __origBunFile = Bun.file.bind(Bun);
+Bun.file = (p, ...rest) => { __checkPath(String(p)); return __origBunFile(p, ...rest); };
+
+// Wrap Bun.write to enforce path restrictions
+const __origBunWrite = Bun.write.bind(Bun);
+Bun.write = (p, ...rest) => {
+  if (typeof p === 'string') __checkPath(p);
+  return __origBunWrite(p, ...rest);
+};
+`;
+
+  return `
+${networkGuard}
+${fsGuard}
+const payload = JSON.parse(process.env.__SANDBOX_PAYLOAD);
+try {
+  const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+  const fn = new AsyncFunction('args', payload.code);
+  const result = await fn(payload.args);
+  process.stdout.write(JSON.stringify({ value: result ?? null }) + '\\n');
+} catch (e) {
+  process.stdout.write(JSON.stringify({ error: e.message ?? String(e) }) + '\\n');
+}
+`;
+}
+
 /**
  * Execute admin-defined inline tool code in an isolated Bun subprocess.
  *
@@ -49,17 +104,7 @@ export async function runInSandbox(input: SandboxRunInput): Promise<Result<Sandb
     // nosec: intentional dynamic code execution in isolated subprocess
     // Inline tools are admin-defined (RBAC-gated). The subprocess runs with
     // a stripped environment — no DB credentials, API keys, or parent memory access.
-    const scriptContent = `
-const payload = JSON.parse(process.env.__SANDBOX_PAYLOAD);
-try {
-  const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-  const fn = new AsyncFunction('args', payload.code);
-  const result = await fn(payload.args);
-  process.stdout.write(JSON.stringify({ value: result ?? null }) + '\\n');
-} catch (e) {
-  process.stdout.write(JSON.stringify({ error: e.message ?? String(e) }) + '\\n');
-}
-`;
+    const scriptContent = buildRunnerScript(policy);
     await Bun.write(scriptPath, scriptContent);
 
     const proc = Bun.spawn({
@@ -122,6 +167,10 @@ try {
   } finally {
     clearTimeout(timeout);
     // Clean up temp file
-    try { await Bun.write(scriptPath, ''); await import('fs/promises').then(fs => fs.unlink(scriptPath)); } catch {}
+    try {
+      await import('fs/promises').then(fs => fs.unlink(scriptPath));
+    } catch (cleanupErr) {
+      logger.debug({ scriptPath, error: cleanupErr }, 'Failed to clean up sandbox temp file');
+    }
   }
 }
