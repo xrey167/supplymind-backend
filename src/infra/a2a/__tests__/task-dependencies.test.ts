@@ -1,124 +1,107 @@
-import { describe, test, expect, beforeEach, spyOn, afterAll } from 'bun:test';
-import { taskRepo } from '../task-repo';
+import { describe, test, expect } from 'bun:test';
 
-// Spy on taskRepo methods. We set fast-returning default implementations so the
-// spies don't cause postgres connection hangs in other test files that share the
-// same module instance (e.g. task-manager.test.ts).
+/**
+ * Tests the cycle detection algorithm used by TasksService.addDependency().
+ * We replicate the BFS logic here to test it in isolation without triggering
+ * the full import chain (which pulls in BullMQ and requires Redis).
+ */
 
-const addDependencySpy = spyOn(taskRepo, 'addDependency').mockResolvedValue(undefined);
-const removeDependencySpy = spyOn(taskRepo, 'removeDependency').mockResolvedValue(undefined);
-const getDependenciesSpy = spyOn(taskRepo, 'getDependencies').mockResolvedValue({ blockedBy: [], blocks: [] });
-const getBlockersSpy = spyOn(taskRepo, 'getBlockers').mockResolvedValue([]);
+function wouldCreateCycle(
+  taskId: string,
+  dependsOnTaskId: string,
+  existingEdges: { taskId: string; dependsOnTaskId: string }[],
+): boolean {
+  const adjList = new Map<string, string[]>();
+  for (const edge of existingEdges) {
+    const deps = adjList.get(edge.taskId) ?? [];
+    deps.push(edge.dependsOnTaskId);
+    adjList.set(edge.taskId, deps);
+  }
+  const proposedDeps = adjList.get(taskId) ?? [];
+  proposedDeps.push(dependsOnTaskId);
+  adjList.set(taskId, proposedDeps);
 
-afterAll(() => {
-  addDependencySpy.mockRestore();
-  removeDependencySpy.mockRestore();
-  getDependenciesSpy.mockRestore();
-  getBlockersSpy.mockRestore();
-});
+  const visited = new Set<string>();
+  const queue: string[] = [dependsOnTaskId];
 
-describe('taskRepo.addDependency', () => {
-  beforeEach(() => {
-    addDependencySpy.mockClear();
-    addDependencySpy.mockResolvedValue(undefined);
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (current === taskId) return true;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    for (const dep of adjList.get(current) ?? []) {
+      if (!visited.has(dep)) queue.push(dep);
+    }
+  }
+  return false;
+}
+
+describe('cycle detection (BFS algorithm from TasksService.addDependency)', () => {
+  test('no cycle: adding first edge', () => {
+    expect(wouldCreateCycle('A', 'B', [])).toBe(false);
   });
 
-  test('inserts a dependency row (resolved without error)', async () => {
-    await taskRepo.addDependency('task-a', 'task-b');
-    expect(addDependencySpy).toHaveBeenCalledTimes(1);
-    expect(addDependencySpy).toHaveBeenCalledWith('task-a', 'task-b');
+  test('no cycle: extending a chain (A→B, adding B→C)', () => {
+    expect(wouldCreateCycle('B', 'C', [
+      { taskId: 'A', dependsOnTaskId: 'B' },
+    ])).toBe(false);
   });
 
-  test('can be called with any task ID pair', async () => {
-    await taskRepo.addDependency('task-x', 'task-y');
-    expect(addDependencySpy).toHaveBeenCalledWith('task-x', 'task-y');
-  });
-});
-
-describe('taskRepo.removeDependency', () => {
-  beforeEach(() => {
-    removeDependencySpy.mockClear();
-    removeDependencySpy.mockResolvedValue(undefined);
+  test('detects direct cycle (A→B exists, adding B→A)', () => {
+    expect(wouldCreateCycle('B', 'A', [
+      { taskId: 'A', dependsOnTaskId: 'B' },
+    ])).toBe(true);
   });
 
-  test('removes the matching dependency row (resolved without error)', async () => {
-    await taskRepo.removeDependency('task-a', 'task-b');
-    expect(removeDependencySpy).toHaveBeenCalledTimes(1);
-    expect(removeDependencySpy).toHaveBeenCalledWith('task-a', 'task-b');
-  });
-});
-
-describe('taskRepo.getDependencies', () => {
-  beforeEach(() => {
-    getDependenciesSpy.mockClear();
+  test('detects indirect cycle (A→B→C exists, adding C→A)', () => {
+    expect(wouldCreateCycle('C', 'A', [
+      { taskId: 'A', dependsOnTaskId: 'B' },
+      { taskId: 'B', dependsOnTaskId: 'C' },
+    ])).toBe(true);
   });
 
-  test('returns empty blockedBy and blocks when no dependencies exist', async () => {
-    getDependenciesSpy.mockResolvedValue({ blockedBy: [], blocks: [] });
-    const result = await taskRepo.getDependencies('task-x');
-    expect(result.blockedBy).toEqual([]);
-    expect(result.blocks).toEqual([]);
+  test('detects self-cycle (A→A)', () => {
+    expect(wouldCreateCycle('A', 'A', [])).toBe(true);
   });
 
-  test('returns correct blockedBy array (tasks that must complete first)', async () => {
-    getDependenciesSpy.mockResolvedValue({
-      blockedBy: ['task-dep-1', 'task-dep-2'],
-      blocks: [],
-    });
-    const result = await taskRepo.getDependencies('task-x');
-    expect(result.blockedBy).toEqual(['task-dep-1', 'task-dep-2']);
+  test('no cycle: parallel deps (A→C exists, adding B→C)', () => {
+    expect(wouldCreateCycle('B', 'C', [
+      { taskId: 'A', dependsOnTaskId: 'C' },
+    ])).toBe(false);
   });
 
-  test('returns correct blocks array (tasks that cannot run until this one completes)', async () => {
-    getDependenciesSpy.mockResolvedValue({
-      blockedBy: [],
-      blocks: ['task-downstream'],
-    });
-    const result = await taskRepo.getDependencies('task-x');
-    expect(result.blocks).toEqual(['task-downstream']);
+  test('no cycle: diamond (A→B, A→C, B→D, adding C→D)', () => {
+    expect(wouldCreateCycle('C', 'D', [
+      { taskId: 'A', dependsOnTaskId: 'B' },
+      { taskId: 'A', dependsOnTaskId: 'C' },
+      { taskId: 'B', dependsOnTaskId: 'D' },
+    ])).toBe(false);
   });
 
-  test('returns both blockedBy and blocks when both exist', async () => {
-    getDependenciesSpy.mockResolvedValue({
-      blockedBy: ['task-dep-1', 'task-dep-2'],
-      blocks: ['task-downstream'],
-    });
-    const result = await taskRepo.getDependencies('task-x');
-    expect(result.blockedBy).toHaveLength(2);
-    expect(result.blocks).toHaveLength(1);
-  });
-});
-
-describe('taskRepo.getBlockers', () => {
-  beforeEach(() => {
-    getBlockersSpy.mockClear();
+  test('detects long cycle (A→B→C→D→E, adding E→A)', () => {
+    expect(wouldCreateCycle('E', 'A', [
+      { taskId: 'A', dependsOnTaskId: 'B' },
+      { taskId: 'B', dependsOnTaskId: 'C' },
+      { taskId: 'C', dependsOnTaskId: 'D' },
+      { taskId: 'D', dependsOnTaskId: 'E' },
+    ])).toBe(true);
   });
 
-  test('returns empty array when task has no dependencies', async () => {
-    getBlockersSpy.mockResolvedValue([]);
-    const result = await taskRepo.getBlockers('task-a');
-    expect(result).toEqual([]);
+  test('no cycle in disconnected graph', () => {
+    expect(wouldCreateCycle('X', 'Y', [
+      { taskId: 'A', dependsOnTaskId: 'B' },
+      { taskId: 'C', dependsOnTaskId: 'D' },
+    ])).toBe(false);
   });
 
-  test('returns only non-terminal blocker task IDs', async () => {
-    // getBlockers filters out terminal states (completed, failed, canceled) internally.
-    // This test verifies the contract: only non-terminal task IDs are returned.
-    getBlockersSpy.mockResolvedValue(['task-b']); // task-c (completed) and task-d (failed) excluded
-    const result = await taskRepo.getBlockers('task-a');
-    expect(result).toEqual(['task-b']);
-  });
-
-  test('returns empty array when all dependencies are in terminal states', async () => {
-    getBlockersSpy.mockResolvedValue([]);
-    const result = await taskRepo.getBlockers('task-a');
-    expect(result).toEqual([]);
-  });
-
-  test('returns all non-terminal dep IDs when none are done', async () => {
-    getBlockersSpy.mockResolvedValue(['task-b', 'task-c']);
-    const result = await taskRepo.getBlockers('task-a');
-    expect(result).toHaveLength(2);
-    expect(result).toContain('task-b');
-    expect(result).toContain('task-c');
+  test('detects cycle through branching paths', () => {
+    // A→B, A→C, B→D, C→D, D→E — adding E→A creates cycle via both branches
+    expect(wouldCreateCycle('E', 'A', [
+      { taskId: 'A', dependsOnTaskId: 'B' },
+      { taskId: 'A', dependsOnTaskId: 'C' },
+      { taskId: 'B', dependsOnTaskId: 'D' },
+      { taskId: 'C', dependsOnTaskId: 'D' },
+      { taskId: 'D', dependsOnTaskId: 'E' },
+    ])).toBe(true);
   });
 });
