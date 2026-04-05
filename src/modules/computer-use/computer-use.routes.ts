@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { computerUseService } from './computer-use.service';
 import { createSessionSchema, runTaskSchema } from './computer-use.schemas';
+import { featureFlagsService } from '../feature-flags/feature-flags.service';
 
 export const computerUseRoutes = new OpenAPIHono();
 
@@ -14,12 +15,15 @@ const createSessionRoute = createRoute({
   request: { body: { content: { 'application/json': { schema: createSessionSchema } } } },
   responses: {
     201: { content: { 'application/json': { schema: z.object({ sessionId: z.string(), viewportWidth: z.number(), viewportHeight: z.number(), createdAt: z.string() }) } }, description: 'Session created' },
+    403: { content: { 'application/json': { schema: z.object({ error: z.string() }) } }, description: 'Feature not enabled' },
     500: { content: { 'application/json': { schema: z.object({ error: z.string() }) } }, description: 'Error' },
   },
 });
 
 computerUseRoutes.openapi(createSessionRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
+  const enabled = await featureFlagsService.isEnabled(workspaceId, 'computer-use.enabled');
+  if (!enabled) return c.json({ error: 'Computer use is not enabled for this workspace' }, 403);
   const body = c.req.valid('json');
   const result = await computerUseService.createSession(workspaceId, body);
   if (!result.ok) return c.json({ error: result.error.message }, 500);

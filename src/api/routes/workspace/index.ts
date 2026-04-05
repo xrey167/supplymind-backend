@@ -16,6 +16,8 @@ import { agentRegistryRoutes } from '../../../modules/agent-registry/agent-regis
 import { mcpRoutes } from '../../../modules/mcp/mcp.routes';
 import { workspaceSettingsRoutes } from '../../../modules/settings/workspace-settings/workspace-settings.routes';
 import { ApiKeysRoutes } from '../../../modules/api-keys';
+import { usageRoutes } from '../../../modules/usage/usage.routes';
+import { FeatureFlagsRoutes } from '../../../modules/feature-flags/feature-flags.routes';
 
 const workspaceRoutes = new OpenAPIHono();
 
@@ -39,5 +41,7 @@ workspaceRoutes.route('/agent-registry', agentRegistryRoutes);
 workspaceRoutes.route('/mcp', mcpRoutes);
 workspaceRoutes.route('/settings', workspaceSettingsRoutes);
 workspaceRoutes.route('/api-keys', ApiKeysRoutes);
+workspaceRoutes.route('/usage', usageRoutes);
+workspaceRoutes.route('/feature-flags', FeatureFlagsRoutes);
 
 export { workspaceRoutes };

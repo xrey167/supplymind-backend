@@ -1,4 +1,5 @@
 import { ok, err } from '../../core/result';
+import { usageService } from '../usage/usage.service';
 import { AppError } from '../../core/errors';
 import { logger } from '../../config/logger';
 import { sessionManager } from './computer-use.session';
@@ -90,6 +91,15 @@ export const computerUseService = {
       });
 
       if (!result.ok) return err(result.error);
+
+      if (result.value.usage) {
+        usageService.record({
+          workspaceId,
+          model: input.model,
+          inputTokens: result.value.usage.inputTokens,
+          outputTokens: result.value.usage.outputTokens,
+        }).catch((recordErr: unknown) => logger.error({ sessionId, err: recordErr }, 'Failed to record computer-use usage'));
+      }
 
       const { content, toolCalls, stopReason } = result.value;
 
