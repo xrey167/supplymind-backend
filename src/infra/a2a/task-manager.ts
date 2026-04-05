@@ -43,6 +43,19 @@ class TaskManager {
     const taskId = params.id ?? nanoid();
     const config = params.agentConfig;
 
+    // Guard: when a pre-created taskId is supplied (e.g. BullMQ retry), check if the task
+    // already reached a terminal state in DB and skip re-execution if so.
+    if (params.id) {
+      const existingTask = await taskRepo.findById(params.id).catch(() => null);
+      if (existingTask) {
+        const TERMINAL = new Set(['completed', 'failed', 'canceled']);
+        if (TERMINAL.has(existingTask.status.state)) {
+          logger.info({ taskId, state: existingTask.status.state }, 'Task already in terminal state — skipping re-execution');
+          return existingTask;
+        }
+      }
+    }
+
     const task: A2ATask = {
       id: taskId,
       status: { state: 'submitted' },

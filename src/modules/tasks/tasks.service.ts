@@ -9,6 +9,8 @@ import { toAgentConfig } from '../agents/agents.mapper';
 import { enqueueAgentRun } from '../../infra/queue/bullmq';
 import type { A2AMessage } from '../../infra/a2a/types';
 import type { A2ATask } from './tasks.types';
+import { db } from '../../infra/db/client';
+import { taskDependencies } from '../../infra/db/schema';
 
 export class TasksService {
   async send(
@@ -98,38 +100,40 @@ export class TasksService {
   }
 
   async addDependency(taskId: string, dependsOnTaskId: string): Promise<Result<void>> {
-    // Cycle detection: load all edges once, then BFS in memory
-    const allEdges = await taskRepo.getAllDependencies();
-    const adjList = new Map<string, string[]>();
-    for (const edge of allEdges) {
-      const deps = adjList.get(edge.taskId) ?? [];
-      deps.push(edge.dependsOnTaskId);
-      adjList.set(edge.taskId, deps);
-    }
-    // Also add the proposed edge
-    const proposedDeps = adjList.get(taskId) ?? [];
-    proposedDeps.push(dependsOnTaskId);
-    adjList.set(taskId, proposedDeps);
-
-    // BFS from dependsOnTaskId — if we reach taskId, there's a cycle
-    const visited = new Set<string>();
-    const queue: string[] = [dependsOnTaskId];
-
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-      if (current === taskId) {
-        return err(new Error('Adding this dependency would create a cycle'));
+    return db.transaction(async (tx) => {
+      // Cycle detection: load all edges inside the transaction for a consistent snapshot
+      const allEdges = await tx.select().from(taskDependencies);
+      const adjList = new Map<string, string[]>();
+      for (const edge of allEdges) {
+        const deps = adjList.get(edge.taskId) ?? [];
+        deps.push(edge.dependsOnTaskId);
+        adjList.set(edge.taskId, deps);
       }
-      if (visited.has(current)) continue;
-      visited.add(current);
+      // Also add the proposed edge
+      const proposedDeps = adjList.get(taskId) ?? [];
+      proposedDeps.push(dependsOnTaskId);
+      adjList.set(taskId, proposedDeps);
 
-      for (const dep of adjList.get(current) ?? []) {
-        if (!visited.has(dep)) queue.push(dep);
+      // BFS from dependsOnTaskId — if we reach taskId, there's a cycle
+      const visited = new Set<string>();
+      const queue: string[] = [dependsOnTaskId];
+
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        if (current === taskId) {
+          throw new Error('Adding this dependency would create a cycle');
+        }
+        if (visited.has(current)) continue;
+        visited.add(current);
+
+        for (const dep of adjList.get(current) ?? []) {
+          if (!visited.has(dep)) queue.push(dep);
+        }
       }
-    }
 
-    await taskRepo.addDependency(taskId, dependsOnTaskId);
-    return ok(undefined);
+      await tx.insert(taskDependencies).values({ taskId, dependsOnTaskId });
+      return ok(undefined);
+    });
   }
 
   async removeDependency(taskId: string, dependsOnTaskId: string): Promise<Result<void>> {
