@@ -46,7 +46,9 @@ export function isValidRole(role: string): role is Role {
 /** Default required role per skill provider type */
 export const PROVIDER_REQUIRED_ROLE: Record<string, Role> = {
   inline: 'admin',      // inline code execution — admin only
+  agent: 'operator',    // A2A agent delegation — operator+
   mcp: 'operator',      // external server calls — operator+
+  tool: 'agent',        // tool composition/aliasing — agent+
   worker: 'agent',      // queue jobs — agent+
   plugin: 'agent',      // plugin tools — agent+
   builtin: 'viewer',    // safe builtins — anyone

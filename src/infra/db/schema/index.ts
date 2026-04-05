@@ -25,7 +25,7 @@ export const toolPermissionModeEnum = pgEnum('tool_permission_mode', ['auto', 'a
 // Enums
 export const aiProviderEnum = pgEnum('ai_provider', ['anthropic', 'openai', 'google']);
 export const agentModeEnum = pgEnum('agent_mode', ['raw', 'agent-sdk']);
-export const skillProviderTypeEnum = pgEnum('skill_provider_type', ['builtin', 'worker', 'plugin', 'mcp', 'inline']);
+export const skillProviderTypeEnum = pgEnum('skill_provider_type', ['builtin', 'worker', 'plugin', 'mcp', 'inline', 'agent', 'tool']);
 export const mcpTransportEnum = pgEnum('mcp_transport', ['stdio', 'sse', 'streamable-http']);
 export const a2aTaskStatusEnum = pgEnum('a2a_task_status', ['submitted', 'working', 'input_required', 'completed', 'failed', 'canceled']);
 export const roleEnum = pgEnum('role', ['system', 'admin', 'operator', 'agent', 'viewer']);

@@ -5,7 +5,9 @@ export type HandlerConfig =
   | { type: 'mcp'; serverName: string; toolName: string }
   | { type: 'worker'; timeout?: number }
   | { type: 'plugin'; modulePath: string; exportName?: string }
-  | { type: 'inline'; code: string };
+  | { type: 'inline'; code: string }
+  | { type: 'agent'; agentId?: string; agentUrl?: string }
+  | { type: 'tool'; targetSkillName: string; argsMapping?: Record<string, string> };
 
 export interface ToolDef {
   id: string;

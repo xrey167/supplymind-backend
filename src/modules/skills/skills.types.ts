@@ -2,7 +2,7 @@ import type { Result } from '../../core/result';
 import type { ToolDefinition } from '../../infra/ai/types';
 import type { Role } from '../../core/security';
 
-export type SkillProviderType = "builtin" | "worker" | "plugin" | "mcp" | "inline";
+export type SkillProviderType = "builtin" | "worker" | "plugin" | "mcp" | "inline" | "agent" | "tool";
 
 /** Optional hints that flow through to ToolDefinition when skills are converted to tools */
 export interface SkillToolHints {

@@ -68,6 +68,38 @@ export class ToolsService {
         // Plugin provider loads dynamically — for DB-defined plugin tools, return stub
         return async () => err(new Error(`Plugin handler for "${tool.name}" must be loaded via plugin provider`));
 
+      case 'agent': {
+        const config = tool.handlerConfig as Extract<import('./tools.types').HandlerConfig, { type: 'agent' }>;
+        return async (args, ctx) => {
+          try {
+            // Delegate to registered agent via worker registry
+            const { workerRegistry } = await import('../../infra/a2a/worker-registry');
+            const agentUrl = config.agentUrl;
+            if (!agentUrl) return err(new Error(`Agent handler for "${tool.name}" requires agentUrl`));
+            const result = await workerRegistry.delegate(agentUrl, tool.name, args);
+            return ok(result);
+          } catch (error) {
+            return err(error instanceof Error ? error : new Error(String(error)));
+          }
+        };
+      }
+
+      case 'tool': {
+        const config = tool.handlerConfig as Extract<import('./tools.types').HandlerConfig, { type: 'tool' }>;
+        return async (args, ctx) => {
+          try {
+            // Delegate to another skill in the registry
+            const { skillRegistry } = await import('../skills/skills.registry');
+            const mappedArgs = config.argsMapping
+              ? Object.fromEntries(Object.entries(config.argsMapping).map(([to, from]) => [to, (args as any)[from]]))
+              : args;
+            return await skillRegistry.invoke(config.targetSkillName, mappedArgs, ctx!);
+          } catch (error) {
+            return err(error instanceof Error ? error : new Error(String(error)));
+          }
+        };
+      }
+
       default:
         return async () => err(new Error(`Unknown provider type: ${tool.providerType}`));
     }
