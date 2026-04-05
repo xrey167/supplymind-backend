@@ -8,7 +8,7 @@ import { logger } from '../../config/logger';
 
 const REDIS_URL = Bun.env.REDIS_URL ?? 'redis://localhost:6379';
 
-export function startAgentWorkers(concurrency = 3): Worker<AgentJobData> {
+export function startAgentWorkers(concurrency = 3): { worker: Worker<AgentJobData>; connection: Redis } {
   const workerRedis = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
 
   const worker = new Worker<AgentJobData>(
@@ -53,5 +53,5 @@ export function startAgentWorkers(concurrency = 3): Worker<AgentJobData> {
     }
   });
 
-  return worker;
+  return { worker, connection: workerRedis };
 }

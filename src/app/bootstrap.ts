@@ -15,6 +15,7 @@ import { registerMemorySkills } from '../modules/memory/memory.skills';
 import { taskRepo } from '../infra/a2a/task-repo';
 
 let redisPubSub: RedisPubSub | null = null;
+let agentWorkerHandles: { worker: import('bullmq').Worker; connection: import('ioredis').default } | null = null;
 
 /**
  * Initialize all subsystems in order.
@@ -140,10 +141,10 @@ export async function initSubsystems(): Promise<void> {
   // Step 10: Start agent BullMQ workers (non-critical)
   try {
     const { startAgentWorkers } = await import('../jobs/agents/index');
-    startAgentWorkers(3);
+    agentWorkerHandles = startAgentWorkers(3);
     logger.info('Agent workers started');
   } catch (err) {
-    logger.warn({ err }, 'Failed to start agent workers');
+    logger.error({ err }, 'Failed to start agent workers');
   }
 
   logger.info('Bootstrap complete');
@@ -156,6 +157,10 @@ export async function destroySubsystems(): Promise<void> {
   wsServer.destroy();
   await mcpClientPool.disconnectAll();
   await closeStateStore();
+  if (agentWorkerHandles) {
+    await agentWorkerHandles.worker.close();
+    agentWorkerHandles.connection.quit();
+  }
   // Redis cleanup is handled by ioredis automatically on disconnect
   logger.info('Subsystems destroyed');
 }
