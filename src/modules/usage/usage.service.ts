@@ -1,0 +1,67 @@
+import { usageRepo } from './usage.repo';
+import { calculateCost, resolveProvider } from './pricing';
+import { logger } from '../../config/logger';
+import type { RecordUsageInput } from './usage.types';
+
+function periodToSince(period: 'day' | 'week' | 'month' | 'all'): Date {
+  const now = new Date();
+  if (period === 'day')   return new Date(now.getTime() - 86_400_000);
+  if (period === 'week')  return new Date(now.getTime() - 7 * 86_400_000);
+  if (period === 'month') return new Date(now.getTime() - 30 * 86_400_000);
+  return new Date(0);
+}
+
+export const usageService = {
+  async record(input: RecordUsageInput): Promise<void> {
+    const provider = resolveProvider(input.model);
+    const costUsd = calculateCost(input.model, input.inputTokens, input.outputTokens);
+    await usageRepo.insert({
+      workspaceId: input.workspaceId,
+      agentId: input.agentId ?? null,
+      sessionId: input.sessionId ?? null,
+      taskId: input.taskId ?? null,
+      model: input.model,
+      provider,
+      inputTokens: input.inputTokens,
+      outputTokens: input.outputTokens,
+      totalTokens: input.inputTokens + input.outputTokens,
+      costUsd,
+    });
+  },
+
+  async getWorkspaceSummary(workspaceId: string, period: 'day' | 'week' | 'month' | 'all' = 'month') {
+    const since = periodToSince(period);
+    const [byModel, byAgent, records] = await Promise.all([
+      usageRepo.sumByWorkspace(workspaceId, since),
+      usageRepo.sumByAgent(workspaceId, since),
+      usageRepo.listRecent(workspaceId, since),
+    ]);
+    const totalCostUsd = byModel.reduce((sum, r) => sum + r.costUsd, 0);
+    const totalInput = byModel.reduce((sum, r) => sum + r.inputTokens, 0);
+    const totalOutput = byModel.reduce((sum, r) => sum + r.outputTokens, 0);
+    return {
+      totalCostUsd,
+      totalTokens: { input: totalInput, output: totalOutput },
+      byModel,
+      byAgent,
+      records: records.map(r => ({
+        id: r.id,
+        model: r.model,
+        provider: r.provider,
+        inputTokens: r.inputTokens,
+        outputTokens: r.outputTokens,
+        costUsd: r.costUsd,
+        createdAt: r.createdAt.toISOString(),
+        taskId: r.taskId,
+        agentId: r.agentId,
+      })),
+    };
+  },
+
+  async getTotalCost(workspaceId: string, since: Date): Promise<number> {
+    return usageRepo.totalCost(workspaceId, since);
+  },
+};
+
+// Suppress unused import warning — logger is available for future use
+void logger;

@@ -270,6 +270,25 @@ export const workflowTemplates = pgTable('workflow_templates', {
   index('wt_workspace_id_idx').on(t.workspaceId),
 ]);
 
+export const usageRecords = pgTable('usage_records', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull(),
+  agentId: uuid('agent_id').references(() => agentConfigs.id, { onDelete: 'set null' }),
+  sessionId: uuid('session_id').references(() => sessions.id, { onDelete: 'set null' }),
+  taskId: uuid('task_id').references(() => a2aTasks.id, { onDelete: 'set null' }),
+  model: text('model').notNull(),
+  provider: aiProviderEnum('provider').notNull(),
+  inputTokens: integer('input_tokens').notNull().default(0),
+  outputTokens: integer('output_tokens').notNull().default(0),
+  totalTokens: integer('total_tokens').notNull().default(0),
+  costUsd: real('cost_usd').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('ur_workspace_created_idx').on(t.workspaceId, t.createdAt),
+  index('ur_agent_idx').on(t.agentId),
+  index('ur_task_idx').on(t.taskId),
+]);
+
 // Registered A2A agents (persistent registry)
 export const registeredAgents = pgTable('registered_agents', {
   id: uuid('id').primaryKey().defaultRandom(),
