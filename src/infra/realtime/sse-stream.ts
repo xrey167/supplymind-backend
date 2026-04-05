@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { logger } from '../../config/logger';
-import { eventBus } from '../../events/bus';
+import { bridgeTaskEvents } from '../../core/gateway';
+import type { GatewayEvent } from '../../core/gateway';
 
 export function sseResponse(
   c: Context,
@@ -38,23 +39,18 @@ export function sseResponse(
   });
 }
 
-/** SSE endpoint that streams events for a specific task */
+/** SSE endpoint that streams events for a specific task via the gateway stream bridge */
 export function taskEventStream(c: Context, taskId: string): Response {
   return sseResponse(c, (send, close) => {
-    const topics = ['task:status', 'task:text_delta', 'task:tool_call', 'task:artifact', 'task:error', 'task:completed'];
-    const subIds: string[] = [];
-    for (const topic of topics) {
-      const id = eventBus.subscribe(topic, (event) => {
-        const data = event.data as any;
-        if (data.taskId === taskId) {
-          send(topic, data);
-          if (topic === 'task:completed' || topic === 'task:error') {
-            close();
-          }
-        }
-      });
-      subIds.push(id);
-    }
-    return () => subIds.forEach(id => eventBus.unsubscribe(id));
+    const cleanup = bridgeTaskEvents(taskId, (event: GatewayEvent) => {
+      const data = event.data as Record<string, unknown>;
+      send(`task:${event.type}`, data);
+
+      if (event.type === 'done' || event.type === 'error') {
+        close();
+      }
+    });
+
+    return cleanup;
   });
 }
