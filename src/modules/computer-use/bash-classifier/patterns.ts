@@ -30,7 +30,7 @@ export const HIGH_PATTERNS: RiskPattern[] = [
   // Privilege escalation
   { name: 'sudo-su',        regex: /\bsudo\s+(?:su|-[si])\b/, reason: 'Privilege escalation via sudo su/sudo -s/sudo -i' },
   { name: 'pkexec',         regex: /\bpkexec\b/, reason: 'Privilege escalation via pkexec' },
-  { name: 'su-root',        regex: /\bsu\b(?!\w)/, reason: 'Switch user via su command' },
+  { name: 'su-root',        regex: /(^|&&|;|\|)\s*su(?:\s|$)/, reason: 'Switch user via su command' },
   // Credential exfiltration
   { name: 'shadow-read',    regex: /\bcat\b.*\/etc\/shadow/, reason: 'Read /etc/shadow (password hashes)' },
   { name: 'passwd-exfil',   regex: /\/etc\/passwd.*\|\s*(?:curl|wget)/, reason: 'Exfiltrate /etc/passwd via network' },
@@ -52,7 +52,7 @@ export const MEDIUM_PATTERNS: RiskPattern[] = [
   { name: 'systemctl-stop', regex: /\bsystemctl\s+(?:stop|restart|disable)\b/, reason: 'System service state change' },
   { name: 'service-stop',   regex: /\bservice\s+\S+\s+(?:stop|restart)\b/, reason: 'Service state change' },
   // Network downloads (no pipe, but still fetching remote content)
-  { name: 'wget-download',  regex: /\bwget\b(?!.*\|)/, reason: 'Remote file download via wget' },
+  { name: 'wget-download',  regex: /\bwget\b/, reason: 'Remote file download via wget' },
   { name: 'curl-output',    regex: /\bcurl\b.*(?:-[oO]|--output)(?!.*\|.*sh)/, reason: 'Remote file download via curl' },
   // Cron modification
   { name: 'crontab-edit',   regex: /\bcrontab\s+-e\b/, reason: 'Cron schedule modification' },

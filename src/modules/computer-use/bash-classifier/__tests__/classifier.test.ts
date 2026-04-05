@@ -107,6 +107,21 @@ describe('classifyCommand', () => {
     expect(classifyCommand('crontab -e').risk).toBe('medium');
   });
 
+  it('blocks bare su command', () => {
+    expect(classifyCommand('su').risk).toBe('high');
+    expect(classifyCommand('su root').risk).toBe('high');
+    expect(classifyCommand('su - root').risk).toBe('high');
+  });
+
+  it('does NOT block su as a flag argument', () => {
+    // du -su uses -su as a flag, not the su command
+    expect(classifyCommand('du -su /home').risk).toBe('low');
+  });
+
+  it('warns on wget piped to non-shell command', () => {
+    expect(classifyCommand('wget http://x.com/file | tee out.txt').risk).toBe('medium');
+  });
+
   // ── HIGH beats MEDIUM ───────────────────────────────────────────────
   it('returns high when both HIGH and MEDIUM match', () => {
     expect(classifyCommand('chmod 777 /tmp && rm -rf /').risk).toBe('high');
