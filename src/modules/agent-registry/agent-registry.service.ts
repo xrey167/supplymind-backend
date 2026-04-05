@@ -45,10 +45,15 @@ export class AgentRegistryService {
 
   async loadAll(): Promise<void> {
     const agents = await agentRegistryRepo.findAll();
+    const { logger } = await import('../../config/logger');
     for (const a of agents) {
       if (a.enabled) {
-        const card = a.agentCard as unknown as AgentCard;
-        workerRegistry.load(a.url, card, undefined, a.lastDiscoveredAt?.getTime() ?? a.createdAt.getTime());
+        try {
+          const card = a.agentCard as unknown as AgentCard;
+          workerRegistry.load(a.url, card, undefined, a.lastDiscoveredAt?.getTime() ?? a.createdAt.getTime());
+        } catch (error) {
+          logger.error({ agentId: a.id, url: a.url, error }, 'Failed to load registered agent — skipping');
+        }
       }
     }
   }
