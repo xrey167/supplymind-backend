@@ -64,7 +64,9 @@ class TaskManager {
         sessionId: params.sessionId,
       });
     } catch (error: unknown) {
-      logger.error({ taskId, error }, 'Failed to persist task to DB');
+      logger.error({ taskId, error }, 'Failed to persist task to DB — aborting execution');
+      this.updateStatus(taskId, 'failed', 'Failed to persist task');
+      return task;
     }
 
     eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'submitted', workspaceId: config.workspaceId });
