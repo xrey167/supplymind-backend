@@ -7,6 +7,7 @@ import {
   mcpServerPolicySchema,
 } from './workspace-settings.schemas';
 import type { ToolPermissionMode, SandboxPolicy, McpServerPolicy, WorkspaceSettingKey, UpdateWorkspaceSettingsInput } from './workspace-settings.schemas';
+import { logger } from '../../../config/logger';
 
 export class WorkspaceSettingsService {
   async getRaw(workspaceId: string, key: WorkspaceSettingKey): Promise<unknown | null> {
@@ -35,12 +36,22 @@ export class WorkspaceSettingsService {
 
   async getToolPermissionMode(workspaceId: string): Promise<ToolPermissionMode> {
     const raw = await this.getRaw(workspaceId, WorkspaceSettingKeys.TOOL_PERMISSION_MODE);
-    return toolPermissionModeSchema.parse(raw ?? 'auto');
+    const parsed = toolPermissionModeSchema.safeParse(raw ?? 'auto');
+    if (!parsed.success) {
+      logger.warn({ workspaceId, raw, error: parsed.error.message }, 'Invalid tool permission mode in DB, defaulting to auto');
+      return 'auto';
+    }
+    return parsed.data;
   }
 
   async getAllowedToolNames(workspaceId: string): Promise<string[]> {
     const raw = await this.getRaw(workspaceId, WorkspaceSettingKeys.ALLOWED_TOOL_NAMES);
-    return allowedToolNamesSchema.parse(raw ?? []);
+    const parsed = allowedToolNamesSchema.safeParse(raw ?? []);
+    if (!parsed.success) {
+      logger.warn({ workspaceId, raw, error: parsed.error.message }, 'Invalid allowed tool names in DB, defaulting to empty');
+      return [];
+    }
+    return parsed.data;
   }
 
   /**
@@ -71,12 +82,22 @@ export class WorkspaceSettingsService {
 
   async getSandboxPolicy(workspaceId: string): Promise<SandboxPolicy> {
     const raw = await this.getRaw(workspaceId, WorkspaceSettingKeys.SANDBOX_POLICY);
-    return sandboxPolicySchema.parse(raw ?? {});
+    const parsed = sandboxPolicySchema.safeParse(raw ?? {});
+    if (!parsed.success) {
+      logger.warn({ workspaceId, error: parsed.error.message }, 'Invalid sandbox policy in DB, using defaults');
+      return sandboxPolicySchema.parse({});
+    }
+    return parsed.data;
   }
 
   async getMcpServerPolicy(workspaceId: string): Promise<McpServerPolicy> {
     const raw = await this.getRaw(workspaceId, WorkspaceSettingKeys.MCP_SERVER_POLICY);
-    return mcpServerPolicySchema.parse(raw ?? {});
+    const parsed = mcpServerPolicySchema.safeParse(raw ?? {});
+    if (!parsed.success) {
+      logger.warn({ workspaceId, error: parsed.error.message }, 'Invalid MCP server policy in DB, using defaults');
+      return mcpServerPolicySchema.parse({});
+    }
+    return parsed.data;
   }
 
   // Spec-contract aliases

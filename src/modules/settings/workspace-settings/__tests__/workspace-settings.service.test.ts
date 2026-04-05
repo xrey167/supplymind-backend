@@ -106,10 +106,11 @@ describe('WorkspaceSettingsService', () => {
       expect(mode).toBe('auto');
     });
 
-    test('should validate and reject invalid values', async () => {
+    test('should fall back to auto for invalid values', async () => {
       mockGet.mockResolvedValueOnce({ key: 'tool_permission_mode', value: 'invalid' });
 
-      await expect(service.getToolPermissionMode('ws-1')).rejects.toThrow();
+      const result = await service.getToolPermissionMode('ws-1');
+      expect(result).toBe('auto');
     });
   });
 
