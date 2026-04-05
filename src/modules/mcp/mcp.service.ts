@@ -45,9 +45,14 @@ export class McpService {
    */
   async ensureWorkspaceLoaded(workspaceId: string): Promise<void> {
     if (this.loadedWorkspaces.has(workspaceId)) return;
-    const configs = await mcpRepo.findByWorkspace(workspaceId);
-    await this.loadConfigs(configs);
-    this.loadedWorkspaces.add(workspaceId);
+    try {
+      const configs = await mcpRepo.findByWorkspace(workspaceId);
+      await this.loadConfigs(configs);
+      this.loadedWorkspaces.add(workspaceId); // only on success
+    } catch (err) {
+      logger.error({ err, workspaceId }, 'Failed to load workspace MCP servers — will retry on next request');
+      // do NOT add to loadedWorkspaces — allow retry
+    }
   }
 
   private async loadConfigs(configs: McpServerRow[]): Promise<void> {
@@ -58,8 +63,8 @@ export class McpService {
         const manifest = await mcpClientPool.listTools(mcpConfig);
         for (const tool of manifest.tools) {
           skillRegistry.register({
-            id: `mcp:${config.name}:${tool.name}`,
-            name: `mcp_${config.name}_${tool.name}`,
+            id: `mcp:${config.workspaceId ?? 'global'}:${config.name}:${tool.name}`,
+            name: `mcp:${config.workspaceId ?? 'global'}:${config.name}:${tool.name}`,
             description: `[MCP:${config.name}] ${tool.description}`,
             inputSchema: tool.inputSchema,
             providerType: 'mcp',
@@ -84,7 +89,7 @@ export class McpService {
           toolCount: manifest.tools.length,
         });
       } catch (error) {
-        logger.warn(
+        logger.error(
           { err: error, configId: config.id, name: config.name },
           'Failed to load MCP server',
         );

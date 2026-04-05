@@ -1,4 +1,5 @@
 /** In-memory store for pending tool approval promises keyed by approvalId. */
+import { logger } from '../../config/logger';
 
 interface PendingApproval {
   resolve: (approved: boolean) => void;
@@ -16,6 +17,7 @@ export function createApprovalRequest(approvalId: string, workspaceId: string, t
   return new Promise<boolean>((resolve) => {
     const timer = setTimeout(() => {
       pendingApprovals.delete(approvalId);
+      logger.warn({ approvalId, workspaceId }, 'Tool approval timed out — denying tool call');
       resolve(false); // timeout = deny
     }, timeoutMs);
     pendingApprovals.set(approvalId, { resolve, timer, workspaceId });
@@ -29,7 +31,11 @@ export function createApprovalRequest(approvalId: string, workspaceId: string, t
  */
 export function resolveApproval(approvalId: string, workspaceId: string, approved: boolean): boolean {
   const pending = pendingApprovals.get(approvalId);
-  if (!pending || pending.workspaceId !== workspaceId) return false;
+  if (!pending) return false;
+  if (pending.workspaceId !== workspaceId) {
+    logger.warn({ approvalId, requestedWorkspaceId: workspaceId, expectedWorkspaceId: pending.workspaceId }, 'Cross-workspace tool approval attempt rejected');
+    return false;
+  }
   clearTimeout(pending.timer);
   pendingApprovals.delete(approvalId);
   pending.resolve(approved);

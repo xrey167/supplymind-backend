@@ -47,13 +47,12 @@ export class AgentRegistryService {
     const agents = await agentRegistryRepo.findAll();
     const { logger } = await import('../../config/logger');
     for (const a of agents) {
-      if (a.enabled) {
-        try {
-          const card = a.agentCard as unknown as AgentCard;
-          workerRegistry.load(a.url, card, undefined, a.lastDiscoveredAt?.getTime() ?? a.createdAt.getTime());
-        } catch (error) {
-          logger.error({ agentId: a.id, url: a.url, error }, 'Failed to load registered agent — skipping');
-        }
+      if (!a.enabled) continue;
+      try {
+        const card = a.agentCard as unknown as AgentCard;
+        workerRegistry.load(a.url, card, undefined, a.lastDiscoveredAt?.getTime() ?? a.createdAt.getTime());
+      } catch (error) {
+        logger.error({ err: error, agentId: a.id, url: a.url }, 'Failed to load registered agent into worker registry — skipping');
       }
     }
   }
