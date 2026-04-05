@@ -28,6 +28,7 @@ export const agentModeEnum = pgEnum('agent_mode', ['raw', 'agent-sdk']);
 export const skillProviderTypeEnum = pgEnum('skill_provider_type', ['builtin', 'worker', 'plugin', 'mcp', 'inline']);
 export const mcpTransportEnum = pgEnum('mcp_transport', ['stdio', 'sse', 'streamable-http']);
 export const a2aTaskStatusEnum = pgEnum('a2a_task_status', ['submitted', 'working', 'input_required', 'completed', 'failed', 'canceled']);
+export const roleEnum = pgEnum('role', ['system', 'admin', 'operator', 'agent', 'viewer']);
 export const toolCallStatusEnum = pgEnum('tool_call_status', ['pending', 'in_progress', 'completed', 'failed']);
 
 // Tables
@@ -212,7 +213,7 @@ export const apiKeys = pgTable('api_keys', {
   name: text('name').notNull(),
   keyHash: text('key_hash').notNull(),
   keyPrefix: text('key_prefix').notNull(),  // first 12 chars for identification
-  role: text('role').notNull().default('admin'),
+  role: roleEnum('role').notNull().default('admin'),
   enabled: boolean('enabled').default(true),
   expiresAt: timestamp('expires_at'),
   lastUsedAt: timestamp('last_used_at'),
