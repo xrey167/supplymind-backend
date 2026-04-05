@@ -1,5 +1,10 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test';
 
+// Test-controllable permission mode and allowlist
+let _permissionMode = 'auto';
+let _allowedTools: string[] = [];
+let _approvalResult = true;
+
 // Override any stale mock.module from orchestration.engine.test.ts (alphabetically earlier).
 // We reconstruct dispatchSkill inline using the real singleton dependencies so that
 // skillRegistry state set up in beforeEach is visible to the function.
@@ -9,7 +14,7 @@ mock.module('../skills.dispatch', () => {
   const { skillExecutor } = require('../skills.executor') as any;
   const { hooksRegistry } = require('../../tools/tools.hooks') as any;
   const { err } = require('../../../core/result') as any;
-  const { AbortError } = require('../../../core/errors') as any;
+  const { AbortError, AppError } = require('../../../core/errors') as any;
   const { eventBus } = require('../../../events/bus') as any;
   const { Topics } = require('../../../events/topics') as any;
 
@@ -23,6 +28,25 @@ mock.module('../skills.dispatch', () => {
     if (!hasPermission(context.callerRole, requiredRole)) {
       return err(new Error(`Permission denied: role '${context.callerRole}' cannot invoke '${skillId}' (requires '${requiredRole}')`));
     }
+
+    // Permission mode gate (builtins exempt)
+    if (skill.providerType !== 'builtin') {
+      const mode = context.cachedPermissionMode ?? _permissionMode;
+      if (mode === 'strict') {
+        if (!_allowedTools.includes(skill.name)) {
+          eventBus.publish(Topics.SECURITY_PERMISSION_MODE_BLOCKED, {
+            skillId, callerRole: context.callerRole, workspaceId: context.workspaceId, mode: 'strict',
+          });
+          return err(new AppError(`Tool '${skill.name}' is not in workspace allowlist`, 403, 'TOOL_NOT_ALLOWED'));
+        }
+      }
+      if (mode === 'ask') {
+        if (!_approvalResult) {
+          return err(new AppError('Tool approval denied or timed out', 403, 'TOOL_APPROVAL_DENIED'));
+        }
+      }
+    }
+
     const hooks = hooksRegistry.get(skillId);
     if (hooks?.beforeExecute) {
       const hookCtx = { callerId: context.callerId, workspaceId: context.workspaceId, traceId: context.traceId };
@@ -242,5 +266,81 @@ describe('dispatchSkill RBAC', () => {
     const mcpResult = await dispatchSkill('mcp_skill', {}, agentCtx);
     expect(mcpResult.ok).toBe(false);
     if (!mcpResult.ok) expect(mcpResult.error.message).toContain('Permission denied');
+  });
+});
+
+describe('dispatchSkill permission modes', () => {
+  beforeEach(() => {
+    skillRegistry.clear();
+    skillCache.clear();
+    _permissionMode = 'auto';
+    _allowedTools = [];
+    _approvalResult = true;
+  });
+
+  const registerMcpSkill = () => {
+    skillRegistry.register({
+      id: 'test:mcp', name: 'mcp_tool', description: 'MCP tool',
+      inputSchema: { type: 'object' }, providerType: 'mcp', priority: 15,
+      handler: async () => ok('done'),
+    });
+  };
+
+  test('strict mode blocks non-allowlisted tools', async () => {
+    registerMcpSkill();
+    _permissionMode = 'strict';
+    _allowedTools = ['other_tool'];
+    const result = await dispatchSkill('mcp_tool', {}, ctx);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain('not in workspace allowlist');
+  });
+
+  test('strict mode allows allowlisted tools', async () => {
+    registerMcpSkill();
+    _permissionMode = 'strict';
+    _allowedTools = ['mcp_tool'];
+    const result = await dispatchSkill('mcp_tool', {}, ctx);
+    expect(result.ok).toBe(true);
+  });
+
+  test('ask mode blocks when approval denied', async () => {
+    registerMcpSkill();
+    _permissionMode = 'ask';
+    _approvalResult = false;
+    const result = await dispatchSkill('mcp_tool', {}, ctx);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain('approval denied');
+  });
+
+  test('ask mode allows when approval granted', async () => {
+    registerMcpSkill();
+    _permissionMode = 'ask';
+    _approvalResult = true;
+    const result = await dispatchSkill('mcp_tool', {}, ctx);
+    expect(result.ok).toBe(true);
+  });
+
+  test('builtin skills bypass permission mode gates', async () => {
+    skillRegistry.register({
+      id: 'test:builtin', name: 'builtin_tool', description: 'Builtin',
+      inputSchema: { type: 'object' }, providerType: 'builtin', priority: 10,
+      handler: async () => ok('safe'),
+    });
+    _permissionMode = 'strict';
+    _allowedTools = []; // empty allowlist
+    const result = await dispatchSkill('builtin_tool', {}, ctx);
+    expect(result.ok).toBe(true);
+  });
+
+  test('cachedPermissionMode on context overrides global setting', async () => {
+    registerMcpSkill();
+    _permissionMode = 'auto'; // global says auto
+    _allowedTools = [];
+    const result = await dispatchSkill('mcp_tool', {}, {
+      ...ctx,
+      cachedPermissionMode: 'strict', // context says strict
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain('not in workspace allowlist');
   });
 });
