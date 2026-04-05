@@ -5,6 +5,8 @@ import type { SandboxPolicy } from '../../modules/settings/workspace-settings/wo
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { randomUUID } from 'crypto';
+import { eventBus } from '../../events/bus';
+import { Topics } from '../../events/topics';
 
 export interface SandboxRunInput {
   code: string;
@@ -28,21 +30,21 @@ globalThis.XMLHttpRequest = blocked;
 globalThis.WebSocket = blocked;
 ` : '';
 
-  const allowedPaths = JSON.stringify(policy.allowedPaths ?? []);
-  const deniedPaths = JSON.stringify(policy.deniedPaths ?? []);
   const fsGuard = `
-// Filesystem access control
-const __allowedPaths = ${allowedPaths};
-const __deniedPaths = ${deniedPaths};
+// Filesystem access control — paths passed via env to avoid escaping issues
+const __allowedPaths = JSON.parse(process.env.__SANDBOX_ALLOWED_PATHS || '[]');
+const __deniedPaths = JSON.parse(process.env.__SANDBOX_DENIED_PATHS || '[]');
 const __path = require('path');
+const __norm = (p) => __path.resolve(p).replace(/\\\\/g, '/');
 
 function __checkPath(p) {
-  const resolved = __path.resolve(p);
+  const resolved = __norm(p);
   for (const denied of __deniedPaths) {
-    if (resolved.startsWith(denied)) throw new Error('Access denied: path blocked by sandbox policy: ' + p);
+    const nd = __norm(denied);
+    if (resolved.startsWith(nd)) throw new Error('Access denied: path blocked by sandbox policy: ' + p);
   }
   if (__allowedPaths.length > 0) {
-    const allowed = __allowedPaths.some(a => resolved.startsWith(a));
+    const allowed = __allowedPaths.some(a => resolved.startsWith(__norm(a)));
     if (!allowed) throw new Error('Access denied: path not in sandbox allowlist: ' + p);
   }
 }
@@ -120,6 +122,8 @@ export async function runInSandbox(input: SandboxRunInput): Promise<Result<Sandb
         SANDBOX_ALLOW_NETWORK: policy.allowNetwork ? '1' : '0',
         SANDBOX_MAX_MEMORY_MB: String(policy.maxMemoryMb),
         __SANDBOX_PAYLOAD: payload,
+        __SANDBOX_ALLOWED_PATHS: JSON.stringify(policy.allowedPaths ?? []),
+        __SANDBOX_DENIED_PATHS: JSON.stringify(policy.deniedPaths ?? []),
       },
     });
 
@@ -132,12 +136,14 @@ export async function runInSandbox(input: SandboxRunInput): Promise<Result<Sandb
     // Exit code 143 = killed by SIGTERM (from AbortController timeout)
     if (exitCode === 143 || (exitCode !== 0 && controller.signal.aborted)) {
       logger.warn({ toolId, toolName, timeoutMs: policy.maxTimeoutMs, durationMs }, 'Sandbox execution timed out');
+      eventBus.publish(Topics.SECURITY_SANDBOX_FAILED, { toolId, toolName, durationMs, reason: 'timeout' });
       return err(new Error(`Sandbox timeout: execution exceeded ${policy.maxTimeoutMs}ms`));
     }
 
     if (exitCode !== 0) {
       const errorMsg = stderrText.trim() || `Sandbox process exited with code ${exitCode}`;
       logger.warn({ toolId, toolName, exitCode, durationMs, stderr: stderrText.slice(0, 500) }, 'Sandbox execution failed');
+      eventBus.publish(Topics.SECURITY_SANDBOX_FAILED, { toolId, toolName, durationMs, reason: 'exit_code', exitCode });
       return err(new Error(`Sandbox error: ${errorMsg.slice(0, 1000)}`));
     }
 
@@ -151,14 +157,18 @@ export async function runInSandbox(input: SandboxRunInput): Promise<Result<Sandb
     try {
       const result = JSON.parse(lastLine);
       if (result.error) {
+        eventBus.publish(Topics.SECURITY_SANDBOX_FAILED, { toolId, toolName, durationMs, reason: 'runtime_error' });
         return err(new Error(`Sandbox runtime error: ${result.error}`));
       }
+      eventBus.publish(Topics.SECURITY_SANDBOX_EXECUTED, { toolId, toolName, durationMs });
       return ok({ value: result.value, durationMs });
     } catch {
+      eventBus.publish(Topics.SECURITY_SANDBOX_FAILED, { toolId, toolName, durationMs, reason: 'invalid_output' });
       return err(new Error(`Sandbox output not valid JSON: ${lastLine.slice(0, 200)}`));
     }
   } catch (error) {
     const durationMs = Math.round(performance.now() - startTime);
+    eventBus.publish(Topics.SECURITY_SANDBOX_FAILED, { toolId, toolName, durationMs, reason: 'exception' });
     if (error instanceof Error && error.name === 'AbortError') {
       logger.warn({ toolId, toolName, timeoutMs: policy.maxTimeoutMs, durationMs }, 'Sandbox execution timed out');
       return err(new Error(`Sandbox timeout: execution exceeded ${policy.maxTimeoutMs}ms`));

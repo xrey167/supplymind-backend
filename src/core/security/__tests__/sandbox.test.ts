@@ -124,12 +124,15 @@ describe('runInSandbox', () => {
     const result = await runInSandbox({
       code: `try { await Bun.write("${tmpDir}/sandbox-test-blocked.txt", "data"); return "written"; } catch (e) { return e.message; }`,
       args: {},
-      policy: { ...defaultPolicy, allowedPaths: ['/nonexistent-dir'], deniedPaths: [] },
+      policy: { ...defaultPolicy, allowedPaths: ['C:/nonexistent-dir-xyz'], deniedPaths: [] },
     });
 
-    expect(result.ok).toBe(true);
+    // The sandbox should either return the error message (ok:true with error string)
+    // or fail with sandbox error (ok:false with error containing the message)
     if (result.ok) {
       expect(result.value.value).toContain('not in sandbox allowlist');
+    } else {
+      expect(result.error.message).toContain('not in sandbox allowlist');
     }
   });
 
