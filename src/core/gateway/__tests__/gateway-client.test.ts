@@ -17,6 +17,14 @@ mock.module('../gateway-stream', () => ({
   bridgeTaskEvents: mock(() => () => {}),
 }));
 
+mock.module('../../hooks/hook-registry', () => ({
+  lifecycleHooks: { register: mock(() => {}), unregister: mock(() => {}) },
+}));
+
+mock.module('../../../modules/skills/skills.registry', () => ({
+  skillRegistry: { register: mock(() => {}), unregister: mock(() => {}) },
+}));
+
 const { GatewayClient, createGatewayClient } = await import('../gateway-client');
 
 describe('GatewayClient', () => {
@@ -102,5 +110,35 @@ describe('GatewayClient', () => {
   it('createGatewayClient accepts custom callerRole', () => {
     const c = createGatewayClient({ callerId: 'test', workspaceId: 'ws-1', callerRole: 'system' });
     expect(c).toBeInstanceOf(GatewayClient);
+  });
+
+  it('interruptTask calls task.interrupt op', async () => {
+    await client.interruptTask('t-1');
+    const call = mockExecute.mock.calls[0][0];
+    expect(call.op).toBe('task.interrupt');
+    expect(call.params.id).toBe('t-1');
+  });
+
+  it('respondToApproval calls task.input with approval fields', async () => {
+    await client.respondToApproval('ap-1', true, { file: '/safe.txt' });
+    const call = mockExecute.mock.calls[0][0];
+    expect(call.op).toBe('task.input');
+    expect(call.params.approvalId).toBe('ap-1');
+    expect(call.params.approved).toBe(true);
+    expect(call.params.updatedInput).toEqual({ file: '/safe.txt' });
+  });
+
+  it('tool() returns cleanup function', () => {
+    const cleanup = client.tool({
+      name: 'my-tool',
+      description: 'Test tool',
+      handler: async () => ({ result: 'ok' }),
+    });
+    expect(typeof cleanup).toBe('function');
+  });
+
+  it('onHook() returns cleanup function', () => {
+    const cleanup = client.onHook('pre_tool_use', async () => {});
+    expect(typeof cleanup).toBe('function');
   });
 });

@@ -93,9 +93,13 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
           logger.error({ err: err_, workspaceId: context.workspaceId, toolName: skill.name }, 'Approval timeout check failed — denying tool call');
           return err(new AppError('Unable to verify approval timeout', 503, 'PERMISSION_CHECK_FAILED'));
         }
-        const approved = await createApprovalRequest(approvalId, context.workspaceId, timeoutMs);
-        if (!approved) {
+        const approvalResult = await createApprovalRequest(approvalId, context.workspaceId, timeoutMs);
+        if (!approvalResult.approved) {
           return err(new AppError('Tool approval denied or timed out', 403, 'TOOL_APPROVAL_DENIED'));
+        }
+        // If the user modified the tool args during approval, use the updated args
+        if (approvalResult.updatedInput) {
+          args = approvalResult.updatedInput;
         }
       }
     }

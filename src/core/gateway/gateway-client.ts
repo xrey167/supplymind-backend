@@ -2,6 +2,9 @@ import { execute } from './gateway';
 import { bridgeTaskEvents } from './gateway-stream';
 import type { GatewayContext, GatewayEvent, GatewayResult } from './gateway.types';
 import type { Role } from '../security';
+import type { HookEvent, HookHandler, HookRegistration } from '../hooks/hook-registry';
+import type { Result } from '../result';
+import { ok } from '../result';
 
 /**
  * Typed programmatic client for the gateway (Agent-to-Code protocol).
@@ -50,6 +53,94 @@ export class GatewayClient {
 
   async respondToGate(orchestrationId: string, stepId: string, approved: boolean) {
     return execute({ op: 'orchestration.gate.respond', params: { orchestrationId, stepId, approved }, context: this.context });
+  }
+
+  /** Interrupt the current turn without killing the task. */
+  async interruptTask(id: string) {
+    return execute({ op: 'task.interrupt', params: { id }, context: this.context });
+  }
+
+  /** Respond to a tool approval with optional modified args. */
+  async respondToApproval(approvalId: string, approved: boolean, updatedInput?: Record<string, unknown>) {
+    return execute({
+      op: 'task.input',
+      params: { taskId: '', approvalId, approved, updatedInput },
+      context: this.context,
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Plug-and-play: Tool registration (customers define tools programmatically)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Define a tool that gets registered as a skill.
+   * Plug-and-play: customers call this to add tools without touching config.
+   *
+   * Returns a cleanup function to unregister the tool.
+   */
+  tool(definition: {
+    name: string;
+    description: string;
+    inputSchema?: Record<string, unknown>;
+    handler: (args: Record<string, unknown>) => Promise<unknown>;
+  }): () => void {
+    // Lazy import to avoid circular deps at module load
+    const register = async () => {
+      const { skillRegistry } = await import('../../modules/skills/skills.registry');
+      skillRegistry.register({
+        id: `acp:${this.context.workspaceId}:${definition.name}`,
+        name: definition.name,
+        description: definition.description,
+        inputSchema: definition.inputSchema ?? { type: 'object', properties: {} },
+        providerType: 'inline',
+        priority: 5,
+        handler: async (args) => {
+          const result = await definition.handler(args);
+          return ok(result);
+        },
+      });
+    };
+    register();
+
+    return () => {
+      import('../../modules/skills/skills.registry').then(({ skillRegistry }) => {
+        skillRegistry.unregister(`acp:${this.context.workspaceId}:${definition.name}`);
+      });
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Plug-and-play: Hook registration (customers subscribe to lifecycle events)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Register a lifecycle hook for this client's workspace.
+   * Returns a cleanup function to unregister.
+   */
+  onHook(
+    event: HookEvent | HookEvent[],
+    handler: HookHandler,
+    opts?: { id?: string; provider?: string },
+  ): () => void {
+    const hookId = opts?.id ?? `acp:${this.context.workspaceId}:${Date.now()}`;
+    const reg: HookRegistration = {
+      id: hookId,
+      event,
+      handler,
+      provider: opts?.provider ?? `acp:${this.context.callerId}`,
+    };
+
+    // Lazy import
+    import('../hooks/hook-registry').then(({ lifecycleHooks }) => {
+      lifecycleHooks.register(this.context.workspaceId, reg);
+    });
+
+    return () => {
+      import('../hooks/hook-registry').then(({ lifecycleHooks }) => {
+        lifecycleHooks.unregister(hookId, this.context.workspaceId);
+      });
+    };
   }
 
   /**

@@ -4,6 +4,7 @@ import type { DispatchContext } from '../../modules/skills/skills.types';
 import { bridgeTaskEvents } from './gateway-stream';
 import { NotFoundError } from '../errors';
 import { logger } from '../../config/logger';
+import { lifecycleHooks } from '../hooks/hook-registry';
 
 /**
  * Unified capability gateway.
@@ -31,8 +32,24 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
     case 'skill.invoke': {
       const { dispatchSkill } = await import('../../modules/skills/skills.dispatch');
       const name = params.name as string;
-      const args = (params.args ?? {}) as Record<string, unknown>;
-      return dispatchSkill(name, args, toDispatchCtx(context));
+      let args = (params.args ?? {}) as Record<string, unknown>;
+
+      // Pre-tool hook — can block or modify args
+      const hookCtx = { workspaceId: context.workspaceId, callerId: context.callerId, traceId: context.traceId };
+      const preResult = await lifecycleHooks.run('pre_tool_use', { name, args }, hookCtx);
+      if (!preResult.allow) {
+        return err(new Error(preResult.reason ?? `Blocked by pre_tool_use hook`));
+      }
+      if (preResult.payload && typeof preResult.payload === 'object' && 'args' in (preResult.payload as any)) {
+        args = (preResult.payload as any).args;
+      }
+
+      const result = await dispatchSkill(name, args, toDispatchCtx(context));
+
+      // Post-tool hook — fire-and-forget notification
+      lifecycleHooks.notify('post_tool_use', { name, args, result }, hookCtx);
+
+      return result;
     }
 
     // ------------------------------------------------------------------
@@ -86,10 +103,15 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
       const taskId = params.taskId as string;
       const input = params.input;
 
-      // Route 1: tool approval response
+      // Route 1: tool approval response (with optional updatedInput)
       if (params.approvalId) {
         const { resolveApproval } = await import('../../infra/state/tool-approvals');
-        const resolved = resolveApproval(params.approvalId as string, context.workspaceId, !!params.approved);
+        const resolved = resolveApproval(
+          params.approvalId as string,
+          context.workspaceId,
+          !!params.approved,
+          params.updatedInput as Record<string, unknown> | undefined,
+        );
         return resolved
           ? ok({ approvalId: params.approvalId, resolved: true })
           : err(new NotFoundError(`Approval not found or expired: ${params.approvalId}`));
@@ -115,6 +137,14 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
       return resolved
         ? ok({ taskId, resolved: true })
         : err(new NotFoundError(`No pending input request for task: ${taskId}`));
+    }
+
+    case 'task.interrupt': {
+      const { taskManager } = await import('../../infra/a2a/task-manager');
+      const interrupted = taskManager.interrupt(params.id as string);
+      return interrupted
+        ? ok({ id: params.id, interrupted: true })
+        : err(new NotFoundError(`Task not found or already terminal: ${params.id}`));
     }
 
     // ------------------------------------------------------------------

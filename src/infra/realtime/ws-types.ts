@@ -25,6 +25,7 @@ export type ServerMessage =
 export type ClientMessage =
   | { type: 'task:send'; agentId: string; messages: unknown[] }
   | { type: 'task:cancel'; taskId: string }
+  | { type: 'task:interrupt'; taskId: string }
   | { type: 'task:input'; taskId: string; input: unknown }
   | { type: 'subscribe'; channels: string[] }
   | { type: 'unsubscribe'; channels: string[] }

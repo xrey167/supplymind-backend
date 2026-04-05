@@ -22,6 +22,7 @@ export type GatewayOp =
   | 'orchestration.start'
   | 'orchestration.gate.respond'
   | 'task.input'
+  | 'task.interrupt'
   | 'collaboration.start'
   | 'a2a.delegate';
 

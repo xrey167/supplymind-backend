@@ -3,12 +3,15 @@ import { logger } from '../../config/logger';
 import { execute, bridgeTaskEvents } from '../../core/gateway';
 import type { GatewayContext, GatewayEvent } from '../../core/gateway';
 import type { ServerMessage, ClientMessage, WsClient } from './ws-types';
+import { BoundedSet } from '../../core/utils/bounded-set';
 
 class WsServer {
   private clients = new Map<string, WsClient>();
   private heartbeatInterval: Timer | null = null;
   /** Track stream cleanups per client so we can unsubscribe on disconnect */
   private streamCleanups = new Map<string, Set<() => void>>();
+  /** Per-client message dedup — prevents echoed/replayed messages from being processed twice */
+  private messageDedup = new Map<string, BoundedSet>();
 
   init() {
     // Heartbeat every 30s
@@ -21,6 +24,7 @@ class WsServer {
     const clientId = nanoid();
     this.clients.set(clientId, { id: clientId, ws, subscriptions: new Set() });
     this.streamCleanups.set(clientId, new Set());
+    this.messageDedup.set(clientId, new BoundedSet(2000));
     return clientId;
   }
 
@@ -30,6 +34,17 @@ class WsServer {
 
     try {
       const msg: ClientMessage = JSON.parse(typeof raw === 'string' ? raw : raw.toString());
+
+      // Dedup: skip messages we've already processed (echoes, replays)
+      const msgId = (msg as any).messageId ?? (msg as any).id;
+      if (msgId) {
+        const dedup = this.messageDedup.get(clientId);
+        if (dedup?.has(msgId)) {
+          logger.debug({ clientId, messageId: msgId }, 'Duplicate message ignored');
+          return;
+        }
+        dedup?.add(msgId);
+      }
 
       switch (msg.type) {
         case 'subscribe':
@@ -54,6 +69,10 @@ class WsServer {
 
         case 'task:input':
           await this.handleTaskInput(client, msg);
+          break;
+
+        case 'task:interrupt':
+          await this.handleTaskInterrupt(client, msg);
           break;
 
         case 'a2a:send':
@@ -93,6 +112,7 @@ class WsServer {
       for (const cleanup of cleanups) cleanup();
       this.streamCleanups.delete(clientId);
     }
+    this.messageDedup.delete(clientId);
     this.clients.delete(clientId);
   }
 
@@ -282,6 +302,23 @@ class WsServer {
     }
   }
 
+  private async handleTaskInterrupt(client: WsClient, msg: Extract<ClientMessage, { type: 'task:interrupt' }>) {
+    if (!msg.taskId) {
+      this.send(client, { type: 'error', message: 'Missing taskId in interrupt request' });
+      return;
+    }
+    try {
+      const context = this.buildContext(client);
+      const result = await execute({ op: 'task.interrupt', params: { id: msg.taskId }, context });
+      if (!result.ok) {
+        this.send(client, { type: 'error', message: result.error.message });
+      }
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.send(client, { type: 'error', message: errMsg });
+    }
+  }
+
   private async handleTaskInput(client: WsClient, msg: Extract<ClientMessage, { type: 'task:input' }>) {
     if (!msg.taskId) {
       this.send(client, { type: 'error', message: 'Missing taskId in task input request' });
@@ -447,6 +484,7 @@ class WsServer {
       for (const cleanup of cleanups) cleanup();
     }
     this.streamCleanups.clear();
+    this.messageDedup.clear();
     this.clients.clear();
   }
 }
