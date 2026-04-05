@@ -155,14 +155,28 @@ class WsServer {
           this.handleAuth(client, msg.token);
           break;
         case 'subscribe': {
-          const denied = msg.channels.filter(ch => this.requiresAuth(ch) && !client.userId);
-          if (denied.length > 0) {
-            this.send(client, { type: 'error', message: `Authentication required to subscribe to: ${denied.join(', ')}` });
-            // Only add channels that don't require auth
-            msg.channels.filter(ch => !this.requiresAuth(ch)).forEach(ch => client.subscriptions.add(ch));
-          } else {
-            msg.channels.forEach(ch => client.subscriptions.add(ch));
+          const denied: string[] = [];
+          const allowed: string[] = [];
+          for (const ch of msg.channels) {
+            if (!this.requiresAuth(ch)) {
+              allowed.push(ch);
+            } else if (!client.userId) {
+              denied.push(ch);
+            } else if (ch.startsWith('workspace:')) {
+              const wsId = ch.slice('workspace:'.length);
+              if (client.allowedWorkspaceIds?.has(wsId)) {
+                allowed.push(ch);
+              } else {
+                denied.push(ch);
+              }
+            } else {
+              allowed.push(ch);
+            }
           }
+          if (denied.length > 0) {
+            this.send(client, { type: 'error', message: `Not authorized to subscribe to: ${denied.join(', ')}` });
+          }
+          allowed.forEach(ch => client.subscriptions.add(ch));
           break;
         }
         case 'unsubscribe':
@@ -205,9 +219,9 @@ class WsServer {
   private async handleAuth(client: import('./ws-types').WsClient, token: string) {
     try {
       const { verifyWsToken } = await import('./ws-auth');
-      const userId = await verifyWsToken(token);
+      const { userId, workspaceIds } = await verifyWsToken(token);
       client.userId = userId;
-      // TODO: load workspace memberships here once workspace_members table exists
+      client.allowedWorkspaceIds = workspaceIds;
       this.send(client, { type: 'session:resumed', sessionId: client.id });
     } catch {
       this.send(client, { type: 'error', message: 'Authentication failed' });

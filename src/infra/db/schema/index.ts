@@ -126,6 +126,31 @@ export const memoryTypeEnum = pgEnum('memory_type', ['domain', 'feedback', 'patt
 export const memorySourceEnum = pgEnum('memory_source', ['explicit', 'proposed', 'approved']);
 export const proposalStatusEnum = pgEnum('proposal_status', ['pending', 'approved', 'rejected']);
 export const orchestrationStatusEnum = pgEnum('orchestration_status', ['submitted', 'running', 'paused', 'completed', 'failed', 'cancelled']);
+export const workspaceRoleEnum = pgEnum('workspace_role', ['owner', 'admin', 'member', 'viewer']);
+
+// Workspaces
+export const workspaces = pgTable('workspaces', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  createdBy: text('created_by').notNull(),   // Clerk userId
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  uniqueIndex('workspaces_slug_idx').on(t.slug),
+]);
+
+export const workspaceMembers = pgTable('workspace_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull(),          // Clerk userId
+  role: workspaceRoleEnum('role').notNull().default('member'),
+  invitedBy: text('invited_by'),
+  joinedAt: timestamp('joined_at').defaultNow(),
+}, (t) => [
+  uniqueIndex('wm_workspace_user_idx').on(t.workspaceId, t.userId),
+  index('wm_user_idx').on(t.userId),
+]);
 
 // Sessions
 export const sessions = pgTable('sessions', {

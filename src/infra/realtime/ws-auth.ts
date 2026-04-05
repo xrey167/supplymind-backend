@@ -1,11 +1,22 @@
 import { logger } from '../../config/logger';
+import { db } from '../db/client';
+import { workspaceMembers } from '../db/schema';
+import { eq } from 'drizzle-orm';
 
 /**
  * Verify a Bearer token for WebSocket auth handshake.
- * Reuses the same Clerk client logic as the HTTP auth middleware.
- * Returns the userId (sub) on success, throws on failure.
+ * Returns { userId, workspaceIds } on success, throws on failure.
  */
-export async function verifyWsToken(token: string): Promise<string> {
+export async function verifyWsToken(token: string): Promise<{ userId: string; workspaceIds: Set<string> }> {
+  const userId = await resolveUserId(token);
+  const rows = await db.select({ workspaceId: workspaceMembers.workspaceId })
+    .from(workspaceMembers)
+    .where(eq(workspaceMembers.userId, userId));
+  const workspaceIds = new Set(rows.map(r => r.workspaceId));
+  return { userId, workspaceIds };
+}
+
+async function resolveUserId(token: string): Promise<string> {
   const clerkSecretKey = Bun.env.CLERK_SECRET_KEY;
   if (clerkSecretKey) {
     const { createClerkClient } = await import('@clerk/backend');
