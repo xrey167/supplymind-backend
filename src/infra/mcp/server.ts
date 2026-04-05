@@ -14,8 +14,23 @@ const sessions = new Map<string, {
   transport: WebStandardStreamableHTTPServerTransport;
   server: Server;
   context: GatewayContext;
-  agentSessionId?: string; // SupplyMindAI session for multi-turn
+  lastActivity: number;
 }>();
+
+// Reap idle MCP sessions every 5 minutes (idle = no activity for 30 min)
+const SESSION_IDLE_MS = 30 * 60 * 1000;
+const sessionReaper = setInterval(() => {
+  const now = Date.now();
+  for (const [sid, session] of sessions) {
+    if (now - session.lastActivity > SESSION_IDLE_MS) {
+      session.transport.close().catch(() => {});
+      sessions.delete(sid);
+      logger.info({ sessionId: sid }, 'Reaped idle MCP session');
+    }
+  }
+}, 5 * 60 * 1000);
+// Don't block process exit
+if (typeof sessionReaper === 'object' && 'unref' in sessionReaper) (sessionReaper as any).unref();
 
 // ---------------------------------------------------------------------------
 // Server factory — one MCP server per session, sharing the same tool handlers
@@ -170,6 +185,7 @@ export async function handleMcpRequest(request: Request): Promise<Response> {
   if (sessionId && sessions.has(sessionId)) {
     // Existing session
     const session = sessions.get(sessionId)!;
+    session.lastActivity = Date.now();
     return session.transport.handleRequest(request);
   }
 
@@ -178,7 +194,7 @@ export async function handleMcpRequest(request: Request): Promise<Response> {
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: () => nanoid(),
       onsessioninitialized: (sid) => {
-        sessions.set(sid, { transport, server, context });
+        sessions.set(sid, { transport, server, context, lastActivity: Date.now() });
         logger.info({ sessionId: sid, callerId: context.callerId }, 'MCP session initialized');
       },
       onsessionclosed: (sid) => {
@@ -244,16 +260,6 @@ function extractTextFromTask(task: any): string {
   }
 
   return typeof task === 'string' ? task : JSON.stringify(task, null, 2);
-}
-
-// ---------------------------------------------------------------------------
-// Legacy export — kept for backward compatibility with bootstrap.ts
-// ---------------------------------------------------------------------------
-
-export function createMcpServer() {
-  // No-op — the new MCP server is mounted via Hono routes, not created standalone.
-  // This function exists so bootstrap.ts doesn't break.
-  logger.info('MCP server available at /mcp (Streamable HTTP)');
 }
 
 /** Get active session count (for monitoring) */

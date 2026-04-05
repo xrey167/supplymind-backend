@@ -24,7 +24,22 @@
       "Bash(git branch:*)",
       "mcp__fetch__fetch",
       "Bash(tree -L 3 -d /c/Users/Xrey/SupplyMindAI/backend/src --ignore node_modules)",
-      "Bash(grep -E \"\\\\.ts$\")"
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(git worktree:*)",
+      "Bash(bun install:*)",
+      "Bash(git:*)",
+      "Bash(bunx tsc:*)",
+      "Bash(bun tsc:*)",
+      "Bash(bun --eval \"import\\('./src/infra/state/tool-approvals'\\)\")",
+      "Bash(python3:*)",
+      "Bash(grep -l \"TODO\\\\|stub\\\\|placeholder\\\\|export {}\\\\|export default {}\" src/modules/*/\\\\*.repo.ts src/modules/*/\\\\*.service.ts)",
+      "Bash(sed 's/[= ]//g')",
+      "Bash(wc -l /c/Users/Xrey/a2a-mcp-server/src/*.ts)",
+      "Bash(ls -1 /c/Users/Xrey/a2a-mcp-server/src/*.ts)",
+      "Bash(xargs -I {} bash -c 'echo \"=== {} ===\" && wc -l {}')",
+      "Bash(sort -k2 -rn)",
+      "Bash(grep -l \"TODO: Implement\" /c/Users/Xrey/SupplyMindAI/backend/src/modules/**/*.ts)",
+      "Bash(wc:*)"
     ]
   }
 }

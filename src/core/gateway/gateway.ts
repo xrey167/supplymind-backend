@@ -2,6 +2,7 @@ import { ok, err } from '../result';
 import type { GatewayRequest, GatewayResult, GatewayContext } from './gateway.types';
 import type { DispatchContext } from '../../modules/skills/skills.types';
 import { bridgeTaskEvents } from './gateway-stream';
+import { NotFoundError } from '../errors';
 import { logger } from '../../config/logger';
 
 /**
@@ -67,7 +68,7 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
     case 'task.get': {
       const { tasksService } = await import('../../modules/tasks/tasks.service');
       const task = tasksService.get(params.id as string);
-      return task ? ok(task) : err(new Error(`Task not found: ${params.id}`));
+      return task ? ok(task) : err(new NotFoundError(`Task not found: ${params.id}`));
     }
 
     case 'task.cancel': {

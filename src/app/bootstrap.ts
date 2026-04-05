@@ -119,14 +119,8 @@ export async function initSubsystems(): Promise<void> {
     logger.warn({ err }, 'Stale task recovery failed — continuing');
   }
 
-  // Step 8: Start MCP server — expose skills as MCP tools (non-critical)
-  try {
-    const { createMcpServer } = await import('../infra/mcp/server');
-    createMcpServer();
-    logger.info('MCP server initialized');
-  } catch (error) {
-    logger.warn({ error: (error as Error).message }, 'Failed to initialize MCP server — MCP tools unavailable');
-  }
+  // Step 8: MCP server is now mounted as a Hono route (/mcp) — no standalone init needed
+  logger.info('MCP server available at /mcp (Streamable HTTP)');
 
   // Step 9: Load registered agents from DB into memory (non-critical)
   try {

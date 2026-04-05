@@ -2,6 +2,18 @@ import type { Role } from '../security';
 import { validateApiKey } from '../../infra/auth/api-key';
 import { logger } from '../../config/logger';
 
+// Cached Clerk client — avoids recreating per call
+let _clerkClient: any = null;
+let _clerkSecretKey: string | null = null;
+
+async function getClerkClient(secretKey: string) {
+  if (_clerkClient && _clerkSecretKey === secretKey) return _clerkClient;
+  const { createClerkClient } = await import('@clerk/backend');
+  _clerkClient = createClerkClient({ secretKey });
+  _clerkSecretKey = secretKey;
+  return _clerkClient;
+}
+
 export interface ResolvedIdentity {
   callerId: string;
   workspaceId: string;
@@ -31,8 +43,7 @@ export async function resolveAuth(token: string): Promise<ResolvedIdentity | nul
   try {
     const clerkSecretKey = Bun.env.CLERK_SECRET_KEY;
     if (clerkSecretKey) {
-      const { createClerkClient } = await import('@clerk/backend');
-      const clerk = createClerkClient({ secretKey: clerkSecretKey });
+      const clerk = await getClerkClient(clerkSecretKey);
       const payload = await clerk.verifyToken(token);
       return {
         callerId: payload.sub,

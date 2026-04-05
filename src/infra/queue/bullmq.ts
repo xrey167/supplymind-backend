@@ -63,6 +63,20 @@ export function enqueueAgentRun(data: AgentJobData): Promise<Job<AgentJobData>> 
   return agentQueue.add('run', data, { attempts: 1, removeOnComplete: 100, removeOnFail: 200 });
 }
 
+// Orchestration execution queue
+export interface OrchestrationJobData {
+  orchestrationId: string;
+  workspaceId: string;
+  definition: import('../../modules/orchestration/orchestration.types').OrchestrationDefinition;
+  input: Record<string, unknown>;
+}
+
+export const orchestrationQueue = new Queue<OrchestrationJobData>('orchestration-run', { connection });
+
+export function enqueueOrchestration(data: OrchestrationJobData): Promise<Job<OrchestrationJobData>> {
+  return orchestrationQueue.add('run', data, { attempts: 1, removeOnComplete: 100, removeOnFail: 200 });
+}
+
 // Enqueue a skill execution and wait for result
 export async function enqueueSkill(data: SkillJobData, opts?: { timeout?: number }): Promise<SkillJobResult> {
   const job = await skillQueue.add('execute', data, {

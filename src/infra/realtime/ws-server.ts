@@ -71,11 +71,11 @@ class WsServer {
           break;
 
         case 'memory:approve':
-          await this.handleMemoryApprove(client, msg);
+          await this.handleMemoryAction(client, 'memory.approve', msg.proposalId);
           break;
 
         case 'memory:reject':
-          await this.handleMemoryReject(client, msg);
+          await this.handleMemoryAction(client, 'memory.reject', msg.proposalId, msg.reason);
           break;
 
         case 'orchestration:gate:respond':
@@ -244,34 +244,15 @@ class WsServer {
     }
   }
 
-  private async handleMemoryApprove(client: WsClient, msg: Extract<ClientMessage, { type: 'memory:approve' }>) {
-    if (!msg.proposalId) {
-      this.send(client, { type: 'error', message: 'Missing proposalId in memory approve request' });
+  private async handleMemoryAction(client: WsClient, op: 'memory.approve' | 'memory.reject', proposalId?: string, reason?: string) {
+    if (!proposalId) {
+      this.send(client, { type: 'error', message: `Missing proposalId in ${op} request` });
       return;
     }
 
     try {
       const context = this.buildContext(client);
-      await execute({ op: 'memory.approve', params: { proposalId: msg.proposalId }, context });
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      this.send(client, { type: 'error', message: errMsg });
-    }
-  }
-
-  private async handleMemoryReject(client: WsClient, msg: Extract<ClientMessage, { type: 'memory:reject' }>) {
-    if (!msg.proposalId) {
-      this.send(client, { type: 'error', message: 'Missing proposalId in memory reject request' });
-      return;
-    }
-
-    try {
-      const context = this.buildContext(client);
-      await execute({
-        op: 'memory.reject',
-        params: { proposalId: msg.proposalId, reason: msg.reason },
-        context,
-      });
+      await execute({ op, params: { proposalId, reason }, context });
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       this.send(client, { type: 'error', message: errMsg });
@@ -396,7 +377,13 @@ class WsServer {
 
   private trackCleanup(clientId: string, cleanup: () => void) {
     const set = this.streamCleanups.get(clientId);
-    if (set) set.add(cleanup);
+    if (!set) return;
+    // Wrap cleanup so it removes itself from the set after running
+    const tracked = () => {
+      cleanup();
+      set.delete(tracked);
+    };
+    set.add(tracked);
   }
 
   private extractMessageText(messages: unknown[]): string {
