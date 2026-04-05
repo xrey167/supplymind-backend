@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
 import { ok, err } from '../../core/result';
 import type { Result } from '../../core/result';
+import { NotFoundError } from '../../core/errors';
 import { taskManager } from '../../infra/a2a/task-manager';
 import { taskRepo } from '../../infra/a2a/task-repo';
 import { agentsRepo } from '../agents/agents.repo';
@@ -78,8 +79,16 @@ export class TasksService {
     return taskManager.get(taskId);
   }
 
-  cancel(taskId: string): A2ATask | undefined {
-    return taskManager.cancel(taskId);
+  async cancel(taskId: string, workspaceId: string): Promise<Result<A2ATask, NotFoundError>> {
+    const ownerWorkspaceId = await taskRepo.findWorkspaceById(taskId);
+    if (!ownerWorkspaceId || ownerWorkspaceId !== workspaceId) {
+      return err(new NotFoundError('Task not found'));
+    }
+    const task = taskManager.cancel(taskId);
+    if (!task) {
+      return err(new NotFoundError('Task not found'));
+    }
+    return ok(task);
   }
 
   async list(workspaceId: string, opts?: { limit?: number; cursor?: string }): Promise<A2ATask[]> {

@@ -32,9 +32,10 @@ export const tasksController = {
 
   async cancelTask(c: Context) {
     const { id } = taskIdParamSchema.parse(c.req.param());
-    const task = tasksService.cancel(id);
-    if (!task) return c.json({ error: 'Task not found' }, 404);
-    return c.json(task);
+    const workspaceId = c.get('workspaceId') as string;
+    const result = await tasksService.cancel(id, workspaceId);
+    if (!result.ok) return c.json({ error: result.error.message }, result.error.statusCode as 404);
+    return c.json(result.value);
   },
 
   async listTasks(c: Context) {

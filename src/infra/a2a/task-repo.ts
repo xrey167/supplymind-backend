@@ -67,6 +67,11 @@ export const taskRepo = {
     };
   },
 
+  async findWorkspaceById(taskId: string): Promise<string | undefined> {
+    const rows = await db.select({ workspaceId: a2aTasks.workspaceId }).from(a2aTasks).where(eq(a2aTasks.id, taskId));
+    return rows[0]?.workspaceId ?? undefined;
+  },
+
   async findByStatus(status: string): Promise<A2ATask[]> {
     const rows = await db.select().from(a2aTasks).where(eq(a2aTasks.status, status as any));
     return rows.map(row => ({
