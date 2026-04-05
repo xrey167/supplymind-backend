@@ -46,11 +46,41 @@ mock.module('../mcp.repo', () => ({
 
 const mockRegister = mock((_skill: unknown) => {});
 
-mock.module('../../skills/skills.registry', () => ({
-  skillRegistry: {
-    register: mockRegister,
-  },
-}));
+// Full mock that mirrors SkillRegistry API (including priority logic) to avoid polluting other test files
+mock.module('../../skills/skills.registry', () => {
+  class SkillRegistry {
+    private skills = new Map<string, any>();
+    register(skill: any) {
+      mockRegister(skill);
+      const existing = this.skills.get(skill.name);
+      if (existing && existing.priority >= skill.priority) return;
+      this.skills.set(skill.name, skill);
+    }
+    unregister(name: string) { this.skills.delete(name); }
+    get(name: string) { return this.skills.get(name); }
+    has(name: string) { return this.skills.has(name); }
+    list() { return Array.from(this.skills.values()); }
+    clear() { this.skills.clear(); }
+    toToolDefinitions() {
+      return this.list().map((s: any) => ({
+        name: s.name, description: s.description, inputSchema: s.inputSchema,
+        ...(s.toolHints?.strict != null && { strict: s.toolHints.strict }),
+        ...(s.toolHints?.cacheable && { cacheControl: { type: 'ephemeral' as const } }),
+        ...(s.toolHints?.eagerInputStreaming != null && { eagerInputStreaming: s.toolHints.eagerInputStreaming }),
+      }));
+    }
+    async invoke(name: string, args: any, context?: any) {
+      const skill = this.skills.get(name);
+      if (!skill) return { ok: false, error: new Error(`Skill not found: ${name}`) };
+      try { return await skill.handler(args, context); }
+      catch (e: any) { return { ok: false, error: e instanceof Error ? e : new Error(String(e)) }; }
+    }
+    async loadFromProviders(providers: any[]) {
+      for (const p of providers) { for (const s of await p.loadSkills()) this.register(s); }
+    }
+  }
+  return { skillRegistry: new SkillRegistry(), SkillRegistry };
+});
 
 const mockListTools = mock(async (_config: unknown) => ({
   serverName: 'test-server',

@@ -24,6 +24,12 @@ mock.module('../../../infra/auth/api-key', () => ({
     }
     return null;
   }),
+  hashApiKey: mock(async (key: string) => {
+    const hash = new Bun.CryptoHasher('sha256');
+    hash.update(key);
+    return hash.digest('hex');
+  }),
+  createApiKey: mock(async () => ({ token: 'a2a_k_mock', keyInfo: {} })),
 }));
 
 const { authMiddleware } = await import('../auth');

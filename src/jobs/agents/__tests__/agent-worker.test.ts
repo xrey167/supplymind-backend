@@ -62,7 +62,7 @@ mock.module('../../../infra/a2a/task-manager', () => ({
 
 // ---- logger mock ----
 mock.module('../../../config/logger', () => ({
-  logger: { info: mock(() => {}), error: mock(() => {}), warn: mock(() => {}) },
+  logger: { info: mock(() => {}), error: mock(() => {}), warn: mock(() => {}), debug: mock(() => {}) },
 }));
 
 // Import AFTER mocks and call startAgentWorkers to capture processor + handlers

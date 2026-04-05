@@ -21,7 +21,7 @@ mock.module('openai', () => {
 
 // ---- Supporting mocks ----
 mock.module('../../config/logger', () => ({
-  logger: { warn: mock(() => {}), error: mock(() => {}), info: mock(() => {}) },
+  logger: { warn: mock(() => {}), error: mock(() => {}), info: mock(() => {}), debug: mock(() => {}) },
 }));
 
 mock.module('./tool-format', () => ({

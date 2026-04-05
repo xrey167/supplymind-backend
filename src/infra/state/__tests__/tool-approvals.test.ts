@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { mock } from 'bun:test';
 
 mock.module('../../../config/logger', () => ({
-  logger: { warn: mock(() => {}), error: mock(() => {}), info: mock(() => {}) },
+  logger: { warn: mock(() => {}), error: mock(() => {}), info: mock(() => {}), debug: mock(() => {}) },
 }));
 
 const { createApprovalRequest, resolveApproval, pendingApprovalCount } = await import('../tool-approvals');
