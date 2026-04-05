@@ -13,7 +13,7 @@ export const HIGH_PATTERNS: RiskPattern[] = [
   { name: 'rm-rf-system',   regex: /rm\s+-[^\s]*r[^\s]*f[^\s]*\s+\/(?:etc|usr|bin|boot|lib|sbin|var|home)(?:\/|\s|$)/, reason: 'Recursive force delete of system directory' },
   // Fork bombs
   { name: 'fork-bomb',      regex: /:\s*\(\s*\)\s*\{.*:\s*\|.*:.*&.*\}/, reason: 'Fork bomb pattern detected' },
-  { name: 'fork-bomb-alt',  regex: /\w+\s*\(\s*\)\s*\{.*\1\s*\|.*\1.*&/, reason: 'Fork bomb variant detected' },
+  { name: 'fork-bomb-alt',  regex: /(\w+)\s*\(\s*\)\s*\{.*\1\s*\|.*\1.*&/, reason: 'Fork bomb variant detected' },
   // Pipe-to-shell (arbitrary remote code execution)
   { name: 'curl-pipe-sh',   regex: /curl\b.*\|\s*(?:ba)?sh\b/, reason: 'Remote code execution via curl pipe to shell' },
   { name: 'wget-pipe-sh',   regex: /wget\b.*\|\s*(?:ba)?sh\b/, reason: 'Remote code execution via wget pipe to shell' },
@@ -30,7 +30,7 @@ export const HIGH_PATTERNS: RiskPattern[] = [
   // Privilege escalation
   { name: 'sudo-su',        regex: /\bsudo\s+(?:su|-[si])\b/, reason: 'Privilege escalation via sudo su/sudo -s/sudo -i' },
   { name: 'pkexec',         regex: /\bpkexec\b/, reason: 'Privilege escalation via pkexec' },
-  { name: 'su-root',        regex: /\bsu\s+-\s*(?:root)?\s*$/, reason: 'Switch to root user' },
+  { name: 'su-root',        regex: /\bsu\s+-(?:\s+root)?\b/, reason: 'Switch to root user' },
   // Credential exfiltration
   { name: 'shadow-read',    regex: /\bcat\b.*\/etc\/shadow/, reason: 'Read /etc/shadow (password hashes)' },
   { name: 'passwd-exfil',   regex: /\/etc\/passwd.*\|\s*(?:curl|wget)/, reason: 'Exfiltrate /etc/passwd via network' },
