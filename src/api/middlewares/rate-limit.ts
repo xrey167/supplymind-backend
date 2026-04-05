@@ -55,7 +55,7 @@ export function rateLimit(maxRequests = DEFAULT_MAX_TOKENS) {
     const bucket = getBucket(key, maxRequests);
 
     if (bucket.tokens <= 0) {
-      const retryAfterSec = Math.ceil((DEFAULT_REFILL_INTERVAL_MS - (Date.now() - bucket.lastRefill)) / 1000);
+      const retryAfterSec = Math.max(1, Math.ceil((DEFAULT_REFILL_INTERVAL_MS - (Date.now() - bucket.lastRefill)) / 1000));
       c.header('Retry-After', String(retryAfterSec));
       c.header('X-RateLimit-Limit', String(maxRequests));
       c.header('X-RateLimit-Remaining', '0');

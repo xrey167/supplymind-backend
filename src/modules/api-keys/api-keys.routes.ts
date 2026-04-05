@@ -4,6 +4,7 @@ import { apiKeysService } from './api-keys.service';
 import { toApiKeyResponse } from './api-keys.mapper';
 import { emitApiKeyCreated, emitApiKeyRevoked, emitApiKeyDeleted } from './api-keys.events';
 import { createApiKeySchema, apiKeyParamSchema, apiKeyResponseSchema, createApiKeyResponseSchema } from './api-keys.schemas';
+import { requirePermission } from '../../api/middlewares/permissions';
 
 const listRoute = createRoute({
   method: 'get',
@@ -50,13 +51,13 @@ const deleteRoute = createRoute({
 
 export const ApiKeysRoutes = new OpenAPIHono();
 
-ApiKeysRoutes.openapi(listRoute, async (c) => {
+ApiKeysRoutes.openapi(listRoute, requirePermission('api-keys', 'read'), async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const keys = await apiKeysService.list(workspaceId);
   return c.json({ data: keys.map(toApiKeyResponse) });
 });
 
-ApiKeysRoutes.openapi(createRoute_, async (c) => {
+ApiKeysRoutes.openapi(createRoute_, requirePermission('api-keys', 'write'), async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const input = c.req.valid('json');
   const result = await apiKeysService.create(workspaceId, input);
@@ -64,7 +65,7 @@ ApiKeysRoutes.openapi(createRoute_, async (c) => {
   return c.json({ token: result.token, key: toApiKeyResponse(result.key) }, 201);
 });
 
-ApiKeysRoutes.openapi(getRoute, async (c) => {
+ApiKeysRoutes.openapi(getRoute, requirePermission('api-keys', 'read'), async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const { keyId } = c.req.valid('param');
   const key = await apiKeysService.get(keyId, workspaceId);
@@ -72,7 +73,7 @@ ApiKeysRoutes.openapi(getRoute, async (c) => {
   return c.json(toApiKeyResponse(key));
 });
 
-ApiKeysRoutes.openapi(revokeRoute, async (c) => {
+ApiKeysRoutes.openapi(revokeRoute, requirePermission('api-keys', 'write'), async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const { keyId } = c.req.valid('param');
   const revoked = await apiKeysService.revoke(keyId, workspaceId);
@@ -81,7 +82,7 @@ ApiKeysRoutes.openapi(revokeRoute, async (c) => {
   return c.json({ revoked: true });
 });
 
-ApiKeysRoutes.openapi(deleteRoute, async (c) => {
+ApiKeysRoutes.openapi(deleteRoute, requirePermission('api-keys', 'delete'), async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const { keyId } = c.req.valid('param');
   const deleted = await apiKeysService.deleteKey(keyId, workspaceId);

@@ -42,8 +42,10 @@ export const authMiddleware = createMiddleware(async (c, next) => {
       return next();
     } catch (error) {
       if (error instanceof UnauthorizedError) throw error;
-      logger.error({ error }, 'API key validation failed — denying access');
-      throw new UnauthorizedError('API key validation failed');
+      // Infrastructure error (DB down, Redis timeout, etc.) — rethrow as-is so
+      // the global error handler can return 500/503 instead of misleading 401.
+      logger.error({ error }, 'API key validation encountered an infrastructure error');
+      throw error;
     }
   }
 

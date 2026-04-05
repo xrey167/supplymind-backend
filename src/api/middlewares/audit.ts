@@ -32,7 +32,9 @@ export const auditMiddleware = createMiddleware(async (c, next) => {
   };
 
   // Fire-and-forget: never block the response
-  eventBus.publish('audit.request', entry).catch(() => {});
+  eventBus.publish('audit.request', entry).catch((err) => {
+    logger.error({ err, path: c.req.path, method: c.req.method }, 'audit.request publish failed — audit trail may have gaps');
+  });
 
   if (status >= 400) {
     logger.warn(entry, `${method} ${path} → ${status} (${durationMs}ms)`);
