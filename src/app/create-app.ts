@@ -7,6 +7,7 @@ import { publicRoutes } from '../api/routes/public';
 import { workspaceRoutes } from '../api/routes/workspace';
 import { handleMcpRequest } from '../infra/mcp/server';
 import { initSubsystems, destroySubsystems } from './bootstrap';
+import { healthService } from '../modules/health/health.service';
 
 export async function createApp() {
   const app = new OpenAPIHono({
@@ -32,6 +33,12 @@ export async function createApp() {
 
   // Health check
   app.get('/healthz', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
+
+  // Readiness probe — checks DB + Redis
+  app.get('/readyz', async (c) => {
+    const result = await healthService.readiness();
+    return c.json(result, result.status === 'ready' ? 200 : 503);
+  });
 
   // Public routes (no auth): /.well-known/agent.json, /a2a
   app.route('/', publicRoutes);
