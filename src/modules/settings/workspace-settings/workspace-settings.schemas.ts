@@ -6,6 +6,7 @@ export const WorkspaceSettingKeys = {
   ALLOWED_TOOL_NAMES: 'allowed_tool_names',
   SANDBOX_POLICY: 'sandbox_policy',
   MCP_SERVER_POLICY: 'mcp_server_policy',
+  APPROVAL_TIMEOUT_MS: 'approval_timeout_ms',
   BILLING_TIER: 'billing_tier',
   LICENSE_LIMITS: 'license_limits',
 } as const;

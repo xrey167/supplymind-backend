@@ -65,7 +65,8 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
         args: context.args ?? {},
         workspaceId: context.workspaceId,
       });
-      const approved = await createApprovalRequest(approvalId, context.workspaceId, 60_000);
+      const timeoutMs = await workspaceSettingsService.getApprovalTimeoutMs(context.workspaceId);
+      const approved = await createApprovalRequest(approvalId, context.workspaceId, timeoutMs);
       if (!approved) {
         return err(new AppError('Tool approval denied or timed out', 403, 'TOOL_APPROVAL_DENIED'));
       }

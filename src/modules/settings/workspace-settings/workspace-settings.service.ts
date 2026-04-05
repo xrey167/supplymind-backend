@@ -100,6 +100,12 @@ export class WorkspaceSettingsService {
     return parsed.data;
   }
 
+  async getApprovalTimeoutMs(workspaceId: string): Promise<number> {
+    const raw = await this.getRaw(workspaceId, WorkspaceSettingKeys.APPROVAL_TIMEOUT_MS);
+    const val = typeof raw === 'number' && raw > 0 ? raw : 60_000;
+    return val;
+  }
+
   // Spec-contract aliases
   getSettings = this.getToolSettings;
   updateSettings = this.updateToolSettings;
