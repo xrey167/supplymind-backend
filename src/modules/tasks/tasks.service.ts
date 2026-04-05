@@ -82,8 +82,8 @@ export class TasksService {
     return taskManager.cancel(taskId);
   }
 
-  async list(workspaceId?: string): Promise<A2ATask[]> {
-    const dbTasks = await taskRepo.findByWorkspace(workspaceId);
+  async list(workspaceId: string, opts?: { limit?: number; cursor?: string }): Promise<A2ATask[]> {
+    const dbTasks = await taskRepo.findByWorkspace(workspaceId, opts);
     // Merge live in-memory state for running tasks (more accurate status)
     return dbTasks.map(t => taskManager.get(t.id) ?? t);
   }

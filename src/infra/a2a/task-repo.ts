@@ -1,6 +1,6 @@
 import { db } from '../db/client';
 import { a2aTasks, taskDependencies, toolCallLogs } from '../db/schema';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, lt, desc } from 'drizzle-orm';
 import type { A2ATask } from './types';
 
 const TERMINAL_STATES = new Set(['completed', 'failed', 'canceled']);
@@ -33,10 +33,20 @@ export const taskRepo = {
       .where(eq(a2aTasks.id, taskId));
   },
 
-  async findByWorkspace(workspaceId?: string): Promise<A2ATask[]> {
-    const rows = workspaceId
-      ? await db.select().from(a2aTasks).where(eq(a2aTasks.workspaceId, workspaceId))
-      : await db.select().from(a2aTasks);
+  async findByWorkspace(workspaceId: string, opts?: { limit?: number; cursor?: string }): Promise<A2ATask[]> {
+    const limit = opts?.limit ?? 100;
+    const cursor = opts?.cursor;
+    const cursorDate = cursor ? new Date(cursor) : undefined;
+
+    const rows = await db.select().from(a2aTasks)
+      .where(
+        cursorDate
+          ? and(eq(a2aTasks.workspaceId, workspaceId), lt(a2aTasks.createdAt, cursorDate))
+          : eq(a2aTasks.workspaceId, workspaceId),
+      )
+      .orderBy(desc(a2aTasks.createdAt))
+      .limit(limit);
+
     return rows.map(row => ({
       id: row.id,
       status: { state: (row.status ?? 'submitted') as A2ATask['status']['state'] },

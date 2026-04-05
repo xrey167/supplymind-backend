@@ -14,7 +14,8 @@ export const taskIdParamSchema = z.object({
 });
 
 export const listTasksQuerySchema = z.object({
-  workspaceId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  cursor: z.string().optional(),
 });
 
 export const addDependencySchema = z.object({ dependsOnTaskId: z.string().uuid() });
