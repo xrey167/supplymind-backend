@@ -42,14 +42,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
       return next();
     } catch (error) {
       if (error instanceof UnauthorizedError) throw error;
-      // DB unavailable — fall back to stub validation in non-production only
-      const isDevMode = Bun.env.NODE_ENV === 'development' || Bun.env.NODE_ENV === 'test';
-      if (isDevMode) {
-        logger.warn('API key DB validation failed — falling back to stub (dev/test only)');
-        c.set('callerId', `apikey:${token.slice(0, 12)}...`);
-        c.set('callerRole', 'admin');
-        return next();
-      }
+      logger.error({ error }, 'API key validation failed — denying access');
       throw new UnauthorizedError('API key validation failed');
     }
   }

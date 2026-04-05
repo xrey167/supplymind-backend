@@ -520,7 +520,28 @@ class TaskManager {
       });
       if (state === 'completed' || state === 'failed' || state === 'canceled') {
         this.scheduleEviction(taskId);
+        this.tryUnblockDependents(taskId).catch((error: unknown) => {
+          logger.warn({ taskId, error }, 'Failed to check/unblock dependent tasks');
+        });
       }
+    }
+  }
+
+  /**
+   * After a task reaches a terminal state, check if any tasks were blocked by it.
+   * For each dependent that has no remaining active blockers, emit an unblock event
+   * so the system can re-enqueue execution.
+   */
+  private async tryUnblockDependents(completedTaskId: string) {
+    const deps = await taskRepo.getDependencies(completedTaskId);
+    if (deps.blocks.length === 0) return;
+
+    for (const dependentId of deps.blocks) {
+      const remainingBlockers = await taskRepo.getBlockers(dependentId);
+      if (remainingBlockers.length > 0) continue;
+
+      logger.info({ taskId: dependentId, unblockedBy: completedTaskId }, 'All blockers resolved — task ready for execution');
+      eventBus.publish(Topics.TASK_UNBLOCKED, { taskId: dependentId, unblockedBy: completedTaskId });
     }
   }
 

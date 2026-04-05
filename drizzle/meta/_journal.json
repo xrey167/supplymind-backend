@@ -15,6 +15,13 @@
       "when": 1775349436996,
       "tag": "0001_flashy_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775352096562,
+      "tag": "0002_gifted_doctor_doom",
+      "breakpoints": true
     }
   ]
 }

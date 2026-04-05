@@ -12,6 +12,7 @@ export const Topics = {
   TASK_ERROR: 'task.error',
   TASK_COMPLETED: 'task.completed',
   TASK_CANCELED: 'task.canceled',
+  TASK_UNBLOCKED: 'task.unblocked',
   TASK_ROUND_COMPLETED: 'task.round.completed',
   TASK_THINKING_DELTA: 'task.thinking_delta',
   // Agents
