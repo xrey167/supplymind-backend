@@ -568,6 +568,28 @@ class TaskManager {
     return record.task;
   }
 
+  /**
+   * Interrupt the current turn without killing the task.
+   * Aborts the current AbortController signal (stopping the active AI call),
+   * then installs a fresh controller so the task can resume on the next input.
+   * The task stays in 'working' state — it's paused, not canceled.
+   */
+  interrupt(taskId: string): boolean {
+    const record = this.tasks.get(taskId);
+    if (!record) return false;
+    const terminalStates = new Set(['canceled', 'completed', 'failed']);
+    if (terminalStates.has(record.task.status.state)) return false;
+
+    // Abort the current turn
+    record.controller.abort(new AbortError('Turn interrupted by user', 'user'));
+    // Install a fresh controller for the next turn
+    record.controller = new AbortController();
+    record.task.status = { state: 'input_required', message: 'Interrupted — waiting for input' };
+    eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'input_required', workspaceId: record.workspaceId });
+    logger.info({ taskId }, 'Task interrupted — waiting for next input');
+    return true;
+  }
+
   list(workspaceId?: string): A2ATask[] {
     const tasks = Array.from(this.tasks.values());
     if (workspaceId) return tasks.filter(r => r.workspaceId === workspaceId).map(r => r.task);

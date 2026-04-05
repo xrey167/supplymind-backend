@@ -26,7 +26,10 @@ export type ClientMessage =
   | { type: 'auth'; token: string }
   | { type: 'task:send'; agentId: string; messages: unknown[] }
   | { type: 'task:cancel'; taskId: string }
+  | { type: 'task:interrupt'; taskId: string }
   | { type: 'task:input'; taskId: string; input: unknown }
+  | { type: 'task:input:approve'; approvalId: string; approved: boolean; updatedInput?: Record<string, unknown> }
+  | { type: 'task:input:gate'; orchestrationId: string; stepId: string; approved: boolean }
   | { type: 'subscribe'; channels: string[] }
   | { type: 'unsubscribe'; channels: string[] }
   | { type: 'a2a:send'; agentUrl: string; skillId: string; args: unknown }

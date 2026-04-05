@@ -21,7 +21,10 @@ export type GatewayOp =
   | 'memory.reject'
   | 'orchestration.start'
   | 'orchestration.gate.respond'
-  | 'collaboration.start';
+  | 'task.input'
+  | 'task.interrupt'
+  | 'collaboration.start'
+  | 'a2a.delegate';
 
 // ---------------------------------------------------------------------------
 // Streaming events — protocol-agnostic, each transport adapter projects these
@@ -36,6 +39,7 @@ export type GatewayEventType =
   | 'round_completed'
   | 'error'
   | 'approval_required'
+  | 'input_required'
   | 'done';
 
 export interface GatewayEvent {

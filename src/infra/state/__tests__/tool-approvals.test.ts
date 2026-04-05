@@ -7,7 +7,7 @@ mock.module('../../../config/logger', () => ({
   logger: { warn: mock(() => {}), error: mock(() => {}), info: mock(() => {}), debug: mock(() => {}) },
 }));
 
-const { createApprovalRequest, resolveApproval, pendingApprovalCount } = await import('../tool-approvals');
+const { createApprovalRequest, resolveApproval, cancelApproval, pendingApprovalCount } = await import('../tool-approvals');
 
 // ---- helpers ----
 
@@ -21,30 +21,53 @@ describe('tool-approvals', () => {
   // approvals in afterEach so the module-level Map stays clean.
 
   describe('createApprovalRequest + resolveApproval', () => {
-    it('happy path: resolves to true when approved', async () => {
+    it('happy path: resolves to approved when approved', async () => {
       const promise = createApprovalRequest('ap-1', 'ws-1', 5000);
 
       const resolved = resolveApproval('ap-1', 'ws-1', true);
 
       expect(resolved).toBe(true);
-      await expect(promise).resolves.toBe(true);
+      const result = await promise;
+      expect(result.approved).toBe(true);
     });
 
-    it('denial path: resolves to false when denied', async () => {
+    it('denial path: resolves to not approved when denied', async () => {
       const promise = createApprovalRequest('ap-2', 'ws-1', 5000);
 
       resolveApproval('ap-2', 'ws-1', false);
 
-      await expect(promise).resolves.toBe(false);
+      const result = await promise;
+      expect(result.approved).toBe(false);
     });
 
-    it('timeout: promise resolves to false after timeoutMs', async () => {
+    it('timeout: promise resolves to not approved after timeoutMs', async () => {
       const promise = createApprovalRequest('ap-timeout', 'ws-1', 1);
 
       // Wait longer than the 1 ms timeout
       await new Promise<void>((r) => setTimeout(r, 10));
 
-      await expect(promise).resolves.toBe(false);
+      const result = await promise;
+      expect(result.approved).toBe(false);
+    });
+
+    it('updatedInput: carries modified args when approved with input', async () => {
+      const promise = createApprovalRequest('ap-input', 'ws-1', 5000);
+
+      resolveApproval('ap-input', 'ws-1', true, { file: '/safe/path.txt' });
+
+      const result = await promise;
+      expect(result.approved).toBe(true);
+      expect(result.updatedInput).toEqual({ file: '/safe/path.txt' });
+    });
+
+    it('updatedInput: not included when denied', async () => {
+      const promise = createApprovalRequest('ap-deny-input', 'ws-1', 5000);
+
+      resolveApproval('ap-deny-input', 'ws-1', false, { file: 'ignored' });
+
+      const result = await promise;
+      expect(result.approved).toBe(false);
+      expect(result.updatedInput).toBeUndefined();
     });
 
     it('cross-workspace rejection: resolveApproval returns false and does not resolve the promise', async () => {
@@ -83,6 +106,22 @@ describe('tool-approvals', () => {
       await promise;
 
       expect(pendingApprovalCount()).toBe(before);
+    });
+  });
+
+  describe('cancelApproval', () => {
+    it('cancels a pending approval (resolves as denied)', async () => {
+      const promise = createApprovalRequest('ap-cancel', 'ws-1', 5000);
+
+      const canceled = cancelApproval('ap-cancel', 'ws-1');
+
+      expect(canceled).toBe(true);
+      const result = await promise;
+      expect(result.approved).toBe(false);
+    });
+
+    it('returns false for unknown approval', () => {
+      expect(cancelApproval('nonexistent', 'ws-1')).toBe(false);
     });
   });
 

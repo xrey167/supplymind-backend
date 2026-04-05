@@ -1,7 +1,8 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { buildAgentCard } from '../../../infra/a2a/agent-card';
-import { taskManager } from '../../../infra/a2a/task-manager';
+import { execute, resolveAuth } from '../../../core/gateway';
+import type { GatewayContext } from '../../../core/gateway';
 
 const publicRoutes = new OpenAPIHono();
 
@@ -21,7 +22,7 @@ const jsonRpcSchema = z.object({
   jsonrpc: z.literal('2.0').optional(),
   id: z.union([z.string(), z.number()]).optional(),
   method: z.string(),
-  params: z.record(z.unknown()).optional(),
+  params: z.record(z.string(), z.unknown()).optional(),
 });
 
 const tasksSendParamsSchema = z.object({
@@ -29,7 +30,7 @@ const tasksSendParamsSchema = z.object({
   agentId: z.string().optional(),
   message: z.unknown().optional(),
   text: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 // A2A JSON-RPC endpoint — requires API key auth
@@ -40,22 +41,33 @@ publicRoutes.post('/a2a', async (c) => {
     return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Missing or invalid Authorization header. Use Bearer <api-key>.' } }, 401);
   }
 
-  const apiKey = authHeader.slice(7);
+  const token = authHeader.slice(7);
 
-  // Validate against configured API key — reject unknown keys outright
-  const configuredKey = Bun.env.A2A_API_KEY;
-  if (!configuredKey) {
-    return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'A2A endpoint not configured (missing A2A_API_KEY)' } }, 503);
+  // Try gateway auth first (a2a_k_ workspace keys, JWTs), then fall back to shared A2A_API_KEY
+  let context: GatewayContext;
+  const identity = await resolveAuth(token);
+  if (identity) {
+    context = {
+      callerId: identity.callerId,
+      workspaceId: identity.workspaceId,
+      callerRole: identity.callerRole,
+    };
+  } else {
+    // Fallback: shared A2A_API_KEY for external agents without workspace keys
+    const configuredKey = Bun.env.A2A_API_KEY;
+    if (!configuredKey) {
+      return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'A2A endpoint not configured (missing A2A_API_KEY)' } }, 503);
+    }
+    // Constant-time comparison to prevent timing side-channel attacks
+    const keyBuf = Buffer.from(token);
+    const confBuf = Buffer.from(configuredKey);
+    const keysMatch = keyBuf.length === confBuf.length &&
+      crypto.timingSafeEqual(keyBuf, confBuf);
+    if (!keysMatch) {
+      return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Invalid API key' } }, 401);
+    }
+    context = { callerId: 'a2a', workspaceId: 'public', callerRole: 'operator' };
   }
-  // Constant-time comparison to prevent timing side-channel attacks
-  const keyBuf = Buffer.from(apiKey);
-  const confBuf = Buffer.from(configuredKey);
-  const keysMatch = keyBuf.length === confBuf.length &&
-    crypto.timingSafeEqual(keyBuf, confBuf);
-  if (!keysMatch) {
-    return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Invalid API key' } }, 401);
-  }
-  // TODO: migrate to per-workspace API key validation once api_keys table is available
 
   // Parse and validate JSON-RPC envelope
   let body: z.infer<typeof jsonRpcSchema>;
@@ -72,9 +84,9 @@ publicRoutes.post('/a2a', async (c) => {
     if (typeof id !== 'string') {
       return c.json({ jsonrpc: '2.0', id: body.id, error: { code: -32602, message: 'Invalid params: id must be a string' } }, 400);
     }
-    const task = taskManager.get(id);
-    if (!task) return c.json({ jsonrpc: '2.0', id: body.id, error: { code: -32000, message: 'Task not found' } });
-    return c.json({ jsonrpc: '2.0', id: body.id, result: task });
+    const result = await execute({ op: 'task.get', params: { id }, context });
+    if (!result.ok) return c.json({ jsonrpc: '2.0', id: body.id, error: { code: -32000, message: result.error.message } });
+    return c.json({ jsonrpc: '2.0', id: body.id, result: result.value });
   }
 
   if (body.method === 'tasks/cancel') {
@@ -82,9 +94,9 @@ publicRoutes.post('/a2a', async (c) => {
     if (typeof id !== 'string') {
       return c.json({ jsonrpc: '2.0', id: body.id, error: { code: -32602, message: 'Invalid params: id must be a string' } }, 400);
     }
-    const task = taskManager.cancel(id);
-    if (!task) return c.json({ jsonrpc: '2.0', id: body.id, error: { code: -32000, message: 'Task not found' } });
-    return c.json({ jsonrpc: '2.0', id: body.id, result: task });
+    const result = await execute({ op: 'task.cancel', params: { id }, context });
+    if (!result.ok) return c.json({ jsonrpc: '2.0', id: body.id, error: { code: -32000, message: result.error.message } });
+    return c.json({ jsonrpc: '2.0', id: body.id, result: result.value });
   }
 
   if (body.method === 'tasks/send') {
@@ -94,32 +106,20 @@ publicRoutes.post('/a2a', async (c) => {
     }
     const params = parseResult.data;
     const agentId = params.agentId ?? 'default';
-    const message = params.message ?? (params.text ? { role: 'user', parts: [{ kind: 'text', text: params.text }] } : undefined);
+    const messageText = typeof params.message === 'string'
+      ? params.message
+      : params.text ?? '';
 
-    // Default agent config for public A2A callers
-    // TODO: look up agent config from DB when workspace context is available
-    const agentConfig = {
-      id: agentId,
-      provider: 'anthropic' as const,
-      mode: 'raw' as const,
-      model: 'claude-sonnet-4-20250514',
-      workspaceId: 'public',
-      toolIds: [] as string[],
-    };
+    const result = await execute({
+      op: 'task.send',
+      params: { agentId, message: messageText },
+      context,
+    });
 
-    try {
-      const task = await taskManager.send({
-        id: params.id,
-        message,
-        metadata: params.metadata,
-        agentConfig,
-        callerId: 'a2a',
-      });
-      return c.json({ jsonrpc: '2.0', id: body.id, result: task });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return c.json({ jsonrpc: '2.0', id: body.id, error: { code: -32000, message: msg } });
+    if (!result.ok) {
+      return c.json({ jsonrpc: '2.0', id: body.id, error: { code: -32000, message: result.error.message } });
     }
+    return c.json({ jsonrpc: '2.0', id: body.id, result: result.value });
   }
 
   return c.json({ jsonrpc: '2.0', id: body.id, error: { code: -32601, message: 'Method not found' } });

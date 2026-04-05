@@ -3,6 +3,7 @@ import { logger } from '../../config/logger';
 import { execute, bridgeTaskEvents } from '../../core/gateway';
 import type { GatewayContext, GatewayEvent } from '../../core/gateway';
 import type { ServerMessage, ClientMessage, WsClient } from './ws-types';
+import { BoundedSet } from '../../core/utils/bounded-set';
 import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
 
@@ -11,6 +12,8 @@ class WsServer {
   private heartbeatInterval: Timer | null = null;
   /** Track stream cleanups per client so we can unsubscribe on disconnect */
   private streamCleanups = new Map<string, Set<() => void>>();
+  /** Per-client message dedup — prevents echoed/replayed messages from being processed twice */
+  private messageDedup = new Map<string, BoundedSet>();
   /** EventBus subscription IDs for broadcast subscriptions (unsubscribed on destroy) */
   private subscriptionIds: string[] = [];
 
@@ -115,6 +118,7 @@ class WsServer {
     const clientId = nanoid();
     this.clients.set(clientId, { id: clientId, ws, subscriptions: new Set() });
     this.streamCleanups.set(clientId, new Set());
+    this.messageDedup.set(clientId, new BoundedSet(2000));
     return clientId;
   }
 
@@ -124,6 +128,17 @@ class WsServer {
 
     try {
       const msg: ClientMessage = JSON.parse(typeof raw === 'string' ? raw : raw.toString());
+
+      // Dedup: skip messages we've already processed (echoes, replays)
+      const msgId = (msg as any).messageId ?? (msg as any).id;
+      if (msgId) {
+        const dedup = this.messageDedup.get(clientId);
+        if (dedup?.has(msgId)) {
+          logger.debug({ clientId, messageId: msgId }, 'Duplicate message ignored');
+          return;
+        }
+        dedup?.add(msgId);
+      }
 
       switch (msg.type) {
         case 'auth':
@@ -170,9 +185,19 @@ class WsServer {
           break;
 
         case 'task:input':
-          // Not yet implemented
-          logger.warn({ clientId }, 'task:input not yet implemented');
-          this.send(client, { type: 'error', message: 'task:input is not yet implemented' });
+          await this.handleTaskInput(client, msg);
+          break;
+
+        case 'task:input:approve':
+          await this.handleTaskInputApprove(client, msg);
+          break;
+
+        case 'task:input:gate':
+          await this.handleTaskInputGate(client, msg);
+          break;
+
+        case 'task:interrupt':
+          await this.handleTaskInterrupt(client, msg);
           break;
 
         case 'a2a:send':
@@ -188,11 +213,11 @@ class WsServer {
           break;
 
         case 'memory:approve':
-          await this.handleMemoryApprove(client, msg);
+          await this.handleMemoryAction(client, 'memory.approve', msg.proposalId);
           break;
 
         case 'memory:reject':
-          await this.handleMemoryReject(client, msg);
+          await this.handleMemoryAction(client, 'memory.reject', msg.proposalId, msg.reason);
           break;
 
         case 'orchestration:gate:respond':
@@ -212,6 +237,7 @@ class WsServer {
       for (const cleanup of cleanups) cleanup();
       this.streamCleanups.delete(clientId);
     }
+    this.messageDedup.delete(clientId);
     this.clients.delete(clientId);
   }
 
@@ -287,10 +313,17 @@ class WsServer {
     }
 
     try {
-      // A2A delegation still uses workerRegistry directly — not yet in gateway
-      const { workerRegistry } = await import('../a2a/worker-registry');
-      await workerRegistry.delegate(msg.agentUrl, { skillId: msg.skillId, args: msg.args });
-      logger.info({ clientId: client.id, agentUrl: msg.agentUrl }, 'A2A delegation succeeded');
+      const context = this.buildContext(client);
+      const result = await execute({
+        op: 'a2a.delegate',
+        params: { agentUrl: msg.agentUrl, skillId: msg.skillId, args: msg.args },
+        context,
+      });
+      if (!result.ok) {
+        this.send(client, { type: 'error', message: result.error.message });
+      } else {
+        logger.info({ clientId: client.id, agentUrl: msg.agentUrl }, 'A2A delegation succeeded');
+      }
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       logger.error({ clientId: client.id, agentUrl: msg.agentUrl, error: errMsg }, 'Failed to delegate A2A request');
@@ -361,34 +394,15 @@ class WsServer {
     }
   }
 
-  private async handleMemoryApprove(client: WsClient, msg: Extract<ClientMessage, { type: 'memory:approve' }>) {
-    if (!msg.proposalId) {
-      this.send(client, { type: 'error', message: 'Missing proposalId in memory approve request' });
+  private async handleMemoryAction(client: WsClient, op: 'memory.approve' | 'memory.reject', proposalId?: string, reason?: string) {
+    if (!proposalId) {
+      this.send(client, { type: 'error', message: `Missing proposalId in ${op} request` });
       return;
     }
 
     try {
       const context = this.buildContext(client);
-      await execute({ op: 'memory.approve', params: { proposalId: msg.proposalId }, context });
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      this.send(client, { type: 'error', message: errMsg });
-    }
-  }
-
-  private async handleMemoryReject(client: WsClient, msg: Extract<ClientMessage, { type: 'memory:reject' }>) {
-    if (!msg.proposalId) {
-      this.send(client, { type: 'error', message: 'Missing proposalId in memory reject request' });
-      return;
-    }
-
-    try {
-      const context = this.buildContext(client);
-      await execute({
-        op: 'memory.reject',
-        params: { proposalId: msg.proposalId, reason: msg.reason },
-        context,
-      });
+      await execute({ op, params: { proposalId, reason }, context });
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       this.send(client, { type: 'error', message: errMsg });
@@ -407,6 +421,81 @@ class WsServer {
         },
         context,
       });
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.send(client, { type: 'error', message: errMsg });
+    }
+  }
+
+  private async handleTaskInterrupt(client: WsClient, msg: Extract<ClientMessage, { type: 'task:interrupt' }>) {
+    if (!msg.taskId) {
+      this.send(client, { type: 'error', message: 'Missing taskId in interrupt request' });
+      return;
+    }
+    try {
+      const context = this.buildContext(client);
+      const result = await execute({ op: 'task.interrupt', params: { id: msg.taskId }, context });
+      if (!result.ok) {
+        this.send(client, { type: 'error', message: result.error.message });
+      }
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.send(client, { type: 'error', message: errMsg });
+    }
+  }
+
+  private async handleTaskInput(client: WsClient, msg: Extract<ClientMessage, { type: 'task:input' }>) {
+    if (!msg.taskId) {
+      this.send(client, { type: 'error', message: 'Missing taskId in task input request' });
+      return;
+    }
+
+    const context = this.buildContext(client);
+
+    try {
+      const result = await execute({
+        op: 'task.input',
+        params: { taskId: msg.taskId, input: msg.input },
+        context,
+      });
+
+      if (!result.ok) {
+        this.send(client, { type: 'error', message: result.error.message });
+      }
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.send(client, { type: 'error', message: errMsg });
+    }
+  }
+
+  private async handleTaskInputApprove(client: WsClient, msg: Extract<ClientMessage, { type: 'task:input:approve' }>) {
+    const context = this.buildContext(client);
+    try {
+      const result = await execute({
+        op: 'task.input',
+        params: { taskId: '', approvalId: msg.approvalId, approved: msg.approved, updatedInput: msg.updatedInput },
+        context,
+      });
+      if (!result.ok) {
+        this.send(client, { type: 'error', message: result.error.message });
+      }
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.send(client, { type: 'error', message: errMsg });
+    }
+  }
+
+  private async handleTaskInputGate(client: WsClient, msg: Extract<ClientMessage, { type: 'task:input:gate' }>) {
+    const context = this.buildContext(client);
+    try {
+      const result = await execute({
+        op: 'orchestration.gate.respond',
+        params: { orchestrationId: msg.orchestrationId, stepId: msg.stepId, approved: msg.approved },
+        context,
+      });
+      if (!result.ok) {
+        this.send(client, { type: 'error', message: result.error.message });
+      }
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       this.send(client, { type: 'error', message: errMsg });
@@ -484,6 +573,9 @@ class WsServer {
       case 'approval_required':
         this.send(client, { type: 'tool:approval_required', ...(data as any) });
         break;
+      case 'input_required':
+        this.send(client, { type: 'session:input_required', sessionId: tid, prompt: data.prompt as string });
+        break;
     }
   }
 
@@ -537,7 +629,13 @@ class WsServer {
 
   private trackCleanup(clientId: string, cleanup: () => void) {
     const set = this.streamCleanups.get(clientId);
-    if (set) set.add(cleanup);
+    if (!set) return;
+    // Wrap cleanup so it removes itself from the set after running
+    const tracked = () => {
+      cleanup();
+      set.delete(tracked);
+    };
+    set.add(tracked);
   }
 
   private extractMessageText(messages: unknown[]): string {
@@ -561,6 +659,7 @@ class WsServer {
       for (const cleanup of cleanups) cleanup();
     }
     this.streamCleanups.clear();
+    this.messageDedup.clear();
     this.clients.clear();
   }
 }

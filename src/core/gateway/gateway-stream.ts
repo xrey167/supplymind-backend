@@ -13,6 +13,7 @@ const TOPIC_TO_EVENT: Record<string, GatewayEventType> = {
   [Topics.TASK_ERROR]: 'error',
   [Topics.TASK_COMPLETED]: 'done',
   [Topics.TOOL_APPROVAL_REQUESTED]: 'approval_required',
+  [Topics.TASK_INPUT_REQUIRED]: 'input_required',
 };
 
 const WATCHED_TOPICS = Object.keys(TOPIC_TO_EVENT);

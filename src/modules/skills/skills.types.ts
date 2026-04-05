@@ -21,6 +21,10 @@ export interface Skill {
   priority: number;
   handler: (args: Record<string, unknown>, context?: DispatchContext) => Promise<Result<unknown>>;
   toolHints?: SkillToolHints;
+  /** If true, multiple invocations of this skill can run in parallel safely. Default: false. */
+  concurrencySafe?: boolean;
+  /** Custom timeout in ms. Overrides the executor default when set. */
+  timeoutMs?: number;
 }
 
 export interface SkillProvider {

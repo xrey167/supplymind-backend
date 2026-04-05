@@ -2,7 +2,9 @@ import { ok, err } from '../result';
 import type { GatewayRequest, GatewayResult, GatewayContext } from './gateway.types';
 import type { DispatchContext } from '../../modules/skills/skills.types';
 import { bridgeTaskEvents } from './gateway-stream';
+import { NotFoundError } from '../errors';
 import { logger } from '../../config/logger';
+import { lifecycleHooks } from '../hooks/hook-registry';
 
 /**
  * Unified capability gateway.
@@ -30,8 +32,24 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
     case 'skill.invoke': {
       const { dispatchSkill } = await import('../../modules/skills/skills.dispatch');
       const name = params.name as string;
-      const args = (params.args ?? {}) as Record<string, unknown>;
-      return dispatchSkill(name, args, toDispatchCtx(context));
+      let args = (params.args ?? {}) as Record<string, unknown>;
+
+      // Pre-tool hook — can block or modify args
+      const hookCtx = { workspaceId: context.workspaceId, callerId: context.callerId, traceId: context.traceId };
+      const preResult = await lifecycleHooks.run('pre_tool_use', { name, args }, hookCtx);
+      if (!preResult.allow) {
+        return err(new Error(preResult.reason ?? `Blocked by pre_tool_use hook`));
+      }
+      if (preResult.payload && typeof preResult.payload === 'object' && 'args' in (preResult.payload as any)) {
+        args = (preResult.payload as any).args;
+      }
+
+      const result = await dispatchSkill(name, args, toDispatchCtx(context));
+
+      // Post-tool hook — fire-and-forget notification
+      lifecycleHooks.notify('post_tool_use', { name, args, result }, hookCtx);
+
+      return result;
     }
 
     // ------------------------------------------------------------------
@@ -67,7 +85,7 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
     case 'task.get': {
       const { tasksService } = await import('../../modules/tasks/tasks.service');
       const task = tasksService.get(params.id as string);
-      return task ? ok(task) : err(new Error(`Task not found: ${params.id}`));
+      return task ? ok(task) : err(new NotFoundError(`Task not found: ${params.id}`));
     }
 
     case 'task.cancel': {
@@ -79,6 +97,54 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
       const { tasksService } = await import('../../modules/tasks/tasks.service');
       const tasks = await tasksService.list(context.workspaceId);
       return ok(tasks);
+    }
+
+    case 'task.input': {
+      const taskId = params.taskId as string;
+      const input = params.input;
+
+      // Route 1: tool approval response (with optional updatedInput)
+      if (params.approvalId) {
+        const { resolveApproval } = await import('../../infra/state/tool-approvals');
+        const resolved = resolveApproval(
+          params.approvalId as string,
+          context.workspaceId,
+          !!params.approved,
+          params.updatedInput as Record<string, unknown> | undefined,
+        );
+        return resolved
+          ? ok({ approvalId: params.approvalId, resolved: true })
+          : err(new NotFoundError(`Approval not found or expired: ${params.approvalId}`));
+      }
+
+      // Route 2: orchestration gate response
+      if (params.orchestrationId && params.stepId) {
+        const { resolveGate } = await import('../../infra/state/orchestration-gates');
+        const resolved = resolveGate(
+          params.orchestrationId as string,
+          params.stepId as string,
+          context.workspaceId,
+          !!params.approved,
+        );
+        return resolved
+          ? ok({ orchestrationId: params.orchestrationId, stepId: params.stepId, resolved: true })
+          : err(new NotFoundError(`Gate not found or expired: ${params.orchestrationId}:${params.stepId}`));
+      }
+
+      // Route 3: generic mid-task user input
+      const { resolveInput } = await import('../../infra/state/task-inputs');
+      const resolved = resolveInput(taskId, context.workspaceId, input);
+      return resolved
+        ? ok({ taskId, resolved: true })
+        : err(new NotFoundError(`No pending input request for task: ${taskId}`));
+    }
+
+    case 'task.interrupt': {
+      const { taskManager } = await import('../../infra/a2a/task-manager');
+      const interrupted = taskManager.interrupt(params.id as string);
+      return interrupted
+        ? ok({ id: params.id, interrupted: true })
+        : err(new NotFoundError(`Task not found or already terminal: ${params.id}`));
     }
 
     // ------------------------------------------------------------------
@@ -173,11 +239,30 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
     }
 
     case 'orchestration.gate.respond': {
-      const { orchestrationService } = await import('../../modules/orchestration/orchestration.service');
-      // Gate responses are handled through the onGate callback during orchestration run.
-      // This op is a placeholder for protocol adapters that need to resolve pending gates.
-      logger.warn({ op }, 'orchestration.gate.respond not yet wired to gateway');
-      return ok({ acknowledged: true });
+      const { resolveGate } = await import('../../infra/state/orchestration-gates');
+      const resolved = resolveGate(
+        params.orchestrationId as string,
+        params.stepId as string,
+        context.workspaceId,
+        !!params.approved,
+      );
+      return resolved
+        ? ok({ orchestrationId: params.orchestrationId, stepId: params.stepId, resolved: true })
+        : err(new NotFoundError(`Gate not found or expired: ${params.orchestrationId}:${params.stepId}`));
+    }
+
+    // ------------------------------------------------------------------
+    // A2A Delegation (outbound to external agents)
+    // ------------------------------------------------------------------
+    case 'a2a.delegate': {
+      const { workerRegistry } = await import('../../infra/a2a/worker-registry');
+      const agentUrl = params.agentUrl as string;
+      const result = await workerRegistry.delegate(agentUrl, {
+        skillId: params.skillId as string | undefined,
+        args: params.args as Record<string, unknown> | undefined,
+        message: params.message as any,
+      });
+      return ok(result);
     }
 
     // ------------------------------------------------------------------
