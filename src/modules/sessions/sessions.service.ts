@@ -71,23 +71,23 @@ export const sessionsService = {
   },
 
   async buildContextMessages(sessionId: string): Promise<Message[]> {
-    const { messages } = await sessionsRepo.getMessagePage(sessionId, {
-      limit: 1000,
-      includeCompacted: false,
-    });
-    const allMessages = await sessionsRepo.getMessages(sessionId, {
-      excludeCompacted: false,
-      limit: 1000,
-    });
-    const summaries = allMessages.filter(m => m.isCompacted && m.role === 'system');
+    // Single query: fetch all messages (compacted + active), then split in code
+    const allMessages = await sessionsRepo.getMessages(sessionId, { limit: 1000 });
+    const summaries: Message[] = [];
+    const active: Message[] = [];
 
-    return [
-      ...summaries.map(m => ({ role: 'system' as const, content: m.content })),
-      ...messages.map(m => ({
-        role: m.role as 'user' | 'assistant' | 'system' | 'tool',
-        content: m.content,
-        ...(m.toolCallId ? { toolCallId: m.toolCallId } : {}),
-      })),
-    ];
+    for (const m of allMessages) {
+      if (m.isCompacted && m.role === 'system') {
+        summaries.push({ role: 'system', content: m.content });
+      } else if (!m.isCompacted) {
+        active.push({
+          role: m.role as 'user' | 'assistant' | 'system' | 'tool',
+          content: m.content,
+          ...(m.toolCallId ? { toolCallId: m.toolCallId } : {}),
+        });
+      }
+    }
+
+    return [...summaries, ...active];
   },
 };

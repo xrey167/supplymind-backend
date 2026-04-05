@@ -26,6 +26,7 @@ export interface AgentSkill {
 }
 
 export type TaskState = 'submitted' | 'working' | 'input_required' | 'completed' | 'failed' | 'canceled';
+export type ToolCallStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 
 export interface A2ATask {
   id: string;

@@ -1,9 +1,7 @@
 import { db } from '../db/client';
 import { a2aTasks, taskDependencies, toolCallLogs } from '../db/schema';
 import { and, eq, inArray, lt, desc } from 'drizzle-orm';
-import type { A2ATask, TaskState } from './types';
-
-type ToolCallStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
+import type { A2ATask, TaskState, ToolCallStatus } from './types';
 
 const TERMINAL_STATES = new Set(['completed', 'failed', 'canceled']);
 

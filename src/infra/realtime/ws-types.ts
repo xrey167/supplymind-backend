@@ -1,9 +1,11 @@
-export type TaskState = 'submitted' | 'working' | 'input_required' | 'completed' | 'failed' | 'canceled';
+import type { TaskState, ToolCallStatus } from '../a2a/types';
+import type { OrchestrationStatus } from '../../modules/orchestration/orchestration.types';
+export type { TaskState };
 
 export type ServerMessage =
   | { type: 'task:status'; taskId: string; status: TaskState }
   | { type: 'task:text_delta'; taskId: string; delta: string }
-  | { type: 'task:tool_call'; taskId: string; toolCall: { id: string; name: string; args: unknown; status: 'pending' | 'in_progress' | 'completed' | 'failed'; result?: unknown } }
+  | { type: 'task:tool_call'; taskId: string; toolCall: { id: string; name: string; args: unknown; status: ToolCallStatus; result?: unknown } }
   | { type: 'task:artifact'; taskId: string; artifact: unknown }
   | { type: 'task:error'; taskId: string; error: string }
   | { type: 'event'; topic: string; data: unknown; timestamp: string }
@@ -14,7 +16,7 @@ export type ServerMessage =
   | { type: 'session:input_required'; sessionId: string; prompt: string }
   | { type: 'session:resumed'; sessionId: string }
   | { type: 'memory:proposal'; proposal: { id: string; agentId: string; title: string; content: string; evidence?: string; type: string } }
-  | { type: 'orchestration:status'; orchestrationId: string; status: string; stepId?: string }
+  | { type: 'orchestration:status'; orchestrationId: string; status: OrchestrationStatus; stepId?: string }
   | { type: 'orchestration:gate'; orchestrationId: string; stepId: string; prompt: string }
   | { type: 'task:thinking_delta'; taskId: string; thinking: string }
   | { type: 'task:round_completed'; taskId: string; roundId: string; iterationIndex: number; toolCallCount: number; tokenUsage: { input: number; output: number }; totalTokens: { input: number; output: number } }
