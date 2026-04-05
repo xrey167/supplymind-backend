@@ -6,6 +6,9 @@ import { ok, err } from '../../core/result';
 import { AppError } from '../../core/errors';
 import { logger } from '../../config/logger';
 import { sessionManager } from './computer-use.session';
+import { classifyCommand } from './bash-classifier';
+import { eventBus } from '../../events/bus';
+import { Topics } from '../../events/topics';
 import type { ToolDefinition } from '../../infra/ai/types';
 import type { ImageContentBlock } from '../../infra/ai/types';
 
@@ -192,6 +195,26 @@ export async function handleBashAction(sessionId: string, args: unknown) {
     }
 
     if (!command) return ok('Bash session ready');
+
+    // Risk-classify before executing
+    const classification = classifyCommand(command);
+    if (classification.risk === 'high') {
+      logger.warn({ sessionId, command, matchedPattern: classification.matchedPattern }, 'Bash command blocked by risk classifier');
+      return err(new AppError(
+        `Command blocked: ${classification.reason} (pattern: ${classification.matchedPattern})`,
+        403,
+        'BASH_COMMAND_BLOCKED',
+      ));
+    }
+    if (classification.risk === 'medium') {
+      logger.warn({ sessionId, command, reason: classification.reason, matchedPattern: classification.matchedPattern }, 'Risky bash command — executing with warning');
+      eventBus.publish(Topics.COMPUTER_USE_BASH_WARNING, {
+        sessionId,
+        command,
+        reason: classification.reason,
+        matchedPattern: classification.matchedPattern,
+      });
+    }
 
     const proc = session.bashProcess!;
     const output = await new Promise<string>((resolve, reject) => {

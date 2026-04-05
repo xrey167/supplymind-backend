@@ -64,6 +64,8 @@ export const Topics = {
   SECURITY_PERMISSION_MODE_BLOCKED: 'security.permission_mode.blocked',
   SECURITY_SANDBOX_EXECUTED: 'security.sandbox.executed',
   SECURITY_SANDBOX_FAILED: 'security.sandbox.failed',
+  // Computer Use
+  COMPUTER_USE_BASH_WARNING: 'computer-use.bash.warning',
   // System
   HEARTBEAT: 'system.heartbeat',
 } as const;
