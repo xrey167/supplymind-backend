@@ -28,8 +28,15 @@ interface TaskRecord {
   totalTokens: { input: number; output: number };
 }
 
+const TASK_EVICTION_MS = 5 * 60 * 1000; // evict completed tasks after 5 minutes
+
 class TaskManager {
   private tasks = new Map<string, TaskRecord>();
+
+  /** Schedule eviction of a terminal task from the in-memory map */
+  private scheduleEviction(taskId: string) {
+    setTimeout(() => { this.tasks.delete(taskId); }, TASK_EVICTION_MS);
+  }
 
   async send(params: TaskSendParams & { agentConfig: AgentConfig; callerId: string }): Promise<A2ATask> {
     const taskId = params.id ?? nanoid();
@@ -383,6 +390,7 @@ class TaskManager {
         });
         eventBus.publish(Topics.TASK_COMPLETED, { taskId, output: runResult.content });
         eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'completed', workspaceId: config.workspaceId });
+        this.scheduleEviction(taskId);
         return;
       }
 
@@ -475,6 +483,9 @@ class TaskManager {
         logger.error({ taskId, state, error }, 'Failed to update task status in DB');
         captureException(error, { taskId, state });
       });
+      if (state === 'completed' || state === 'failed' || state === 'canceled') {
+        this.scheduleEviction(taskId);
+      }
     }
   }
 
@@ -497,6 +508,7 @@ class TaskManager {
     record.task.status = { state: 'canceled' };
     eventBus.publish(Topics.TASK_STATUS, { taskId, status: 'canceled', workspaceId: record.workspaceId });
     eventBus.publish(Topics.TASK_CANCELED, { taskId, workspaceId: record.workspaceId });
+    this.scheduleEviction(taskId);
     return record.task;
   }
 
