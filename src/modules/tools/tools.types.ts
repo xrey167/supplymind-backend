@@ -1,5 +1,12 @@
 import type { SkillProviderType } from '../skills/skills.types';
 
+export type HandlerConfig =
+  | { type: 'builtin' }
+  | { type: 'mcp'; serverName: string; toolName: string }
+  | { type: 'worker'; timeout?: number }
+  | { type: 'plugin'; modulePath: string; exportName?: string }
+  | { type: 'inline'; code: string };
+
 export interface ToolDef {
   id: string;
   workspaceId: string | null;
@@ -8,7 +15,7 @@ export interface ToolDef {
   providerType: string;
   priority: number;
   inputSchema: Record<string, unknown>;
-  handlerConfig: Record<string, unknown>;
+  handlerConfig: HandlerConfig;
   enabled: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -21,7 +28,7 @@ export interface CreateToolInput {
   providerType: string;
   priority?: number;
   inputSchema?: Record<string, unknown>;
-  handlerConfig?: Record<string, unknown>;
+  handlerConfig?: HandlerConfig;
   enabled?: boolean;
 }
 
@@ -31,6 +38,6 @@ export interface UpdateToolInput {
   providerType?: string;
   priority?: number;
   inputSchema?: Record<string, unknown>;
-  handlerConfig?: Record<string, unknown>;
+  handlerConfig?: HandlerConfig;
   enabled?: boolean;
 }

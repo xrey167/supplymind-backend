@@ -44,9 +44,9 @@ describe('toToolDef', () => {
     expect(def.inputSchema).toEqual({});
   });
 
-  test('should default handlerConfig to empty object when null', () => {
+  test('should default handlerConfig to builtin when null', () => {
     const def = toToolDef(makeRow({ handlerConfig: null }));
-    expect(def.handlerConfig).toEqual({});
+    expect(def.handlerConfig).toEqual({ type: 'builtin' });
   });
 
   test('should default enabled to true when null', () => {

@@ -79,7 +79,7 @@ const makeRow = (overrides?: Partial<any>) => ({
   providerType: 'builtin',
   priority: 5,
   inputSchema: { type: 'object' },
-  handlerConfig: {},
+  handlerConfig: { type: 'builtin' },
   enabled: true,
   createdAt: new Date('2024-01-01'),
   updatedAt: new Date('2024-01-01'),
@@ -206,7 +206,7 @@ describe('ToolsService', () => {
     test('should register mcp tool with correct handler', async () => {
       const row = makeRow({
         providerType: 'mcp',
-        handlerConfig: { serverName: 'my-server', toolName: 'remote_fn' },
+        handlerConfig: { type: 'mcp', serverName: 'my-server', toolName: 'remote_fn' },
       });
       mockCreate.mockResolvedValueOnce(row as any);
 
@@ -214,7 +214,7 @@ describe('ToolsService', () => {
         name: 'my_tool',
         description: 'A tool',
         providerType: 'mcp',
-        handlerConfig: { serverName: 'my-server', toolName: 'remote_fn' },
+        handlerConfig: { type: 'mcp', serverName: 'my-server', toolName: 'remote_fn' },
       });
 
       expect(result.ok).toBe(true);
@@ -231,7 +231,7 @@ describe('ToolsService', () => {
       const row = makeRow({
         name: 'worker_tool',
         providerType: 'worker',
-        handlerConfig: { timeout: 5000 },
+        handlerConfig: { type: 'worker', timeout: 5000 },
       });
       mockCreate.mockResolvedValueOnce(row as any);
 
@@ -239,7 +239,7 @@ describe('ToolsService', () => {
         name: 'worker_tool',
         description: 'A tool',
         providerType: 'worker',
-        handlerConfig: { timeout: 5000 },
+        handlerConfig: { type: 'worker', timeout: 5000 },
       });
 
       const registeredArg = mockRegistryRegister.mock.calls[0][0];
@@ -252,7 +252,7 @@ describe('ToolsService', () => {
     test('should register inline tool with sandbox handler', async () => {
       const row = makeRow({
         providerType: 'inline',
-        handlerConfig: { code: 'return args.x * 2;' },
+        handlerConfig: { type: 'inline', code: 'return args.x * 2;' },
       });
       mockCreate.mockResolvedValueOnce(row as any);
 
@@ -260,7 +260,7 @@ describe('ToolsService', () => {
         name: 'my_tool',
         description: 'A tool',
         providerType: 'inline',
-        handlerConfig: { code: 'return args.x * 2;' },
+        handlerConfig: { type: 'inline', code: 'return args.x * 2;' },
       });
 
       const registeredArg = mockRegistryRegister.mock.calls[0][0];

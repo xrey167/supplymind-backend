@@ -1,5 +1,5 @@
 import type { skillDefinitions } from '../../infra/db/schema';
-import type { ToolDef } from './tools.types';
+import type { ToolDef, HandlerConfig } from './tools.types';
 
 export function toToolDef(row: typeof skillDefinitions.$inferSelect): ToolDef {
   return {
@@ -10,7 +10,7 @@ export function toToolDef(row: typeof skillDefinitions.$inferSelect): ToolDef {
     providerType: row.providerType!,
     priority: row.priority ?? 0,
     inputSchema: (row.inputSchema as Record<string, unknown>) ?? {},
-    handlerConfig: (row.handlerConfig as Record<string, unknown>) ?? {},
+    handlerConfig: (row.handlerConfig ?? { type: 'builtin' }) as HandlerConfig,
     enabled: row.enabled ?? true,
     createdAt: row.createdAt!,
     updatedAt: row.updatedAt!,

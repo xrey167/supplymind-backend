@@ -19,8 +19,8 @@ export class ToolsService {
         return async () => err(new Error(`Builtin tool "${tool.name}" must be provided by BuiltinSkillProvider, not DB handler`));
 
       case 'mcp': {
-        // handlerConfig should have { serverName: string, toolName: string }
-        const { serverName, toolName } = tool.handlerConfig as { serverName: string; toolName: string };
+        const config = tool.handlerConfig as Extract<import('./tools.types').HandlerConfig, { type: 'mcp' }>;
+        const { serverName, toolName } = config;
         return async (args) => {
           try {
             const result = await mcpClientPool.callTool(serverName, toolName, args);
@@ -32,7 +32,8 @@ export class ToolsService {
       }
 
       case 'worker': {
-        const { timeout = 30_000 } = tool.handlerConfig as { timeout?: number };
+        const config = tool.handlerConfig as Extract<import('./tools.types').HandlerConfig, { type: 'worker' }>;
+        const { timeout = 30_000 } = config;
         return async (args, ctx) => {
           try {
             const result = await enqueueSkill(
@@ -52,7 +53,7 @@ export class ToolsService {
           const workspaceId = ctx?.workspaceId;
           const policy = await workspaceSettingsService.getSandboxPolicy(workspaceId ?? 'default');
           const result = await runInSandbox({
-            code: tool.handlerConfig.code as string,
+            code: (tool.handlerConfig as Extract<import('./tools.types').HandlerConfig, { type: 'inline' }>).code,
             args,
             policy,
             toolId: tool.id,
