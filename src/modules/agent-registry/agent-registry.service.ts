@@ -1,5 +1,6 @@
 import { ok, err } from '../../core/result';
 import type { Result } from '../../core/result';
+import { logger } from '../../config/logger';
 import { workerRegistry } from '../../infra/a2a/worker-registry';
 import type { AgentCard } from '../../infra/a2a/types';
 import { agentRegistryRepo } from './agent-registry.repo';
@@ -98,6 +99,22 @@ export class AgentRegistryService {
     } catch (e) {
       return err(e instanceof Error ? e : new Error(String(e)));
     }
+  }
+
+  async refreshAll(): Promise<{ refreshed: number; failed: number }> {
+    const agents = await agentRegistryRepo.findAll();
+    let refreshed = 0;
+    let failed = 0;
+    for (const agent of agents) {
+      const result = await this.refresh(agent.workspaceId, agent.id);
+      if (result.ok) {
+        refreshed++;
+      } else {
+        logger.warn({ agentId: agent.id, err: result.error }, 'Agent refresh failed during sync');
+        failed++;
+      }
+    }
+    return { refreshed, failed };
   }
 }
 
