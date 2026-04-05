@@ -170,10 +170,17 @@ class WsServer {
     }
 
     try {
-      // A2A delegation still uses workerRegistry directly — not yet in gateway
-      const { workerRegistry } = await import('../a2a/worker-registry');
-      await workerRegistry.delegate(msg.agentUrl, { skillId: msg.skillId, args: msg.args });
-      logger.info({ clientId: client.id, agentUrl: msg.agentUrl }, 'A2A delegation succeeded');
+      const context = this.buildContext(client);
+      const result = await execute({
+        op: 'a2a.delegate',
+        params: { agentUrl: msg.agentUrl, skillId: msg.skillId, args: msg.args },
+        context,
+      });
+      if (!result.ok) {
+        this.send(client, { type: 'error', message: result.error.message });
+      } else {
+        logger.info({ clientId: client.id, agentUrl: msg.agentUrl }, 'A2A delegation succeeded');
+      }
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       logger.error({ clientId: client.id, agentUrl: msg.agentUrl, error: errMsg }, 'Failed to delegate A2A request');

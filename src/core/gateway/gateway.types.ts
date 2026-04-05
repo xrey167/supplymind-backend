@@ -21,7 +21,8 @@ export type GatewayOp =
   | 'memory.reject'
   | 'orchestration.start'
   | 'orchestration.gate.respond'
-  | 'collaboration.start';
+  | 'collaboration.start'
+  | 'a2a.delegate';
 
 // ---------------------------------------------------------------------------
 // Streaming events — protocol-agnostic, each transport adapter projects these

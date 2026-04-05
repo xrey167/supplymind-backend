@@ -182,6 +182,20 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
     }
 
     // ------------------------------------------------------------------
+    // A2A Delegation (outbound to external agents)
+    // ------------------------------------------------------------------
+    case 'a2a.delegate': {
+      const { workerRegistry } = await import('../../infra/a2a/worker-registry');
+      const agentUrl = params.agentUrl as string;
+      const result = await workerRegistry.delegate(agentUrl, {
+        skillId: params.skillId as string | undefined,
+        args: params.args as Record<string, unknown> | undefined,
+        message: params.message as any,
+      });
+      return ok(result);
+    }
+
+    // ------------------------------------------------------------------
     // Collaboration
     // ------------------------------------------------------------------
     case 'collaboration.start': {
