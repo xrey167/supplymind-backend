@@ -67,6 +67,10 @@ class FeatureFlagsService {
   }
 
   async getAll(workspaceId: string): Promise<Record<string, FlagValue>> {
+    const cKey = `${workspaceId}:__all__`;
+    const cached = flagCache.get(cKey);
+    if (cached !== undefined) return cached as Record<string, FlagValue>;
+
     const result: Record<string, FlagValue> = { ...DEFAULT_FLAGS };
     try {
       const rows = await workspaceSettingsRepo.getAll(workspaceId);
@@ -79,6 +83,7 @@ class FeatureFlagsService {
     } catch (err) {
       logger.warn({ workspaceId, err }, 'FlagService: getAll failed, returning defaults');
     }
+    flagCache.set(cKey, result, CACHE_TTL_MS);
     return result;
   }
 

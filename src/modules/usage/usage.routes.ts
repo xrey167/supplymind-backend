@@ -18,7 +18,8 @@ const getUsageRoute = createRoute({
 });
 
 usageRoutes.openapi(getUsageRoute, async (c) => {
-  const workspaceId = c.get('workspaceId') as string;
+  const workspaceId = c.get('workspaceId');
+  if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401 as any);
   const { period } = c.req.valid('query');
   try {
     const summary = await usageService.getWorkspaceSummary(workspaceId, period ?? 'month');

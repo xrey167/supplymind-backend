@@ -17,7 +17,7 @@ export const usageRepo = {
         calls: sql<number>`count(*)::int`,
         inputTokens: sql<number>`sum(${usageRecords.inputTokens})::int`,
         outputTokens: sql<number>`sum(${usageRecords.outputTokens})::int`,
-        costUsd: sql<number>`sum(${usageRecords.costUsd})`,
+        costUsd: sql<number>`coalesce(sum(${usageRecords.costUsd}), 0)`,
       })
       .from(usageRecords)
       .where(and(eq(usageRecords.workspaceId, workspaceId), gte(usageRecords.createdAt, since)))
@@ -29,7 +29,7 @@ export const usageRepo = {
       .select({
         agentId: usageRecords.agentId,
         calls: sql<number>`count(*)::int`,
-        costUsd: sql<number>`sum(${usageRecords.costUsd})`,
+        costUsd: sql<number>`coalesce(sum(${usageRecords.costUsd}), 0)`,
       })
       .from(usageRecords)
       .where(and(eq(usageRecords.workspaceId, workspaceId), gte(usageRecords.createdAt, since)))

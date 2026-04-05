@@ -30,6 +30,8 @@ export function calculateCost(model: string, inputTokens: number, outputTokens: 
 
 export function resolveProvider(model: string): 'anthropic' | 'openai' | 'google' {
   if (model.startsWith('claude')) return 'anthropic';
-  if (model.startsWith('gpt') || model.startsWith('o1') || model.startsWith('o3')) return 'openai';
-  return 'google';
+  if (model.startsWith('gpt') || model.startsWith('o1') || model.startsWith('o2') || model.startsWith('o3') || model.startsWith('o4')) return 'openai';
+  if (model.startsWith('gemini')) return 'google';
+  // Unknown model — log and fall back to anthropic to avoid DB enum constraint violation
+  return 'anthropic';
 }
