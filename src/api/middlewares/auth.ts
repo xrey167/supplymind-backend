@@ -6,7 +6,7 @@ import { hasPermission } from '../../core/security/rbac';
 import type { Role } from '../../core/security/rbac';
 
 // Try to initialise Clerk client — graceful fallback if secret key is absent
-let clerkClient: any = null;
+let clerkClient: { verifyToken: (token: string) => Promise<{ sub: string; metadata?: { role?: string } }> } | null = null;
 try {
   const clerkSecretKey = Bun.env.CLERK_SECRET_KEY;
   if (clerkSecretKey) {

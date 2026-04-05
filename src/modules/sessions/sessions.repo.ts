@@ -1,6 +1,6 @@
 import { db } from '../../infra/db/client';
 import { sessions, sessionMessages } from '../../infra/db/schema';
-import { eq, and, lt, gt, lte, count, desc } from 'drizzle-orm';
+import { eq, and, lt, gt, lte, count, desc, or } from 'drizzle-orm';
 import type { Session, SessionMessage, AddMessageInput, SessionStatus } from './sessions.types';
 
 function estimateTokens(text: string): number {
@@ -84,14 +84,20 @@ export const sessionsRepo = {
     // Build cursor filter
     let cursorFilter = baseFilter;
     if (opts.cursor) {
-      // Get the createdAt of the cursor message, then use createdAt > that value
+      // Use (createdAt, id) as composite cursor for deterministic ordering
       const [cursorRow] = await db
-        .select({ createdAt: sessionMessages.createdAt })
+        .select({ createdAt: sessionMessages.createdAt, id: sessionMessages.id })
         .from(sessionMessages)
         .where(eq(sessionMessages.id, opts.cursor))
         .limit(1);
       if (cursorRow) {
-        cursorFilter = and(baseFilter, gt(sessionMessages.createdAt, cursorRow.createdAt)) as any;
+        cursorFilter = and(
+          baseFilter,
+          or(
+            gt(sessionMessages.createdAt, cursorRow.createdAt),
+            and(eq(sessionMessages.createdAt, cursorRow.createdAt), gt(sessionMessages.id, cursorRow.id)),
+          ),
+        ) as any;
       }
     }
 
@@ -99,7 +105,7 @@ export const sessionsRepo = {
       .select()
       .from(sessionMessages)
       .where(cursorFilter)
-      .orderBy(sessionMessages.createdAt)
+      .orderBy(sessionMessages.createdAt, sessionMessages.id)
       .limit(limit);
 
     return { messages: rows as unknown as SessionMessage[], total: Number(total) };
