@@ -12,5 +12,7 @@ export type {
   OnGatewayEvent,
 } from './gateway.types';
 export { lifecycleHooks } from '../hooks/hook-registry';
-export type { HookEvent, HookHandler, HookRegistration, HookContext, HookResult } from '../hooks/hook-registry';
+export type { HookEvent, HookHandler, HookRegistration, HookContext, HookResult, HookPayloadMap, TypedHookHandler } from '../hooks/hook-registry';
+export type { Brand, TaskId, AgentId, WorkspaceId, SessionId, SkillId, ApprovalId } from '../types/branded-ids';
+export { taskId, agentId, workspaceId, sessionId, skillId, approvalId } from '../types/branded-ids';
 export { BoundedSet } from '../utils/bounded-set';

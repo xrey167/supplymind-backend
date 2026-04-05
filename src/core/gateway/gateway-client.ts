@@ -2,7 +2,7 @@ import { execute } from './gateway';
 import { bridgeTaskEvents } from './gateway-stream';
 import type { GatewayContext, GatewayEvent, GatewayResult } from './gateway.types';
 import type { Role } from '../security';
-import type { HookEvent, HookHandler, HookRegistration } from '../hooks/hook-registry';
+import type { HookEvent, HookHandler, HookRegistration, HookPayloadMap, TypedHookHandler } from '../hooks/hook-registry';
 import type { Result } from '../result';
 import { ok } from '../result';
 
@@ -117,10 +117,13 @@ export class GatewayClient {
   /**
    * Register a lifecycle hook for this client's workspace.
    * Returns a cleanup function to unregister.
+   *
+   * Type-safe: when a single event is passed, the handler receives
+   * the typed payload for that event.
    */
-  onHook(
-    event: HookEvent | HookEvent[],
-    handler: HookHandler,
+  onHook<E extends HookEvent>(
+    event: E | HookEvent[],
+    handler: E extends HookEvent ? TypedHookHandler<E> | HookHandler : HookHandler,
     opts?: { id?: string; provider?: string },
   ): () => void {
     const hookId = opts?.id ?? `acp:${this.context.workspaceId}:${Date.now()}`;

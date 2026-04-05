@@ -34,6 +34,27 @@ export type HookEvent =
   | 'session_end';
 
 // ---------------------------------------------------------------------------
+// Typed payloads per event — customers get type safety on what they receive
+// ---------------------------------------------------------------------------
+
+export interface HookPayloadMap {
+  pre_tool_use: { name: string; args: Record<string, unknown> };
+  post_tool_use: { name: string; args: Record<string, unknown>; result: { ok: boolean; value?: unknown; error?: unknown } };
+  task_created: { taskId: string; agentId: string; message?: string };
+  task_completed: { taskId: string; result?: unknown };
+  task_failed: { taskId: string; error: string };
+  task_interrupted: { taskId: string };
+  approval_requested: { approvalId: string; taskId: string; toolName: string; args: unknown };
+  approval_resolved: { approvalId: string; approved: boolean; updatedInput?: Record<string, unknown> };
+  input_required: { taskId: string; prompt: string };
+  input_received: { taskId: string; input: unknown };
+  agent_start: { agentId: string; taskId?: string };
+  agent_stop: { agentId: string; taskId?: string; reason?: string };
+  session_start: { sessionId: string };
+  session_end: { sessionId: string; reason?: string };
+}
+
+// ---------------------------------------------------------------------------
 // Hook handler types
 // ---------------------------------------------------------------------------
 
@@ -59,9 +80,24 @@ export interface HookResult {
   modifiedPayload?: unknown;
 }
 
+/** Generic hook handler (accepts any event payload). */
 export type HookHandler = (
   event: HookEvent,
   payload: unknown,
+  ctx: HookContext,
+) => Promise<HookResult | void>;
+
+/**
+ * Typed hook handler for a specific event.
+ * Customers use this for compile-time payload safety:
+ *
+ *   client.onHook('pre_tool_use', async (event, payload, ctx) => {
+ *     // payload is typed as { name: string; args: Record<string, unknown> }
+ *   });
+ */
+export type TypedHookHandler<E extends HookEvent> = (
+  event: E,
+  payload: HookPayloadMap[E],
   ctx: HookContext,
 ) => Promise<HookResult | void>;
 
