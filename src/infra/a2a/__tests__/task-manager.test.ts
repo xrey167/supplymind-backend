@@ -7,16 +7,39 @@ import { taskManager } from '../task-manager';
 import { eventBus } from '../../../events/bus';
 import { toolRegistry } from '../../../modules/tools/tools.registry';
 import { taskRepo } from '../task-repo';
+import { workspaceSettingsService } from '../../../modules/settings/workspace-settings/workspace-settings.service';
+
+// Mock workspaceSettingsService — no live DB in tests
+const permissionModeSpy = spyOn(workspaceSettingsService, 'getToolPermissionMode').mockResolvedValue('auto');
 
 // Mock taskRepo so DB calls don't block (no live DB in tests)
 const taskRepoCreateSpy = spyOn(taskRepo, 'create').mockResolvedValue(undefined as any);
 const taskRepoGetBlockersSpy = spyOn(taskRepo, 'getBlockers').mockResolvedValue([]);
+const taskRepoGetDependenciesSpy = spyOn(taskRepo, 'getDependencies').mockResolvedValue({ blocks: [], blockedBy: [] });
 const taskRepoUpdateStatusSpy = spyOn(taskRepo, 'updateStatus').mockResolvedValue(undefined as any);
 const taskRepoLogToolCallSpy = spyOn(taskRepo, 'logToolCall').mockResolvedValue(undefined as any);
 
 // Mock createRuntime via spyOn so it's properly restored and doesn't bleed
 const mockRun = mock(() => Promise.resolve({ ok: true, value: { content: 'done', stopReason: 'end_turn' } }));
-const mockStream = mock(() => (async function* () {})());
+// mockStream delegates to mockRun so existing test setups on mockRun continue to work
+const mockStream = mock(() => (async function* () {
+  const result = await (mockRun as any)();
+  if (!result.ok) {
+    const msg = result.error?.message ?? 'Runtime error';
+    throw new Error(msg);
+  }
+  const { content, stopReason, toolCalls } = result.value as any;
+  if (content) {
+    yield { type: 'text_delta', data: { text: content } };
+  }
+  if (toolCalls?.length) {
+    for (const tc of toolCalls) {
+      yield { type: 'tool_call_end', data: tc };
+    }
+  }
+  const usage = (result.value as any).usage ?? { inputTokens: 10, outputTokens: 5 };
+  yield { type: 'done', data: { stopReason: stopReason ?? 'end_turn', usage } };
+})());
 const mockRuntime = { run: mockRun, stream: mockStream };
 
 const runtimeSpy = spyOn(runtimeFactory, 'createRuntime').mockImplementation(() => mockRuntime as any);
@@ -44,8 +67,10 @@ afterAll(() => {
   dispatchSpy.mockRestore();
   toolDefsSpy.mockRestore();
   contextSpy.mockRestore();
+  permissionModeSpy.mockRestore();
   taskRepoCreateSpy.mockRestore();
   taskRepoGetBlockersSpy.mockRestore();
+  taskRepoGetDependenciesSpy.mockRestore();
   taskRepoUpdateStatusSpy.mockRestore();
   taskRepoLogToolCallSpy.mockRestore();
 });
@@ -67,6 +92,7 @@ function flush(ms = 100) {
 describe('TaskManager', () => {
   beforeEach(() => {
     mockRun.mockReset();
+    mockStream.mockClear();
     mockDispatchSkill.mockReset();
     mockRun.mockResolvedValue({ ok: true, value: { content: 'done', stopReason: 'end_turn' } });
     mockDispatchSkill.mockResolvedValue({ ok: true, value: 'tool-result' });
@@ -370,8 +396,8 @@ describe('TaskManager', () => {
 
       await flush(200);
 
-      expect(mockRun.mock.calls.length).toBeGreaterThanOrEqual(1);
-      const runCall = mockRun.mock.calls[0][0] as any;
+      expect(mockStream.mock.calls.length).toBeGreaterThanOrEqual(1);
+      const runCall = mockStream.mock.calls[0][0] as any;
       expect(runCall.tools).toHaveLength(1);
       expect(runCall.tools[0].name).toBe('allowed_tool');
     });
@@ -393,8 +419,8 @@ describe('TaskManager', () => {
 
       await flush(200);
 
-      expect(mockRun.mock.calls.length).toBeGreaterThanOrEqual(1);
-      const runCall = mockRun.mock.calls[0][0] as any;
+      expect(mockStream.mock.calls.length).toBeGreaterThanOrEqual(1);
+      const runCall = mockStream.mock.calls[0][0] as any;
       expect(runCall.tools).toHaveLength(2);
     });
 
@@ -412,8 +438,8 @@ describe('TaskManager', () => {
 
       await flush(200);
 
-      expect(mockRun.mock.calls.length).toBeGreaterThanOrEqual(1);
-      const runCall = mockRun.mock.calls[0][0] as any;
+      expect(mockStream.mock.calls.length).toBeGreaterThanOrEqual(1);
+      const runCall = mockStream.mock.calls[0][0] as any;
       expect(runCall.tools).toHaveLength(0);
     });
   });
@@ -432,7 +458,7 @@ describe('TaskManager', () => {
 
       await flush();
 
-      const runCall = mockRun.mock.calls[0][0] as any;
+      const runCall = mockStream.mock.calls[0][0] as any;
       expect(runCall.toolChoice).toEqual({ type: 'any' });
       expect(runCall.disableParallelToolUse).toBe(true);
     });
@@ -619,8 +645,8 @@ describe('TaskManager', () => {
       expect(taskManager.get(task.id)?.status.state).toBe('completed');
 
       // Verify that mockRun was called a second time with the tool results
-      expect(mockRun.mock.calls.length).toBeGreaterThanOrEqual(2);
-      const secondRunCall = mockRun.mock.calls[1][0] as any;
+      expect(mockStream.mock.calls.length).toBeGreaterThanOrEqual(2);
+      const secondRunCall = mockStream.mock.calls[1][0] as any;
       const messages = secondRunCall.messages;
 
       // Should have an assistant message with the tool calls

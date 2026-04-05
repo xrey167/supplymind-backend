@@ -12,7 +12,7 @@ export function startAgentWorkers(concurrency = 3): { worker: Worker<AgentJobDat
   const workerRedis = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
 
   const worker = new Worker<AgentJobData>(
-    'agent:run',
+    'agent-run',
     async (job) => {
       const { taskId, agentId, workspaceId, callerId, message, sessionId } = job.data;
 

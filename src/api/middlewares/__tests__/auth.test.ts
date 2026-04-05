@@ -17,6 +17,15 @@ mock.module('../../../infra/observability/sentry', () => ({
   Sentry: {},
 }));
 
+mock.module('../../../infra/auth/api-key', () => ({
+  validateApiKey: mock(async (token: string) => {
+    if (token.startsWith('a2a_k_')) {
+      return { role: 'admin', workspaceId: 'ws-test', name: 'test-key' };
+    }
+    return null;
+  }),
+}));
+
 const { authMiddleware } = await import('../auth');
 const { errorHandler } = await import('../error-handler');
 
