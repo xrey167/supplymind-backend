@@ -4,7 +4,8 @@ import { eq, and, lt, gt, lte, count, desc, or } from 'drizzle-orm';
 import type { Session, SessionMessage, AddMessageInput, SessionStatus } from './sessions.types';
 
 function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 3.0);
+  // ~4 chars/token for natural language, ~2.5 for code. Use 3.2 as balanced estimate.
+  return Math.ceil(text.length / 3.2);
 }
 
 export const sessionsRepo = {
@@ -90,15 +91,16 @@ export const sessionsRepo = {
         .from(sessionMessages)
         .where(eq(sessionMessages.id, opts.cursor))
         .limit(1);
-      if (cursorRow) {
-        cursorFilter = and(
-          baseFilter,
-          or(
-            gt(sessionMessages.createdAt, cursorRow.createdAt),
-            and(eq(sessionMessages.createdAt, cursorRow.createdAt), gt(sessionMessages.id, cursorRow.id)),
-          ),
-        ) as any;
+      if (!cursorRow) {
+        return { messages: [], total: Number(total) };
       }
+      cursorFilter = and(
+        baseFilter,
+        or(
+          gt(sessionMessages.createdAt, cursorRow.createdAt),
+          and(eq(sessionMessages.createdAt, cursorRow.createdAt), gt(sessionMessages.id, cursorRow.id)),
+        ),
+      ) as any;
     }
 
     const rows = await db
