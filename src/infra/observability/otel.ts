@@ -5,7 +5,7 @@ const tracer = trace.getTracer('supplymind-backend');
 
 let provider: import('@opentelemetry/sdk-trace-base').BasicTracerProvider | null = null;
 
-export function initOtel(): void {
+export async function initOtel(): Promise<void> {
   const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
   if (!endpoint) {
     logger.info('OTel: no OTEL_EXPORTER_OTLP_ENDPOINT — traces disabled');
@@ -13,10 +13,10 @@ export function initOtel(): void {
   }
 
   try {
-    const { BasicTracerProvider, BatchSpanProcessor } = require('@opentelemetry/sdk-trace-base');
-    const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
-    const { Resource } = require('@opentelemetry/resources');
-    const { ATTR_SERVICE_NAME } = require('@opentelemetry/semantic-conventions');
+    const { BasicTracerProvider, BatchSpanProcessor } = await import('@opentelemetry/sdk-trace-base');
+    const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http');
+    const { Resource } = await import('@opentelemetry/resources');
+    const { ATTR_SERVICE_NAME } = await import('@opentelemetry/semantic-conventions');
 
     const serviceName = process.env.OTEL_SERVICE_NAME ?? 'supplymind-backend';
     const resource = new Resource({ [ATTR_SERVICE_NAME]: serviceName });
@@ -52,6 +52,7 @@ export async function withSpan<T>(
       return result;
     } catch (err) {
       span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+      span.recordException(err instanceof Error ? err : new Error(String(err)));
       throw err;
     } finally {
       span.end();

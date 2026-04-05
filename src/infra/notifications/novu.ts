@@ -11,7 +11,7 @@ export function getNovuClient(): Novu | null {
 }
 
 export async function triggerNotification(
-  workflowId: string,
+  workflowId: WorkflowId,
   subscriberId: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
@@ -33,3 +33,5 @@ export const NovuWorkflows = {
   API_KEY_CREATED: 'api-key-created',
   WORKSPACE_INVITATION: 'workspace-invitation',
 } as const;
+
+export type WorkflowId = typeof NovuWorkflows[keyof typeof NovuWorkflows];

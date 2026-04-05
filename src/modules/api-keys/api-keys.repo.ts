@@ -46,7 +46,8 @@ export const apiKeysRepo = {
 
   async deleteExpired(): Promise<number> {
     const result = await db.delete(apiKeys)
-      .where(and(isNotNull(apiKeys.expiresAt), lt(apiKeys.expiresAt, new Date())));
+      .where(and(isNotNull(apiKeys.expiresAt), lt(apiKeys.expiresAt, new Date())))
+      .returning({ id: apiKeys.id });
     return result.length;
   },
 };

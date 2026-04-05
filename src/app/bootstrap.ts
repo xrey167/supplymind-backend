@@ -4,7 +4,7 @@ import { skillsService } from '../modules/skills/skills.service';
 import { skillRegistry } from '../modules/skills/skills.registry';
 import { wsServer } from '../infra/realtime/ws-server';
 import { mcpClientPool } from '../infra/mcp/client-pool';
-import { createRedisPair, createRedisClient } from '../infra/redis/client';
+import { createRedisPair } from '../infra/redis/client';
 import { RedisPubSub } from '../infra/redis/pubsub';
 import { initEventConsumers } from '../events/consumers';
 import { getStateStore, closeStateStore } from '../infra/state';
@@ -15,6 +15,7 @@ import { taskRepo } from '../infra/a2a/task-repo';
 
 let redisPubSub: RedisPubSub | null = null;
 let agentWorkerHandles: { worker: import('bullmq').Worker; connection: import('ioredis').default } | null = null;
+let jobWorkerHandles: { cleanupWorker: import('bullmq').Worker; syncWorker: import('bullmq').Worker; connection: import('ioredis').default } | null = null;
 
 /**
  * Initialize all subsystems in order.
@@ -24,7 +25,7 @@ let agentWorkerHandles: { worker: import('bullmq').Worker; connection: import('i
 export async function initSubsystems(): Promise<void> {
   // Step 0: Initialize OTel tracing
   const { initOtel } = await import('../infra/observability/otel');
-  initOtel();
+  await initOtel();
 
   // Step 1: Load skills (builtin + DB)
   try {
@@ -165,10 +166,14 @@ export async function initSubsystems(): Promise<void> {
     const jobConnection = new Redis(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
 
     await cleanupQueue.upsertJobScheduler('cleanup-sweep', { pattern: '*/15 * * * *' }, { name: 'cleanup' });
-    new Worker('cleanup', async () => { await runCleanup(); }, { connection: jobConnection });
+    const cleanupWorker = new Worker('cleanup', async () => { await runCleanup(); }, { connection: jobConnection });
+    cleanupWorker.on('error', (err) => logger.warn({ err }, 'Cleanup worker error'));
 
     await syncQueue.upsertJobScheduler('agent-registry-sync', { pattern: '0 * * * *' }, { name: 'agent-sync' });
-    new Worker('sync', async () => { await runSync(); }, { connection: jobConnection });
+    const syncWorker = new Worker('sync', async () => { await runSync(); }, { connection: jobConnection });
+    syncWorker.on('error', (err) => logger.warn({ err }, 'Sync worker error'));
+
+    jobWorkerHandles = { cleanupWorker, syncWorker, connection: jobConnection };
 
     logger.info('Step 12: Cleanup and sync job schedulers registered');
   } catch (err) {
@@ -199,6 +204,12 @@ export async function destroySubsystems(): Promise<void> {
     agentWorkerHandles.connection.quit();
   }
 
+  if (jobWorkerHandles) {
+    await jobWorkerHandles.cleanupWorker.close();
+    await jobWorkerHandles.syncWorker.close();
+    jobWorkerHandles.connection.quit();
+  }
+
   // Destroy all computer use sessions (close browsers)
   try {
     const { sessionManager } = await import('../modules/computer-use/computer-use.session');
@@ -211,16 +222,28 @@ export async function destroySubsystems(): Promise<void> {
   }
 
   // Close shared Redis
-  const { closeSharedRedisClient } = await import('../infra/redis/client');
-  await closeSharedRedisClient();
+  try {
+    const { closeSharedRedisClient } = await import('../infra/redis/client');
+    await closeSharedRedisClient();
+  } catch (err) {
+    logger.warn({ err }, 'Failed to close shared Redis client during shutdown');
+  }
 
   // Close DB connection pool
-  const { closeDb } = await import('../infra/db/client');
-  await closeDb();
+  try {
+    const { closeDb } = await import('../infra/db/client');
+    await closeDb();
+  } catch (err) {
+    logger.warn({ err }, 'Failed to close DB connection pool during shutdown');
+  }
 
   // Shutdown OTel
-  const { shutdownOtel } = await import('../infra/observability/otel');
-  await shutdownOtel();
+  try {
+    const { shutdownOtel } = await import('../infra/observability/otel');
+    await shutdownOtel();
+  } catch (err) {
+    logger.warn({ err }, 'Failed to shutdown OTel during shutdown');
+  }
 
   logger.info('Subsystems destroyed');
 }
