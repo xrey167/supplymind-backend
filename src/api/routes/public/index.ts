@@ -43,11 +43,16 @@ publicRoutes.post('/a2a', async (c) => {
   const apiKey = authHeader.slice(7);
 
   // Validate against configured API key — reject unknown keys outright
-  const configuredKey = process.env.A2A_API_KEY;
+  const configuredKey = Bun.env.A2A_API_KEY;
   if (!configuredKey) {
     return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'A2A endpoint not configured (missing A2A_API_KEY)' } }, 503);
   }
-  if (apiKey !== configuredKey) {
+  // Constant-time comparison to prevent timing side-channel attacks
+  const keyBuf = Buffer.from(apiKey);
+  const confBuf = Buffer.from(configuredKey);
+  const keysMatch = keyBuf.length === confBuf.length &&
+    crypto.timingSafeEqual(keyBuf, confBuf);
+  if (!keysMatch) {
     return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Invalid API key' } }, 401);
   }
   // TODO: migrate to per-workspace API key validation once api_keys table is available

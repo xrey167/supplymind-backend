@@ -118,6 +118,8 @@ export async function runInSandbox(input: SandboxRunInput): Promise<Result<Sandb
         PATH: process.env.PATH ?? '',
         HOME: process.env.HOME ?? '',
         TMPDIR: process.env.TMPDIR ?? '',
+        // Prevent Bun from auto-loading .env.development in the child process
+        NODE_ENV: 'production',
         SANDBOX: '1',
         SANDBOX_ALLOW_NETWORK: policy.allowNetwork ? '1' : '0',
         SANDBOX_MAX_MEMORY_MB: String(policy.maxMemoryMb),

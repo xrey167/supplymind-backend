@@ -1,7 +1,10 @@
 import { orchestrationRepo } from './orchestration.repo';
 import { runOrchestration } from './orchestration.engine';
-import { emitOrchestrationStarted, emitOrchestrationCompleted, emitOrchestrationFailed } from './orchestration.events';
+import { emitOrchestrationStarted, emitOrchestrationCompleted, emitOrchestrationFailed, emitOrchestrationCancelled } from './orchestration.events';
 import type { OrchestrationDefinition, OrchestrationResult } from './orchestration.types';
+import { ok, err } from '../../core/result';
+import { AppError } from '../../core/errors';
+import type { Result } from '../../core/result';
 
 export const orchestrationService = {
   async create(data: {
@@ -54,5 +57,21 @@ export const orchestrationService = {
 
   async get(id: string) {
     return orchestrationRepo.get(id);
+  },
+
+  async list(workspaceId: string, opts?: { limit?: number; cursor?: string }) {
+    return orchestrationRepo.list(workspaceId, opts);
+  },
+
+  async cancel(id: string, workspaceId: string): Promise<Result<void>> {
+    const orch = await orchestrationRepo.get(id);
+    if (!orch) return err(new AppError('Orchestration not found', 404, 'NOT_FOUND'));
+    if (orch.workspaceId !== workspaceId) return err(new AppError('Not found', 404, 'NOT_FOUND'));
+
+    const cancelled = await orchestrationRepo.cancel(id);
+    if (!cancelled) return err(new AppError('Orchestration cannot be cancelled (already completed or failed)', 400, 'INVALID_STATE'));
+
+    emitOrchestrationCancelled(id, workspaceId);
+    return ok(undefined);
   },
 };

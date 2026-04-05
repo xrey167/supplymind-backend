@@ -125,7 +125,32 @@ export const messageRoleEnum = pgEnum('message_role', ['user', 'assistant', 'sys
 export const memoryTypeEnum = pgEnum('memory_type', ['domain', 'feedback', 'pattern', 'reference']);
 export const memorySourceEnum = pgEnum('memory_source', ['explicit', 'proposed', 'approved']);
 export const proposalStatusEnum = pgEnum('proposal_status', ['pending', 'approved', 'rejected']);
-export const orchestrationStatusEnum = pgEnum('orchestration_status', ['submitted', 'running', 'paused', 'completed', 'failed']);
+export const orchestrationStatusEnum = pgEnum('orchestration_status', ['submitted', 'running', 'paused', 'completed', 'failed', 'cancelled']);
+export const workspaceRoleEnum = pgEnum('workspace_role', ['owner', 'admin', 'member', 'viewer']);
+
+// Workspaces
+export const workspaces = pgTable('workspaces', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  createdBy: text('created_by').notNull(),   // Clerk userId
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  uniqueIndex('workspaces_slug_idx').on(t.slug),
+]);
+
+export const workspaceMembers = pgTable('workspace_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull(),          // Clerk userId
+  role: workspaceRoleEnum('role').notNull().default('member'),
+  invitedBy: text('invited_by'),
+  joinedAt: timestamp('joined_at').defaultNow(),
+}, (t) => [
+  uniqueIndex('wm_workspace_user_idx').on(t.workspaceId, t.userId),
+  index('wm_user_idx').on(t.userId),
+]);
 
 // Sessions
 export const sessions = pgTable('sessions', {
@@ -202,7 +227,9 @@ export const orchestrations = pgTable('orchestrations', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
   completedAt: timestamp('completed_at'),
-});
+}, (t) => [
+  index('orch_workspace_created_idx').on(t.workspaceId, t.createdAt),
+]);
 
 // Workspace settings (key-value per workspace)
 export const workspaceSettings = pgTable('workspace_settings', {
@@ -228,6 +255,20 @@ export const apiKeys = pgTable('api_keys', {
   lastUsedAt: timestamp('last_used_at'),
   createdAt: timestamp('created_at').defaultNow(),
 });
+
+// Workflow templates
+export const workflowTemplates = pgTable('workflow_templates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  definition: jsonb('definition').notNull(),
+  createdBy: text('created_by').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  index('wt_workspace_id_idx').on(t.workspaceId),
+]);
 
 // Registered A2A agents (persistent registry)
 export const registeredAgents = pgTable('registered_agents', {
