@@ -1,6 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
+import { secureHeaders } from 'hono/secure-headers';
 import { wsServer } from '../infra/realtime/ws-server';
 import { errorHandler } from '../api/middlewares/error-handler';
 import { publicRoutes } from '../api/routes/public';
@@ -24,8 +25,29 @@ export async function createApp() {
     },
   });
 
-  // Global middleware
-  app.use('*', cors());
+  // Security headers — all routes
+  app.use('*', secureHeaders({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    xFrameOptions: 'DENY',
+    strictTransportSecurity: 'max-age=63072000; includeSubDomains',
+    referrerPolicy: 'strict-origin-when-cross-origin',
+  }));
+
+  // CORS — env-configurable origins
+  const allowedOrigins = Bun.env.CORS_ALLOWED_ORIGINS
+    ? Bun.env.CORS_ALLOWED_ORIGINS.split(',').map(s => s.trim())
+    : ['http://localhost:3000', 'http://localhost:3001'];
+
+  app.use('*', cors({
+    origin: (origin) => {
+      if (!origin) return origin;
+      if (allowedOrigins.includes('*')) return origin;
+      return allowedOrigins.includes(origin) ? origin : null;
+    },
+    credentials: true,
+  }));
+
   app.use('*', honoLogger());
 
   // Error handler
