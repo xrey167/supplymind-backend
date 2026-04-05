@@ -1,4 +1,4 @@
-import { OpenAPIHono } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { buildAgentCard } from '../../../infra/a2a/agent-card';
 import { taskManager } from '../../../infra/a2a/task-manager';
@@ -6,7 +6,13 @@ import { taskManager } from '../../../infra/a2a/task-manager';
 const publicRoutes = new OpenAPIHono();
 
 // Agent Card discovery (no auth required per A2A spec)
-publicRoutes.get('/.well-known/agent.json', (c) => {
+const agentCardRoute = createRoute({
+  method: 'get',
+  path: '/.well-known/agent.json',
+  responses: { 200: { description: 'A2A Agent Card', content: { 'application/json': { schema: z.object({}).passthrough() } } } },
+});
+
+publicRoutes.openapi(agentCardRoute, (c) => {
   return c.json(buildAgentCard());
 });
 

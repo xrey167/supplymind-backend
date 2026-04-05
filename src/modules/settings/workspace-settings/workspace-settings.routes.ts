@@ -1,20 +1,69 @@
-import { OpenAPIHono } from '@hono/zod-openapi';
-import { workspaceSettingsController } from './workspace-settings.controller';
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { z } from 'zod';
+import { workspaceSettingsService } from './workspace-settings.service';
+import { updateWorkspaceSettingsSchema, approvalIdParamSchema } from './workspace-settings.schemas';
+import { resolveApproval } from '../../../infra/state/tool-approvals';
+import { eventBus } from '../../../events/bus';
+import { Topics } from '../../../events/topics';
+
+const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+
+const getSettingsRoute = createRoute({
+  method: 'get', path: '/',
+  responses: { 200: { description: 'Current workspace settings', ...jsonRes } },
+});
+
+const updateSettingsRoute = createRoute({
+  method: 'patch', path: '/',
+  request: { body: { content: { 'application/json': { schema: updateWorkspaceSettingsSchema } } } },
+  responses: { 200: { description: 'Updated settings', ...jsonRes } },
+});
+
+const approveRoute = createRoute({
+  method: 'post', path: '/tools/approvals/{approvalId}/approve',
+  request: { params: approvalIdParamSchema },
+  responses: { 200: { description: 'Approval granted', ...jsonRes } },
+});
+
+const denyRoute = createRoute({
+  method: 'post', path: '/tools/approvals/{approvalId}/deny',
+  request: { params: approvalIdParamSchema },
+  responses: { 200: { description: 'Approval denied', ...jsonRes } },
+});
 
 export const workspaceSettingsRoutes = new OpenAPIHono();
 
-// GET /settings — return current workspace tool-permission settings
-workspaceSettingsRoutes.get('/', (c) => workspaceSettingsController.getSettings(c));
+workspaceSettingsRoutes.openapi(getSettingsRoute, async (c) => {
+  const workspaceId = c.get('workspaceId') as string;
+  const settings = await workspaceSettingsService.getToolSettings(workspaceId);
+  return c.json({ data: settings });
+});
 
-// PATCH /settings — update workspace tool-permission settings
-workspaceSettingsRoutes.patch('/', (c) => workspaceSettingsController.updateSettings(c));
+workspaceSettingsRoutes.openapi(updateSettingsRoute, async (c) => {
+  const workspaceId = c.get('workspaceId') as string;
+  const body = c.req.valid('json');
+  const settings = await workspaceSettingsService.updateToolSettings(workspaceId, body);
+  return c.json({ data: settings });
+});
 
-// POST /tools/approvals/:approvalId/approve
-workspaceSettingsRoutes.post('/tools/approvals/:approvalId/approve', (c) =>
-  workspaceSettingsController.approveToolCall(c),
-);
+workspaceSettingsRoutes.openapi(approveRoute, async (c) => {
+  const workspaceId = c.get('workspaceId') as string;
+  const { approvalId } = c.req.valid('param');
+  const resolved = resolveApproval(approvalId, workspaceId, true);
+  if (!resolved) {
+    return c.json({ error: { code: 'NOT_FOUND', message: 'Approval request not found or already resolved' } }, 404);
+  }
+  eventBus.publish(Topics.TOOL_APPROVAL_RESOLVED, { approvalId, approved: true, workspaceId });
+  return c.json({ data: { approvalId, approved: true } });
+});
 
-// POST /tools/approvals/:approvalId/deny
-workspaceSettingsRoutes.post('/tools/approvals/:approvalId/deny', (c) =>
-  workspaceSettingsController.denyToolCall(c),
-);
+workspaceSettingsRoutes.openapi(denyRoute, async (c) => {
+  const workspaceId = c.get('workspaceId') as string;
+  const { approvalId } = c.req.valid('param');
+  const resolved = resolveApproval(approvalId, workspaceId, false);
+  if (!resolved) {
+    return c.json({ error: { code: 'NOT_FOUND', message: 'Approval request not found or already resolved' } }, 404);
+  }
+  eventBus.publish(Topics.TOOL_APPROVAL_RESOLVED, { approvalId, approved: false, workspaceId });
+  return c.json({ data: { approvalId, approved: false } });
+});

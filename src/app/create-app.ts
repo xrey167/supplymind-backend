@@ -8,7 +8,19 @@ import { workspaceRoutes } from '../api/routes/workspace';
 import { initSubsystems, destroySubsystems } from './bootstrap';
 
 export async function createApp() {
-  const app = new OpenAPIHono();
+  const app = new OpenAPIHono({
+    defaultHook: (result, c) => {
+      if (!result.success) {
+        return c.json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Request validation failed',
+            details: result.error.flatten().fieldErrors,
+          },
+        }, 400);
+      }
+    },
+  });
 
   // Global middleware
   app.use('*', cors());

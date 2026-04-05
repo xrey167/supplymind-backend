@@ -12,6 +12,8 @@ export const addMessageSchema = z.object({
   toolCalls: z.unknown().optional(),
 });
 
+export const sessionIdParamSchema = z.object({ id: z.string().uuid() });
+
 export const transcriptQuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(50).optional(),
   cursor: z.string().optional(),

@@ -39,4 +39,6 @@ export const mcpServerPolicySchema = z.object({
 export type ToolPermissionMode = z.infer<typeof toolPermissionModeSchema>;
 export type SandboxPolicy = z.infer<typeof sandboxPolicySchema>;
 export type McpServerPolicy = z.infer<typeof mcpServerPolicySchema>;
+export const approvalIdParamSchema = z.object({ approvalId: z.string() });
+
 export type UpdateWorkspaceSettingsInput = z.infer<typeof updateWorkspaceSettingsSchema>;

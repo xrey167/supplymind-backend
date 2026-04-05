@@ -5,7 +5,6 @@ export { BuiltinSkillProvider } from './providers/builtin.provider';
 export { McpSkillProvider } from './providers/mcp.provider';
 export { SkillsService, skillsService } from './skills.service';
 export { SkillsRoutes } from './skills.routes';
-export { skillsController } from './skills.controller';
 export { dispatchSkill } from './skills.dispatch';
 export type {
   Skill,

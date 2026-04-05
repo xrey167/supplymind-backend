@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { executeWorkflow } from './workflows.engine';
 import { dispatchSkill } from '../skills/skills.dispatch';
 import type { WorkflowDispatchFn } from './workflows.types';
