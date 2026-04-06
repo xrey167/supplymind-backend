@@ -1,4 +1,5 @@
 import { sessionsRepo } from './sessions.repo';
+import { compactSession, COMPACTION_THRESHOLD_TOKENS } from './compaction.service';
 import { emitSessionCreated, emitSessionPaused, emitSessionResumed, emitSessionClosed } from './sessions.events';
 import type { Session, SessionMessage, AddMessageInput } from './sessions.types';
 import type { Message } from '../../infra/ai/types';
@@ -70,23 +71,36 @@ export const sessionsService = {
     return { messages, nextCursor, total };
   },
 
-  async buildContextMessages(sessionId: string): Promise<Message[]> {
-    // Single query: fetch all messages (compacted + active), then split in code
+  async buildContextMessages(
+    sessionId: string,
+    opts: { workspaceId: string; sessionModel: string; _pass?: number } = { workspaceId: '', sessionModel: '' },
+  ): Promise<Message[]> {
     const allMessages = await sessionsRepo.getMessages(sessionId, { limit: 1000 });
     const summaries: Message[] = [];
-    const active: Message[] = [];
+    const activeDbMessages: SessionMessage[] = [];
 
     for (const m of allMessages) {
       if (m.isCompacted && m.role === 'system') {
         summaries.push({ role: 'system', content: m.content });
       } else if (!m.isCompacted) {
-        active.push({
-          role: m.role as 'user' | 'assistant' | 'system' | 'tool',
-          content: m.content,
-          ...(m.toolCallId ? { toolCallId: m.toolCallId } : {}),
-        });
+        activeDbMessages.push(m);
       }
     }
+
+    const pass = opts._pass ?? 0;
+    const compactionEnabled = Bun.env.CONTEXT_COMPACTION_ENABLED === 'true';
+    const activeTokens = activeDbMessages.reduce((sum, m) => sum + (m.tokenEstimate ?? 0), 0);
+
+    if (compactionEnabled && activeTokens > COMPACTION_THRESHOLD_TOKENS && pass < 2) {
+      await compactSession(sessionId, opts.workspaceId, activeDbMessages, opts.sessionModel);
+      return this.buildContextMessages(sessionId, { ...opts, _pass: pass + 1 });
+    }
+
+    const active: Message[] = activeDbMessages.map((m) => ({
+      role: m.role as 'user' | 'assistant' | 'system' | 'tool',
+      content: m.content,
+      ...(m.toolCallId ? { toolCallId: m.toolCallId } : {}),
+    }));
 
     return [...summaries, ...active];
   },
