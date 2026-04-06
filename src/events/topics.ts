@@ -87,6 +87,10 @@ export const Topics = {
   CREDENTIAL_DELETED: 'credentials.deleted',
   // Settings
   SETTINGS_UPDATED: 'settings.updated',
+  // API Keys
+  API_KEY_CREATED: 'security.api_key.created',
+  API_KEY_REVOKED: 'security.api_key.revoked',
+  API_KEY_DELETED: 'security.api_key.deleted',
   // System
   HEARTBEAT: 'system.heartbeat',
   // Workspace lifecycle
