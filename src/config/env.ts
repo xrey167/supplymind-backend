@@ -17,6 +17,37 @@ export const envSchema = z.object({
   OTEL_SERVICE_NAME: z.string().default('supplymind-backend'),
   CORS_ALLOWED_ORIGINS: z.string().optional(),
   CLERK_WEBHOOK_SECRET: z.string().optional(),
+  // AI routing
+  AI_DEFAULT_PROVIDER: z.enum(['anthropic', 'openai', 'google']).default('anthropic'),
+  AI_FALLBACK_ENABLED: z
+    .string()
+    .default('true')
+    .transform(v => v !== 'false'),
+  MODEL_OVERRIDE_FAST: z.string().optional(),
+  MODEL_OVERRIDE_BALANCED: z.string().optional(),
+  MODEL_OVERRIDE_POWERFUL: z.string().optional(),
+  INTENT_GATE_ENABLED: z
+    .string()
+    .default('true')
+    .transform(v => v !== 'false'),
+  // Compaction
+  COMPACTION_MAX_MESSAGES: z.coerce.number().default(100),
+  COMPACTION_TOKEN_BUDGET: z.coerce.number().default(150_000),
+  // SSE resumption
+  SSE_SEQUENCE_ENABLED: z
+    .string()
+    .default('true')
+    .transform(v => v !== 'false'),
+  // Memory
+  MEMORY_AUTO_EXTRACT: z
+    .string()
+    .default('false')
+    .transform(v => v === 'true'),
+  // Idempotency
+  AI_IDEMPOTENCY_ENABLED: z
+    .string()
+    .default('true')
+    .transform(v => v !== 'false'),
 });
 
 export type Env = z.infer<typeof envSchema>;

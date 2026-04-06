@@ -1,2 +1,2 @@
 // TODO: OpenTelemetry setup
-export {};
+export * from './trace-context';
