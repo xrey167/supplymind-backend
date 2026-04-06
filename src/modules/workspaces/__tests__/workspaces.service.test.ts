@@ -53,14 +53,6 @@ mock.module('../../../events/bus', () => ({
   eventBus: { publish: mock(() => Promise.resolve()) },
 }));
 
-mock.module('../../../events/topics', () => ({
-  Topics: {
-    WORKSPACE_CREATED: 'workspace.created',
-    WORKSPACE_UPDATED: 'workspace.updated',
-    WORKSPACE_DELETING: 'workspace.deleting',
-    WORKSPACE_DELETED: 'workspace.deleted',
-  },
-}));
 
 // ── Import modules under test after mocks are set up ─────────────────────────
 import { workspacesRepo } from '../workspaces.repo';

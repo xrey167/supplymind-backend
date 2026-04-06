@@ -15,23 +15,19 @@ mock.module('../../../config/logger', () => ({
 // Capture subscriptions
 const subscriptions: Array<{ pattern: string; handler: (event: any) => Promise<void> }> = [];
 
+// Include publish so downstream tests that import eventBus from the real module
+// and call eventBus.publish still work (they get the real module, not this mock).
 mock.module('../../../events/bus', () => ({
   eventBus: {
     subscribe: mock((pattern: string, handler: any) => {
       subscriptions.push({ pattern, handler });
       return 'sub-id';
     }),
+    publish: mock(() => Promise.resolve()),
+    unsubscribe: mock(() => {}),
   },
 }));
 
-mock.module('../../../events/topics', () => ({
-  Topics: {
-    TASK_ERROR: 'task.error',
-    BUDGET_WARNING: 'billing.budget_warning',
-    BUDGET_EXCEEDED: 'billing.budget_exceeded',
-    MEMBER_JOINED: 'member.joined',
-  },
-}));
 
 const { initNotificationHandler } = await import('../../../events/consumers/notification.handler');
 

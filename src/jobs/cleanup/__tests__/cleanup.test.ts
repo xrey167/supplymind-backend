@@ -1,15 +1,11 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
 
 const mockFindStale = mock(() => Promise.resolve([]));
 const mockUpdateStatus = mock(() => Promise.resolve());
-const mockExpireSessions = mock(() => Promise.resolve(0));
 const mockDeleteExpiredKeys = mock(() => Promise.resolve(0));
 
 mock.module('../../../infra/a2a/task-repo', () => ({
   taskRepo: { findStale: mockFindStale, updateStatus: mockUpdateStatus },
-}));
-mock.module('../../../modules/sessions/sessions.service', () => ({
-  sessionsService: { expireIdleSessions: mockExpireSessions },
 }));
 mock.module('../../../modules/api-keys/api-keys.repo', () => ({
   apiKeysRepo: { deleteExpired: mockDeleteExpiredKeys },
@@ -19,14 +15,22 @@ mock.module('../../../config/logger', () => ({
 }));
 
 const { runCleanup } = await import('../index');
+import { sessionsService } from '../../../modules/sessions/sessions.service';
+
+// Use spyOn to avoid polluting sessions.service module cache for downstream tests
+const expireIdleSessionsSpy = spyOn(sessionsService, 'expireIdleSessions').mockResolvedValue(0 as any);
+
+afterAll(() => {
+  expireIdleSessionsSpy.mockRestore();
+});
 
 describe('cleanup job', () => {
   beforeEach(() => {
     mockFindStale.mockReset();
     mockFindStale.mockResolvedValue([]);
     mockUpdateStatus.mockReset();
-    mockExpireSessions.mockReset();
-    mockExpireSessions.mockResolvedValue(0);
+    expireIdleSessionsSpy.mockReset();
+    expireIdleSessionsSpy.mockResolvedValue(0 as any);
     mockDeleteExpiredKeys.mockReset();
     mockDeleteExpiredKeys.mockResolvedValue(0);
   });
@@ -34,7 +38,7 @@ describe('cleanup job', () => {
   it('calls all cleanup steps', async () => {
     await runCleanup();
     expect(mockFindStale).toHaveBeenCalledTimes(2);
-    expect(mockExpireSessions).toHaveBeenCalledTimes(1);
+    expect(expireIdleSessionsSpy).toHaveBeenCalledTimes(1);
     expect(mockDeleteExpiredKeys).toHaveBeenCalledTimes(1);
   });
 
@@ -49,7 +53,7 @@ describe('cleanup job', () => {
   it('continues if one step fails', async () => {
     mockFindStale.mockRejectedValueOnce(new Error('db error'));
     await runCleanup();
-    expect(mockExpireSessions).toHaveBeenCalledTimes(1);
+    expect(expireIdleSessionsSpy).toHaveBeenCalledTimes(1);
     expect(mockDeleteExpiredKeys).toHaveBeenCalledTimes(1);
   });
 });

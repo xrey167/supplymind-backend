@@ -3,19 +3,12 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
 /**
  * Gateway client tests.
  *
- * We mock execute() to verify the client sends correct ops and params.
+ * We inject a mock execute() via the _execute option to verify the client
+ * sends correct ops and params, without using mock.module (which would
+ * pollute the gateway module for gateway.test.ts and gateway-stream.test.ts).
  */
 
 const mockExecute = mock((_req: any) => Promise.resolve({ ok: true as const, value: {} }));
-
-// Mock the gateway module
-mock.module('../gateway', () => ({
-  execute: mockExecute,
-}));
-
-mock.module('../gateway-stream', () => ({
-  bridgeTaskEvents: mock(() => () => {}),
-}));
 
 
 mock.module('../../../modules/skills/skills.registry', () => ({
@@ -25,10 +18,12 @@ mock.module('../../../modules/skills/skills.registry', () => ({
     toToolDefinitions: mock(() => []),
     list: mock(() => []),
     get: mock(() => undefined),
+    has: mock(() => false),
+    clear: mock(() => {}),
   },
 }));
 
-const { GatewayClient, createGatewayClient } = await import('../gateway-client');
+import { GatewayClient, createGatewayClient } from '../gateway-client';
 
 describe('GatewayClient', () => {
   let client: InstanceType<typeof GatewayClient>;
@@ -36,7 +31,7 @@ describe('GatewayClient', () => {
   beforeEach(() => {
     mockExecute.mockReset();
     mockExecute.mockResolvedValue({ ok: true, value: {} });
-    client = createGatewayClient({ callerId: 'test', workspaceId: 'ws-1' });
+    client = createGatewayClient({ callerId: 'test', workspaceId: 'ws-1', _execute: mockExecute });
   });
 
   it('sendTask calls task.send op', async () => {
@@ -106,12 +101,12 @@ describe('GatewayClient', () => {
   });
 
   it('createGatewayClient defaults callerRole to operator', () => {
-    const c = createGatewayClient({ callerId: 'test', workspaceId: 'ws-1' });
+    const c = createGatewayClient({ callerId: 'test', workspaceId: 'ws-1', _execute: mockExecute });
     expect(c).toBeInstanceOf(GatewayClient);
   });
 
   it('createGatewayClient accepts custom callerRole', () => {
-    const c = createGatewayClient({ callerId: 'test', workspaceId: 'ws-1', callerRole: 'system' });
+    const c = createGatewayClient({ callerId: 'test', workspaceId: 'ws-1', callerRole: 'system', _execute: mockExecute });
     expect(c).toBeInstanceOf(GatewayClient);
   });
 

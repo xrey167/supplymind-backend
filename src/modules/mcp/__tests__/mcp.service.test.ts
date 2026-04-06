@@ -106,9 +106,6 @@ mock.module('../../../events/bus', () => ({
   eventBus: { publish: mockPublish },
 }));
 
-mock.module('../../../events/topics', () => ({
-  Topics: { MCP_TOOLS_DISCOVERED: 'mcp.tools.discovered' },
-}));
 
 // ---------- Import after mocks ----------
 const { McpService } = await import('../mcp.service');

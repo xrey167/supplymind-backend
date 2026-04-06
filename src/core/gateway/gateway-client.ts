@@ -14,56 +14,60 @@ import type { PluginManifest } from '../../modules/plugins/plugin-manifest';
  * get a typed API without touching WS/HTTP transports.
  */
 export class GatewayClient {
-  constructor(private context: GatewayContext) {}
+  private _exec: typeof execute;
+
+  constructor(private context: GatewayContext, _execOverride?: typeof execute) {
+    this._exec = _execOverride ?? execute;
+  }
 
   async sendTask(agentId: string, message: string, opts?: { sessionId?: string; runMode?: 'foreground' | 'background' }) {
-    return execute({ op: 'task.send', params: { agentId, message, ...opts }, context: this.context });
+    return this._exec({ op: 'task.send', params: { agentId, message, ...opts }, context: this.context });
   }
 
   async getTask(id: string) {
-    return execute({ op: 'task.get', params: { id }, context: this.context });
+    return this._exec({ op: 'task.get', params: { id }, context: this.context });
   }
 
   async cancelTask(id: string) {
-    return execute({ op: 'task.cancel', params: { id }, context: this.context });
+    return this._exec({ op: 'task.cancel', params: { id }, context: this.context });
   }
 
   async listTasks() {
-    return execute({ op: 'task.list', params: {}, context: this.context });
+    return this._exec({ op: 'task.list', params: {}, context: this.context });
   }
 
   async invokeSkill(name: string, args: Record<string, unknown> = {}) {
-    return execute({ op: 'skill.invoke', params: { name, args }, context: this.context });
+    return this._exec({ op: 'skill.invoke', params: { name, args }, context: this.context });
   }
 
   async listSkills() {
-    return execute({ op: 'skill.list', params: {}, context: this.context });
+    return this._exec({ op: 'skill.list', params: {}, context: this.context });
   }
 
   async listAgents() {
-    return execute({ op: 'agent.list', params: {}, context: this.context });
+    return this._exec({ op: 'agent.list', params: {}, context: this.context });
   }
 
   async delegateA2A(agentUrl: string, params?: { skillId?: string; args?: Record<string, unknown>; message?: unknown }) {
-    return execute({ op: 'a2a.delegate', params: { agentUrl, ...params }, context: this.context });
+    return this._exec({ op: 'a2a.delegate', params: { agentUrl, ...params }, context: this.context });
   }
 
   async respondToInput(taskId: string, input: unknown) {
-    return execute({ op: 'task.input', params: { taskId, input }, context: this.context });
+    return this._exec({ op: 'task.input', params: { taskId, input }, context: this.context });
   }
 
   async respondToGate(orchestrationId: string, stepId: string, approved: boolean) {
-    return execute({ op: 'orchestration.gate.respond', params: { orchestrationId, stepId, approved }, context: this.context });
+    return this._exec({ op: 'orchestration.gate.respond', params: { orchestrationId, stepId, approved }, context: this.context });
   }
 
   /** Interrupt the current turn without killing the task. */
   async interruptTask(id: string) {
-    return execute({ op: 'task.interrupt', params: { id }, context: this.context });
+    return this._exec({ op: 'task.interrupt', params: { id }, context: this.context });
   }
 
   /** Respond to a tool approval with optional modified args. */
   async respondToApproval(approvalId: string, approved: boolean, updatedInput?: Record<string, unknown>) {
-    return execute({
+    return this._exec({
       op: 'task.input',
       params: { taskId: '', approvalId, approved, updatedInput },
       context: this.context,
@@ -170,7 +174,7 @@ export class GatewayClient {
       },
     };
 
-    const result = await execute({
+    const result = await this._exec({
       op: 'task.send',
       params: { agentId, message, ...opts },
       context: streamCtx,
@@ -223,10 +227,15 @@ export function createGatewayClient(opts: {
   callerId: string;
   workspaceId: string;
   callerRole?: Role;
+  /** For testing only: override the execute function. */
+  _execute?: typeof execute;
 }): GatewayClient {
-  return new GatewayClient({
-    callerId: opts.callerId,
-    workspaceId: opts.workspaceId,
-    callerRole: opts.callerRole ?? 'operator',
-  });
+  return new GatewayClient(
+    {
+      callerId: opts.callerId,
+      workspaceId: opts.workspaceId,
+      callerRole: opts.callerRole ?? 'operator',
+    },
+    opts._execute,
+  );
 }
