@@ -1,12 +1,14 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
 
-const mockNotify = mock(() => Promise.resolve({ id: 'notif-1' }));
-
-mock.module('../notifications.service', () => ({
-  notificationsService: {
-    notify: mockNotify,
-  },
-}));
+// Mock only the leaf deps that notifications.service.ts transitively needs.
+// We do NOT replace notifications.repo itself — that would break notifications.repo.test.ts
+// (which runs after this file alphabetically and imports NotificationsRepository from the same module).
+// Instead we stub the modules notifications.repo USES, so it's importable without a real DB.
+mock.module('../../../infra/db/client', () => ({ db: { select: () => ({}), insert: () => ({}), update: () => ({}) } }));
+mock.module('../../../infra/db/schema', () => ({ notifications: {}, notificationPreferences: {} }));
+mock.module('drizzle-orm', () => ({ eq: () => {}, and: () => {}, isNull: () => {}, desc: () => {}, sql: () => {} }));
+mock.module('../preferences/notification-preferences.repo', () => ({ notificationPreferencesRepo: { get: mock(async () => null), set: mock(async () => {}), delete: mock(async () => {}) } }));
+mock.module('../../../infra/realtime/ws-server', () => ({ wsServer: { broadcastToSubscribed: mock(() => {}) } }));
 
 mock.module('../../../config/logger', () => ({
   logger: { info: () => {}, debug: () => {}, warn: () => {}, error: () => {} },
@@ -28,8 +30,12 @@ mock.module('../../../events/bus', () => ({
   },
 }));
 
+const { notificationsService } = await import('../notifications.service');
+const mockNotify = spyOn(notificationsService, 'notify').mockResolvedValue({ id: 'notif-1' } as any);
 
 const { initNotificationHandler } = await import('../../../events/consumers/notification.handler');
+
+afterAll(() => { mockNotify.mockRestore(); });
 
 describe('notification.handler', () => {
   beforeEach(() => {
