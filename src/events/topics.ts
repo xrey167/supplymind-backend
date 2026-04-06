@@ -41,6 +41,7 @@ export const Topics = {
   SESSION_PAUSED: 'session.paused',
   SESSION_RESUMED: 'session.resumed',
   SESSION_CLOSED: 'session.closed',
+  SESSION_COMPACTED: 'session.compacted',
   // Memory
   MEMORY_SAVED: 'memory.saved',
   MEMORY_PROPOSAL: 'memory.proposal',
