@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 
 /**
  * Base shape for all domain events — generic over event type string and payload.
- * Domain modules extend this; the base layer stays supply-chain-agnostic.
+ * Domain modules extend this; the base layer stays domain-agnostic.
  */
 export interface DomainEventEnvelope<TPayload> {
   eventId: string;
@@ -38,4 +38,32 @@ export function createDomainEvent<TPayload>(
     version: opts?.version ?? 1,
     traceId: opts?.traceId,
   };
+}
+
+export interface StrategyContext {
+  workspaceId: string;
+  callerId: string;
+}
+
+/**
+ * Implement this interface to handle domain events for a specific entity type.
+ * Domain modules register strategies at startup; the base layer dispatches to them.
+ */
+export interface DomainEventStrategy<TEntity = unknown> {
+  entityType: string;
+  evaluate(entity: TEntity, ctx: StrategyContext): Promise<DomainEventEnvelope<unknown>[]>;
+}
+
+const strategies = new Map<string, DomainEventStrategy>();
+
+export function registerStrategy(strategy: DomainEventStrategy): void {
+  strategies.set(strategy.entityType, strategy);
+}
+
+export function getStrategy(entityType: string): DomainEventStrategy | undefined {
+  return strategies.get(entityType);
+}
+
+export function listStrategies(): string[] {
+  return [...strategies.keys()];
 }
