@@ -1,5 +1,7 @@
 import { ok, err } from '../../core/result';
 import type { Result } from '../../core/result';
+import { skillMcpConfigSchema } from './skills.schemas';
+import type { SkillMcpConfigInput } from './skills.schemas';
 import { skillRegistry } from './skills.registry';
 import { BuiltinSkillProvider } from './providers/builtin.provider';
 import { CollaborationSkillProvider } from './providers/collaboration.provider';
@@ -48,6 +50,40 @@ export class SkillsService {
 
   async invokeSkill(name: string, args: Record<string, unknown>, context: DispatchContext): Promise<Result<unknown>> {
     return dispatchSkill(name, args, context);
+  }
+
+  async getMcpConfig(workspaceId: string, skillId: string): Promise<Result<SkillMcpConfigInput | null>> {
+    try {
+      const skill = await skillsRepo.findById(skillId);
+      if (!skill) return err(new Error(`Skill not found: ${skillId}`));
+      if (skill.workspaceId && skill.workspaceId !== workspaceId) {
+        return err(new Error('Skill not found in this workspace'));
+      }
+      const raw = await skillsRepo.getMcpConfig(skillId);
+      if (!raw) return ok(null);
+      const parsed = skillMcpConfigSchema.safeParse(raw);
+      if (!parsed.success) return err(new Error(`Stored MCP config is invalid: ${parsed.error.message}`));
+      return ok(parsed.data);
+    } catch (e) {
+      return err(e instanceof Error ? e : new Error(String(e)));
+    }
+  }
+
+  async setMcpConfig(workspaceId: string, skillId: string, config: SkillMcpConfigInput): Promise<Result<void>> {
+    try {
+      const skill = await skillsRepo.findById(skillId);
+      if (!skill) return err(new Error(`Skill not found: ${skillId}`));
+      if (!skill.workspaceId) {
+        return err(new Error('Cannot set MCP config on a global skill'));
+      }
+      if (skill.workspaceId !== workspaceId) {
+        return err(new Error('Skill not found in this workspace'));
+      }
+      await skillsRepo.setMcpConfig(skillId, config as Record<string, unknown>);
+      return ok(undefined);
+    } catch (e) {
+      return err(e instanceof Error ? e : new Error(String(e)));
+    }
   }
 }
 

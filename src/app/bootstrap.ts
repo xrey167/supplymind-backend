@@ -3,6 +3,7 @@ import { eventBus } from '../events/bus';
 import { skillsService } from '../modules/skills/skills.service';
 import { skillRegistry } from '../modules/skills/skills.registry';
 import { wsServer } from '../infra/realtime/ws-server';
+import { skillEmbeddedMcpManager } from '../infra/mcp/embedded-manager';
 import { mcpClientPool } from '../infra/mcp/client-pool';
 import { createRedisPair } from '../infra/redis/client';
 import { RedisPubSub } from '../infra/redis/pubsub';
@@ -16,6 +17,7 @@ import { taskRepo } from '../infra/a2a/task-repo';
 let redisPubSub: RedisPubSub | null = null;
 let agentWorkerHandles: { worker: import('bullmq').Worker; connection: import('ioredis').default } | null = null;
 let jobWorkerHandles: { cleanupWorker: import('bullmq').Worker; syncWorker: import('bullmq').Worker; connection: import('ioredis').default } | null = null;
+let idleCleanupTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
  * Initialize all subsystems in order.
@@ -189,6 +191,22 @@ export async function initSubsystems(): Promise<void> {
     logger.warn({ err }, 'Computer use routes failed to register — continuing without computer use');
   }
 
+  // Start idle MCP connection cleanup — runs every 2 minutes
+  const IDLE_CLEANUP_INTERVAL_MS = 2 * 60 * 1000;
+  const IDLE_THRESHOLD_MS = 5 * 60 * 1000;
+  idleCleanupTimer = setInterval(() => {
+    try {
+      skillEmbeddedMcpManager.cleanupIdle(IDLE_THRESHOLD_MS);
+      mcpClientPool.cleanupIdle(IDLE_THRESHOLD_MS);
+    } catch (err) {
+      logger.warn({ err }, 'MCP idle cleanup error');
+    }
+  }, IDLE_CLEANUP_INTERVAL_MS);
+  // Don't block process exit
+  if (typeof idleCleanupTimer === 'object' && 'unref' in idleCleanupTimer) {
+    (idleCleanupTimer as any).unref();
+  }
+
   logger.info('Bootstrap complete');
 }
 
@@ -196,7 +214,12 @@ export async function initSubsystems(): Promise<void> {
  * Gracefully shutdown all subsystems.
  */
 export async function destroySubsystems(): Promise<void> {
+  if (idleCleanupTimer !== null) {
+    clearInterval(idleCleanupTimer);
+    idleCleanupTimer = null;
+  }
   wsServer.destroy();
+  await skillEmbeddedMcpManager.disconnectAll();
   await mcpClientPool.disconnectAll();
   await closeStateStore();
   if (redisPubSub) {

@@ -18,8 +18,35 @@ export interface McpToolDef {
   serverName: string;
 }
 
+export interface McpResourceDef {
+  uri: string;
+  name: string;
+  description?: string;
+  mimeType?: string;
+}
+
+export interface McpPromptArgDef {
+  name: string;
+  description?: string;
+  required?: boolean;
+}
+
+export interface McpPromptDef {
+  name: string;
+  description?: string;
+  arguments?: McpPromptArgDef[];
+}
+
 export interface McpToolManifest {
   serverName: string;
   tools: McpToolDef[];
   fetchedAt: number;
 }
+
+/** Inline MCP config carried by a skill — keyed by MCP name */
+export type SkillMcpConfig = Record<string, SkillMcpServerEntry>;
+
+export type SkillMcpServerEntry =
+  | { type: 'streamable-http'; url: string; headers?: Record<string, string> }
+  | { type: 'stdio'; command: string; args?: string[]; env?: Record<string, string> }
+  | { type: 'sse'; url: string; headers?: Record<string, string> };
