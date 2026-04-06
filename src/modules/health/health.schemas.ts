@@ -1,3 +1,11 @@
 import { z } from 'zod';
-// TODO: Define health schemas
-export {};
+
+const checkStatusSchema = z.enum(['ok', 'error']);
+
+export const readinessResponseSchema = z.object({
+  status: z.enum(['ready', 'degraded']),
+  checks: z.object({
+    db: checkStatusSchema,
+    redis: checkStatusSchema,
+  }),
+});
