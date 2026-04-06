@@ -35,6 +35,7 @@ bun run seed      # seed database
 - [Observability](#observability)
 - [Database Schema](#database-schema)
 - [Configuration](#configuration)
+- [SSE Resumption](#sse-resumption)
 - [API Routes](#api-routes)
 
 ---
@@ -527,6 +528,10 @@ Three providers with two runtime modes each:
 
 All runtimes are wrapped with automatic retry logic (exponential backoff on retryable errors, respects abort signals). Streaming has a separate watchdog timeout.
 
+**Fallback chain:** `withFallbackRuntime([primary, secondary, ...])` wraps multiple runtimes in a failover chain. Tries each in order; returns the first successful result. Stream delegates to the primary runtime only (mid-stream fallback is not feasible with async generators).
+
+**Deferred tool discovery:** `ToolSearchRegistry` allows tools marked `shouldDefer: true` to be excluded from the LLM's initial context. Agents discover them on demand via search (matches name, description, and `searchHint`).
+
 ---
 
 ## Skills System
@@ -669,6 +674,10 @@ const proposal = await memoryService.propose({
 
 **Recall pipeline:** Tries hybrid search (pgvector cosine similarity + text matching), falls back to text-only. Results include a staleness indicator (>30 days = stale).
 
+**Scoped memory:** `ScopedMemoryStore` provides three isolation scopes: `user` (personal, cross-workspace), `workspace` (shared team knowledge), and `global` (platform-wide facts). In-memory implementation backed by the existing Drizzle schema in production.
+
+**Auto-extraction:** Heuristic pattern matching extracts facts from user messages (name, language preference, timezone, UI preferences) with configurable confidence scores. Controlled by `MEMORY_AUTO_EXTRACT` env var.
+
 **Memory skills** (registered as builtin skills for agents to use):
 
 | Skill | Description |
@@ -699,6 +708,10 @@ The AI call happens **before** the DB transaction — if the LLM fails, no rows 
 **Feature flag:** `sessions.context-compaction` — when disabled, compaction never triggers.
 
 **Summary prompt structure:** `FACTS ESTABLISHED` / `DECISIONS MADE` / `TOOL RESULTS` / `OPEN TASKS` / `CONTEXT` — structured to preserve specific IDs, values, and constraints across long sessions.
+
+**Transcript chain:** `TranscriptChain` provides a linked-list message structure with `parentMessageId` pointers. Supports forking from any checkpoint for A/B exploration, serialization/deserialization, and audit trails with causal links.
+
+**Compaction ranker:** `selectForCompaction` uses information density scoring (content length, code blocks, bullet points, headings) to decide which messages to keep. Always preserves the most recent tool call/result pair.
 
 ---
 
@@ -773,6 +786,10 @@ Custom EventBus with wildcard topic matching, dead letter queue, replay, and Red
 | **Coordinator** | `coordinator.phase_changed`, `coordinator.phase_completed` |
 | **Verification** | `verification.verdict` |
 
+**Domain event strategies:** Pluggable entity-level event handlers via `DomainEventStrategy`. Domain modules register strategies at startup with `registerStrategy()`. Each strategy evaluates an entity and emits appropriate domain events — no domain-specific entity types live in the base layer.
+
+**Batch event uploader:** `BatchEventUploader` provides ordered, serial webhook delivery with backpressure. Batches by count (`maxBatchSize`) and time interval. Retries on failure with configurable max consecutive failures before dropping. `drain()` blocks until the queue is empty.
+
 **Redis pub/sub bridge** — bidirectional for: `task.#`, `collaboration.#`, `session.#`, `memory.#`, `orchestration.#`. Events from Redis are tagged with `redis:` source prefix to prevent infinite re-broadcast.
 
 ---
@@ -786,7 +803,7 @@ BullMQ with 5 queues on Redis:
 | `skill-execution` | on-demand | Skill execution via workers (concurrency: 5) |
 | `agent-run` | on-demand | Agent task execution (concurrency: 3) |
 | `orchestration-run` | on-demand | Orchestration execution |
-| `cleanup` | `*/15 * * * *` | Stale task timeout (30min working, 60min submitted), expired sessions, expired API keys |
+| `cleanup` | `*/15 * * * *` | Stale task timeout (30min working, 60min submitted), expired sessions, expired API keys, expired invitations |
 | `sync` | `0 * * * *` | Agent registry refresh (re-fetch Agent Cards from all registered external agents) |
 
 ---
@@ -826,6 +843,10 @@ All responses include: `X-Frame-Options: DENY`, `Strict-Transport-Security: max-
 
 Configurable via `CORS_ALLOWED_ORIGINS` env var (comma-separated). Defaults to `http://localhost:3000,http://localhost:3001` in dev. Supports `*` wildcard. All requests include `credentials: true`.
 
+### Verification Agent
+
+Built-in adversarial QA agent that tries to BREAK implementations rather than confirm them. Uses a structured VERDICT protocol (`PASS` / `FAIL` / `PARTIAL`) with `buildVerificationPrompt` and `parseVerificationVerdict`. Read-only — allowed tools: Bash, Read, Glob, Grep. Registered via `VERIFICATION_AGENT_DEFINITION`.
+
 ### Audit
 
 Every request logged to EventBus (`audit.request`) with: method, path, status, duration, callerId, workspaceId, userAgent, timestamp. 4xx/5xx responses additionally logged at WARN level.
@@ -854,6 +875,12 @@ Error monitoring initialized before all other imports. Captures unhandled except
 ### Structured Logging
 
 Pino-based structured JSON logging throughout. All log calls include contextual metadata (taskId, workspaceId, agentId, etc.).
+
+---
+
+## SSE Resumption
+
+`SequencedEventBuffer` assigns monotonically increasing sequence numbers to SSE events. Clients reconnect with their last-seen `seq` and receive all missed events via `catchUp(fromSeq)`. Configurable buffer size (`maxBufferSize`) with FIFO eviction. Controlled by `SSE_SEQUENCE_ENABLED` env var.
 
 ---
 
@@ -943,6 +970,7 @@ All require authentication + workspace membership + audit + rate limiting.
 | `/settings` | Workspace settings |
 | `/api-keys` | API key management |
 | `/computer-use/sessions` | Browser automation sessions |
+| `/members` | Workspace membership: list, invite (email/link), revoke, update role, remove |
 | `/feature-flags` | Feature flag read + override (`GET` list, `PATCH` set) |
 | `/usage` | AI usage records + cost aggregation by model/agent/period |
 
