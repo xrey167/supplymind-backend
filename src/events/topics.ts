@@ -68,6 +68,19 @@ export const Topics = {
   COMPUTER_USE_BASH_WARNING: 'computer-use.bash.warning',
   // System
   HEARTBEAT: 'system.heartbeat',
+  // Workspace lifecycle
+  WORKSPACE_CREATED: 'workspace.created',
+  WORKSPACE_UPDATED: 'workspace.updated',
+  WORKSPACE_DELETING: 'workspace.deleting',
+  WORKSPACE_DELETED: 'workspace.deleted',
+  // Member lifecycle
+  MEMBER_INVITED: 'member.invited',
+  MEMBER_JOINED: 'member.joined',
+  MEMBER_REMOVED: 'member.removed',
+  MEMBER_ROLE_CHANGED: 'member.role_changed',
+  // User sync
+  USER_SYNCED: 'user.synced',
+  USER_DELETED: 'user.deleted',
 } as const;
 
 export type Topic = typeof Topics[keyof typeof Topics];
