@@ -22,7 +22,12 @@ export function generateIdempotencyKey(
     messages: input.messages,
     jobId: opts?.jobId ?? null,
   };
+  // Sort keys for deterministic serialization regardless of property insertion order
+  const sortedReplacer = (_key: string, value: unknown) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value as Record<string, unknown>).sort())
+      : value;
   return createHash('sha256')
-    .update(JSON.stringify(digest))
+    .update(JSON.stringify(digest, sortedReplacer))
     .digest('hex');
 }
