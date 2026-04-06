@@ -122,6 +122,41 @@ describe('classifyCommand', () => {
     expect(classifyCommand('wget http://x.com/file | tee out.txt').risk).toBe('medium');
   });
 
+  // ── MEDIUM — remaining patterns ─────────────────────────────────────
+  it('warns on curl file download', () => {
+    expect(classifyCommand('curl -o script.sh http://example.com/script.sh').risk).toBe('medium');
+    expect(classifyCommand('curl --output file.zip http://example.com/file.zip').risk).toBe('medium');
+  });
+
+  it('warns on gem install', () => {
+    expect(classifyCommand('gem install rails').risk).toBe('medium');
+  });
+
+  it('warns on brew install', () => {
+    expect(classifyCommand('brew install node').risk).toBe('medium');
+  });
+
+  it('warns on service stop/restart', () => {
+    expect(classifyCommand('service nginx stop').risk).toBe('medium');
+    expect(classifyCommand('service mysql restart').risk).toBe('medium');
+  });
+
+  it('warns on cron directory write', () => {
+    expect(classifyCommand('cp myjob /etc/cron.d/myjob').risk).toBe('medium');
+  });
+
+  it('warns on kill -9 -1', () => {
+    expect(classifyCommand('kill -9 -1').risk).toBe('medium');
+  });
+
+  it('warns on killall', () => {
+    expect(classifyCommand('killall -9 python').risk).toBe('medium');
+  });
+
+  it('warns on authorized_keys modification', () => {
+    expect(classifyCommand('echo "ssh-rsa AAAA..." >> ~/.ssh/authorized_keys').risk).toBe('medium');
+  });
+
   // ── HIGH beats MEDIUM ───────────────────────────────────────────────
   it('returns high when both HIGH and MEDIUM match', () => {
     expect(classifyCommand('chmod 777 /tmp && rm -rf /').risk).toBe('high');

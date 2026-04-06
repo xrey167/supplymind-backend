@@ -56,11 +56,13 @@ function parseOne(raw: string): ParsedCommand {
   const hasPipe = raw.includes('|');
 
   const tokens = tokenize(raw);
-  const [cmd = '', ...rest] = tokens;
-  const flags = rest.filter(t => t.startsWith('-'));
-  const args = rest.filter(t => !t.startsWith('-'));
+  const first = tokens[0] ?? '';
+  const remaining = tokens.slice(first === 'sudo' ? 2 : 1);
+  const cmd = first === 'sudo' ? (tokens[1] ?? '') : first;
+  const flags = remaining.filter(t => t.startsWith('-'));
+  const args = remaining.filter(t => !t.startsWith('-'));
 
-  return { raw, cmd: cmd.replace(/^sudo\s+/, ''), flags, args, hasSubshell, hasPipe };
+  return { raw, cmd, flags, args, hasSubshell, hasPipe };
 }
 
 function tokenize(raw: string): string[] {
