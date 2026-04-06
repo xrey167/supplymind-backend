@@ -3,7 +3,7 @@ import { OpenAIRawRuntime } from './openai';
 import { GoogleRawRuntime } from './google';
 import { AnthropicAgentSdkRuntime } from './anthropic-agent-sdk';
 import { OpenAIAgentSdkRuntime } from './openai-agents';
-import type { AgentRuntime, AIProvider, AgentMode, RunInput, RunResult } from './types';
+import type { AgentRuntime, AIProvider, AgentMode, RunInput, RunResult, StreamEvent } from './types';
 import { withRetry, isRetryable } from '../../core/utils/withRetry';
 import { classifyAIError } from '../../core/errors';
 import { err } from '../../core/result';
@@ -57,4 +57,27 @@ export function createRuntime(provider: AIProvider, mode: AgentMode): AgentRunti
     throw new Error(`No raw runtime for provider: ${provider}`);
   }
   return withRetryRuntime(runtime);
+}
+
+/**
+ * Wraps multiple runtimes in a fallback chain.
+ * Tries each runtime in order. Returns the first successful result.
+ * If all fail, returns the last error.
+ */
+export function withFallbackRuntime(runtimes: AgentRuntime[]): AgentRuntime {
+  if (runtimes.length === 0) throw new Error('withFallbackRuntime requires at least one runtime');
+  return {
+    async run(input: RunInput): Promise<Result<RunResult>> {
+      let lastResult: Result<RunResult> | undefined;
+      for (const runtime of runtimes) {
+        lastResult = await runtime.run(input);
+        if (lastResult.ok) return lastResult;
+      }
+      return lastResult!;
+    },
+    // Stream uses primary only — fallback mid-stream is not feasible with async generators
+    async *stream(input: RunInput): AsyncIterable<StreamEvent> {
+      yield* runtimes[0].stream(input);
+    },
+  };
 }
