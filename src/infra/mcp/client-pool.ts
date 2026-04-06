@@ -8,6 +8,12 @@ const MAX_RETRIES = 3;
 export class McpClientPool {
   private clients = new Map<string, McpClient>();
   private manifests = new Map<string, McpToolManifest>();
+  /** For testing only: override the McpClient factory. */
+  private _clientFactory: (config: McpServerConfig) => McpClient;
+
+  constructor(_clientFactory?: (config: McpServerConfig) => McpClient) {
+    this._clientFactory = _clientFactory ?? ((config) => new McpClient(config));
+  }
 
   private async getOrConnect(config: McpServerConfig): Promise<McpClient> {
     const existing = this.clients.get(config.id);
@@ -17,7 +23,7 @@ export class McpClientPool {
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const client = new McpClient(config);
+        const client = this._clientFactory(config);
         await client.connect();
         this.clients.set(config.id, client);
         return client;

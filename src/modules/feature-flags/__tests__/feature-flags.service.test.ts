@@ -15,16 +15,42 @@ mock.module('../feature-flags.repo', () => ({
 
 // Cache backed by a simple map
 const store = new Map<string, any>();
+const fakeProvider = {
+  get: async (key: string) => store.get(key),
+  set: async (key: string, val: any) => { store.set(key, val); },
+  delete: async (key: string) => { store.delete(key); },
+  clear: async (prefix: string) => {
+    for (const k of [...store.keys()]) {
+      if (k.startsWith(prefix)) store.delete(k);
+    }
+  },
+};
+// Re-export MemoryCache and setCacheProvider so downstream tests that
+// import from infra/cache still work after this mock.module call.
+class MemoryCache {
+  private cache = new Map<string, any>();
+  private maxSize: number;
+  constructor(opts?: { maxSize?: number }) { this.maxSize = opts?.maxSize ?? 1000; }
+  async get<T>(key: string): Promise<T | undefined> { return this.cache.get(key); }
+  async set(key: string, val: any): Promise<void> {
+    if (this.cache.size >= this.maxSize) {
+      const first = this.cache.keys().next().value;
+      if (first !== undefined) this.cache.delete(first);
+    }
+    this.cache.set(key, val);
+  }
+  async delete(key: string): Promise<void> { this.cache.delete(key); }
+  async clear(prefix?: string): Promise<void> {
+    if (!prefix) { this.cache.clear(); return; }
+    for (const k of [...this.cache.keys()]) { if (k.startsWith(prefix)) this.cache.delete(k); }
+  }
+}
+let _testProvider: any = fakeProvider;
 mock.module('../../../infra/cache', () => ({
-  getCacheProvider: () => ({
-    get: async (key: string) => store.get(key),
-    set: async (key: string, val: any) => { store.set(key, val); },
-    clear: async (prefix: string) => {
-      for (const k of [...store.keys()]) {
-        if (k.startsWith(prefix)) store.delete(k);
-      }
-    },
-  }),
+  getCacheProvider: () => _testProvider,
+  setCacheProvider: (p: any) => { _testProvider = p; },
+  MemoryCache,
+  RedisCache: class {},
 }));
 
 mock.module('../../../config/logger', () => ({
