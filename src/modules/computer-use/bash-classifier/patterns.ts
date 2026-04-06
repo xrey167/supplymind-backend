@@ -1,5 +1,3 @@
-// src/modules/computer-use/bash-classifier/patterns.ts
-
 export interface RiskPattern {
   regex: RegExp;
   reason: string;
@@ -12,8 +10,8 @@ export const HIGH_PATTERNS: RiskPattern[] = [
   { name: 'rm-rf-root',     regex: /rm\s+-[^\s]*r[^\s]*f[^\s]*\s+\/(?:\s|$)/, reason: 'Recursive force delete of filesystem root' },
   { name: 'rm-rf-system',   regex: /rm\s+-[^\s]*r[^\s]*f[^\s]*\s+\/(?:etc|usr|bin|boot|lib|sbin|var|home)(?:\/|\s|$)/, reason: 'Recursive force delete of system directory' },
   // Fork bombs
-  { name: 'fork-bomb',      regex: /:\s*\(\s*\)\s*\{.*:\s*\|.*:.*&.*\}/, reason: 'Fork bomb pattern detected' },
-  { name: 'fork-bomb-alt',  regex: /(\w+)\s*\(\s*\)\s*\{.*\1\s*\|.*\1.*&/, reason: 'Fork bomb variant detected' },
+  { name: 'fork-bomb',      regex: /:\s*\(\s*\)\s*\{[^}]*:\s*\|[^}]*:[^}]*&[^}]*\}/, reason: 'Fork bomb pattern detected' },
+  { name: 'fork-bomb-alt',  regex: /(\w+)\s*\(\s*\)\s*\{[^}]*\1\s*\|[^}]*\1[^}]*&/, reason: 'Fork bomb variant detected' },
   // Pipe-to-shell (arbitrary remote code execution)
   { name: 'curl-pipe-sh',   regex: /curl\b.*\|\s*(?:ba)?sh\b/, reason: 'Remote code execution via curl pipe to shell' },
   { name: 'wget-pipe-sh',   regex: /wget\b.*\|\s*(?:ba)?sh\b/, reason: 'Remote code execution via wget pipe to shell' },

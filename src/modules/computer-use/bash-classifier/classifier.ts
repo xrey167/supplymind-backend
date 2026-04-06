@@ -1,5 +1,4 @@
 import { HIGH_PATTERNS, MEDIUM_PATTERNS, type RiskPattern } from './patterns';
-import { parseCommands } from './shell-parse';
 
 export interface ClassifyResult {
   risk: 'high' | 'medium' | 'low';
@@ -8,25 +7,11 @@ export interface ClassifyResult {
 }
 
 export function classifyCommand(raw: string): ClassifyResult {
-  // Layer 1: raw-string scan
-  const rawHigh = matchFirst(raw, HIGH_PATTERNS);
-  if (rawHigh) return { risk: 'high', reason: rawHigh.reason, matchedPattern: rawHigh.name };
+  const high = matchFirst(raw, HIGH_PATTERNS);
+  if (high) return { risk: 'high', reason: high.reason, matchedPattern: high.name };
 
-  const rawMedium = matchFirst(raw, MEDIUM_PATTERNS);
-
-  // Layer 2: tokenized scan — runs on each sub-command
-  const subCommands = parseCommands(raw);
-  for (const sub of subCommands) {
-    const tokHigh = matchFirst(sub.raw, HIGH_PATTERNS);
-    if (tokHigh) return { risk: 'high', reason: tokHigh.reason, matchedPattern: tokHigh.name };
-  }
-
-  if (rawMedium) return { risk: 'medium', reason: rawMedium.reason, matchedPattern: rawMedium.name };
-
-  for (const sub of subCommands) {
-    const tokMedium = matchFirst(sub.raw, MEDIUM_PATTERNS);
-    if (tokMedium) return { risk: 'medium', reason: tokMedium.reason, matchedPattern: tokMedium.name };
-  }
+  const medium = matchFirst(raw, MEDIUM_PATTERNS);
+  if (medium) return { risk: 'medium', reason: medium.reason, matchedPattern: medium.name };
 
   return { risk: 'low' };
 }

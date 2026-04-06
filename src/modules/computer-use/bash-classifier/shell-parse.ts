@@ -1,5 +1,3 @@
-// src/modules/computer-use/bash-classifier/shell-parse.ts
-
 export interface ParsedCommand {
   raw: string;
   cmd: string;
@@ -62,7 +60,7 @@ function parseOne(raw: string): ParsedCommand {
   const flags = rest.filter(t => t.startsWith('-'));
   const args = rest.filter(t => !t.startsWith('-'));
 
-  return { raw, cmd: cmd.replace(/^(?:sudo\s+)?/, '').split(/\s+/)[0] ?? cmd, flags, args, hasSubshell, hasPipe };
+  return { raw, cmd: cmd.replace(/^sudo\s+/, ''), flags, args, hasSubshell, hasPipe };
 }
 
 function tokenize(raw: string): string[] {
@@ -74,7 +72,7 @@ function tokenize(raw: string): string[] {
   for (const ch of raw) {
     if (ch === "'" && !inDouble) { inSingle = !inSingle; continue; }
     if (ch === '"' && !inSingle) { inDouble = !inDouble; continue; }
-    if (!inSingle && !inDouble && /\s/.test(ch)) {
+    if (!inSingle && !inDouble && (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r')) {
       if (current) { tokens.push(current); current = ''; }
       continue;
     }
