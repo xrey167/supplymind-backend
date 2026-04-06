@@ -1,3 +1,4 @@
+import { logger } from '../../config/logger';
 import { McpClient } from './client';
 import type { McpServerConfig, McpToolManifest, McpResourceDef, McpPromptDef } from './types';
 
@@ -22,6 +23,7 @@ export class McpClientPool {
         return client;
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
+        logger.warn({ serverId: config.id, attempt, error: lastError.message }, 'MCP connect attempt failed');
         if (attempt < MAX_RETRIES) {
           await new Promise((r) => setTimeout(r, 200 * attempt));
         }
@@ -83,7 +85,9 @@ export class McpClientPool {
     const now = Date.now();
     for (const [id, client] of this.clients) {
       if (now - client.lastUsedAt >= idleThresholdMs) {
-        client.disconnect().catch(() => {});
+        client.disconnect().catch((err: unknown) => {
+          logger.warn({ serverId: id, error: (err as Error).message }, 'MCP idle disconnect error');
+        });
         this.clients.delete(id);
       }
     }

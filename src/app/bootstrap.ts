@@ -195,8 +195,12 @@ export async function initSubsystems(): Promise<void> {
   const IDLE_CLEANUP_INTERVAL_MS = 2 * 60 * 1000;
   const IDLE_THRESHOLD_MS = 5 * 60 * 1000;
   idleCleanupTimer = setInterval(() => {
-    skillEmbeddedMcpManager.cleanupIdle(IDLE_THRESHOLD_MS);
-    mcpClientPool.cleanupIdle(IDLE_THRESHOLD_MS);
+    try {
+      skillEmbeddedMcpManager.cleanupIdle(IDLE_THRESHOLD_MS);
+      mcpClientPool.cleanupIdle(IDLE_THRESHOLD_MS);
+    } catch (err) {
+      logger.warn({ err }, 'MCP idle cleanup error');
+    }
   }, IDLE_CLEANUP_INTERVAL_MS);
   // Don't block process exit
   if (typeof idleCleanupTimer === 'object' && 'unref' in idleCleanupTimer) {

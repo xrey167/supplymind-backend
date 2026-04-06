@@ -1,3 +1,4 @@
+import { logger } from '../../config/logger';
 import { McpClient } from './client';
 import type { SkillMcpServerEntry, McpToolDef, McpResourceDef, McpPromptDef, McpServerConfig } from './types';
 
@@ -48,7 +49,10 @@ export class SkillEmbeddedMcpManager {
       this.clients.set(key, client);
       this.inFlight.delete(key);
       return client;
-    })();
+    })().catch((err: unknown) => {
+      this.inFlight.delete(key);
+      throw err;
+    });
 
     this.inFlight.set(key, promise);
     return promise;
@@ -124,7 +128,9 @@ export class SkillEmbeddedMcpManager {
     const now = Date.now();
     for (const [key, client] of this.clients) {
       if (now - client.lastUsedAt >= idleThresholdMs) {
-        client.disconnect().catch(() => {});
+        client.disconnect().catch((err: unknown) => {
+          logger.warn({ key, error: (err as Error).message }, 'Skill MCP idle disconnect error');
+        });
         this.clients.delete(key);
       }
     }

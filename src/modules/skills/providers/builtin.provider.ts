@@ -1,5 +1,6 @@
 import { ok, err } from '../../../core/result';
 import type { Skill, SkillProvider } from '../skills.types';
+import { logger } from '../../../config/logger';
 import { eventBus } from '../../../events/bus';
 import { Topics } from '../../../events/topics';
 import { createInputRequest } from '../../../infra/state/task-inputs';
@@ -167,7 +168,9 @@ export class BuiltinSkillProvider implements SkillProvider {
                 return err(new Error(`Unknown operation: ${String(operation)}`));
             }
           } catch (e) {
-            return err(e instanceof Error ? e : new Error(String(e)));
+            const error = e instanceof Error ? e : new Error(String(e));
+            logger.error({ skillId, mcpName, operation, error: error.message }, 'skill_mcp dispatch failed');
+            return err(error);
           }
         },
       },
