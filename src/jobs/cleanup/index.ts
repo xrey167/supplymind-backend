@@ -48,4 +48,50 @@ export async function runCleanup(): Promise<void> {
   } catch (err) {
     logger.error({ err }, 'Cleanup: expired API keys step failed');
   }
+
+  // Clean up expired invitations
+  try {
+    const { invitationsRepo } = await import('../../modules/members/invitations.repo');
+    const deleted = await invitationsRepo.deleteExpired();
+    if (deleted > 0) logger.info({ count: deleted }, 'Cleanup: deleted expired invitations');
+  } catch (err) {
+    logger.error({ err }, 'Cleanup: expired invitations step failed');
+  }
+
+  // Hard-delete soft-deleted workspaces past 30-day grace period
+  try {
+    const { workspacesRepo } = await import('../../modules/workspaces/workspaces.repo');
+    const { eventBus } = await import('../../events/bus');
+    const { Topics } = await import('../../events/topics');
+    const { db } = await import('../../infra/db/client');
+    const schema = await import('../../infra/db/schema');
+    const { eq } = await import('drizzle-orm');
+
+    const staleWorkspaces = await workspacesRepo.findSoftDeleted(30);
+    for (const ws of staleWorkspaces) {
+      try {
+        await db.transaction(async (tx) => {
+          await tx.delete(schema.usageRecords).where(eq(schema.usageRecords.workspaceId, ws.id));
+          await tx.delete(schema.memoryProposals).where(eq(schema.memoryProposals.workspaceId, ws.id));
+          await tx.delete(schema.agentMemories).where(eq(schema.agentMemories.workspaceId, ws.id));
+          await tx.delete(schema.orchestrations).where(eq(schema.orchestrations.workspaceId, ws.id));
+          await tx.delete(schema.a2aTasks).where(eq(schema.a2aTasks.workspaceId, ws.id));
+          await tx.delete(schema.sessions).where(eq(schema.sessions.workspaceId, ws.id));
+          await tx.delete(schema.agentConfigs).where(eq(schema.agentConfigs.workspaceId, ws.id));
+          await tx.delete(schema.workflowTemplates).where(eq(schema.workflowTemplates.workspaceId, ws.id));
+          await tx.delete(schema.registeredAgents).where(eq(schema.registeredAgents.workspaceId, ws.id));
+          await tx.delete(schema.apiKeys).where(eq(schema.apiKeys.workspaceId, ws.id));
+          await tx.delete(schema.skillDefinitions).where(eq(schema.skillDefinitions.workspaceId, ws.id));
+          await tx.delete(schema.mcpServerConfigs).where(eq(schema.mcpServerConfigs.workspaceId, ws.id));
+          await tx.delete(schema.workspaces).where(eq(schema.workspaces.id, ws.id));
+        });
+        eventBus.publish(Topics.WORKSPACE_DELETED, { workspaceId: ws.id });
+        logger.info({ workspaceId: ws.id }, 'Cleanup: hard-deleted workspace');
+      } catch (err) {
+        logger.warn({ workspaceId: ws.id, err }, 'Cleanup: workspace hard-delete failed, will retry next cycle');
+      }
+    }
+  } catch (err) {
+    logger.error({ err }, 'Cleanup: workspace hard-delete step failed');
+  }
 }
