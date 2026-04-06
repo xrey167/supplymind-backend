@@ -7,6 +7,9 @@ import { errorHandler } from '../api/middlewares/error-handler';
 import { publicRoutes } from '../api/routes/public';
 import { workspaceRoutes } from '../api/routes/workspace';
 import { handleMcpRequest } from '../infra/mcp/server';
+import { clerkWebhookRoutes } from '../api/routes/webhooks/clerk';
+import { WorkspacesRoutes } from '../modules/workspaces';
+import { invitationRoutes } from '../api/routes/invitations';
 import { initSubsystems, destroySubsystems } from './bootstrap';
 import { healthService } from '../modules/health/health.service';
 
@@ -64,6 +67,10 @@ export async function createApp() {
 
   // Public routes (no auth): /.well-known/agent.json, /a2a
   app.route('/', publicRoutes);
+
+  app.route('/webhooks/clerk', clerkWebhookRoutes);
+  app.route('/api/v1/workspace-management', WorkspacesRoutes);
+  app.route('/api/v1/invitations', invitationRoutes);
 
   // Workspace-scoped routes (auth required): /api/v1/workspaces/:workspaceId/*
   app.route('/api/v1/workspaces/:workspaceId', workspaceRoutes);

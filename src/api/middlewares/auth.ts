@@ -4,6 +4,7 @@ import { logger } from '../../config/logger';
 import { validateApiKey } from '../../infra/auth/api-key';
 import { hasPermission } from '../../core/security/rbac';
 import type { Role } from '../../core/security/rbac';
+import { usersRepo } from '../../modules/users/users.repo';
 
 // Try to initialise Clerk client — graceful fallback if secret key is absent
 let clerkClient: { verifyToken: (token: string) => Promise<{ sub: string; metadata?: { role?: string } }> } | null = null;
@@ -56,6 +57,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
       const payload = await clerkClient.verifyToken(token);
       c.set('callerId', payload.sub);
       c.set('callerRole', (payload.metadata as any)?.role ?? 'viewer');
+      usersRepo.updateLastSeen(payload.sub).catch(() => {});
       return next();
     } catch (error) {
       logger.warn({ error: (error as Error).message }, 'Clerk JWT verification failed');
@@ -70,6 +72,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
       c.set('callerId', payload.sub ?? 'dev-user');
       c.set('callerRole', payload.role ?? payload.metadata?.role ?? 'viewer');
       logger.debug({ sub: payload.sub }, 'Dev-mode JWT auth (no verification)');
+      usersRepo.updateLastSeen(payload.sub ?? 'dev-user').catch(() => {});
       return next();
     } catch {
       throw new UnauthorizedError('Invalid token format');
