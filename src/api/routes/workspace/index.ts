@@ -19,6 +19,12 @@ import { ApiKeysRoutes } from '../../../modules/api-keys';
 import { usageRoutes } from '../../../modules/usage/usage.routes';
 import { FeatureFlagsRoutes } from '../../../modules/feature-flags/feature-flags.routes';
 import { MembersRoutes } from '../../../modules/members';
+import { BillingRoutes } from '../../../modules/billing/billing.routes';
+import { NotificationsRoutes } from '../../../modules/notifications/notifications.routes';
+import { CredentialsRoutes } from '../../../modules/credentials/credentials.routes';
+import { AuditLogsRoutes } from '../../../modules/audit-logs/audit-logs.routes';
+import { InboxRoutes } from '../../../modules/inbox/inbox.routes';
+import { PromptsRoutes } from '../../../modules/prompts/prompts.routes';
 
 const workspaceRoutes = new OpenAPIHono();
 
@@ -45,5 +51,11 @@ workspaceRoutes.route('/api-keys', ApiKeysRoutes);
 workspaceRoutes.route('/usage', usageRoutes);
 workspaceRoutes.route('/feature-flags', FeatureFlagsRoutes);
 workspaceRoutes.route('/members', MembersRoutes);
+workspaceRoutes.route('/billing', BillingRoutes);
+workspaceRoutes.route('/notifications', NotificationsRoutes);
+workspaceRoutes.route('/credentials', CredentialsRoutes);
+workspaceRoutes.route('/audit-logs', AuditLogsRoutes);
+workspaceRoutes.route('/inbox', InboxRoutes);
+workspaceRoutes.route('/prompts', PromptsRoutes);
 
 export { workspaceRoutes };
