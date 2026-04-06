@@ -41,7 +41,7 @@ async function syncTokenBudget(workspaceId: string, plan: PlanTier) {
     });
     logger.info({ workspaceId, plan, budgetCents }, 'Synced token budget from plan');
   } catch (err) {
-    logger.warn({ workspaceId, plan, err }, 'Failed to sync token budget');
+    logger.error({ workspaceId, plan, err }, 'Failed to sync token budget — plan upgrade may not be reflected');
   }
 }
 
@@ -170,7 +170,10 @@ export class BillingService {
 
   private async handleSubscriptionDeleted(sub: Stripe.Subscription) {
     const customer = await billingRepo.getCustomerByStripeId(sub.customer as string);
-    if (!customer) return;
+    if (!customer) {
+      logger.warn({ customerId: sub.customer, event: 'subscription.deleted' }, 'Webhook for unknown customer');
+      return;
+    }
 
     const priceId = sub.items.data[0]?.price.id ?? '';
     const plan = getPlanFromPriceId(priceId);
@@ -198,7 +201,10 @@ export class BillingService {
 
   private async handleInvoicePaid(invoice: Stripe.Invoice) {
     const customer = await billingRepo.getCustomerByStripeId(invoice.customer as string);
-    if (!customer) return;
+    if (!customer) {
+      logger.warn({ customerId: invoice.customer, event: 'invoice.paid' }, 'Webhook for unknown customer');
+      return;
+    }
 
     await billingRepo.insertInvoice({
       workspaceId: customer.workspaceId,
@@ -222,7 +228,10 @@ export class BillingService {
 
   private async handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
     const customer = await billingRepo.getCustomerByStripeId(invoice.customer as string);
-    if (!customer) return;
+    if (!customer) {
+      logger.warn({ customerId: invoice.customer, event: 'invoice.payment_failed' }, 'Webhook for unknown customer');
+      return;
+    }
 
     await billingRepo.insertInvoice({
       workspaceId: customer.workspaceId,

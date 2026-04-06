@@ -16,6 +16,6 @@ stripeWebhookRoutes.post('/', async (c) => {
     return c.json({ received: true });
   } catch (err: any) {
     logger.error({ err: err.message }, 'Stripe webhook processing failed');
-    return c.json({ error: err.message }, 400);
+    return c.json({ error: 'Webhook processing failed' }, 400);
   }
 });

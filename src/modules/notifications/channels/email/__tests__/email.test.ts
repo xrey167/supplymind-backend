@@ -60,7 +60,7 @@ describe('sendEmail', () => {
         subject: 'Test',
         html: '<p>Hi</p>',
       });
-      expect(result).toBeNull();
+      expect(result).toEqual({ sent: false, reason: 'RESEND_API_KEY not configured' });
     } finally {
       if (original) Bun.env.RESEND_API_KEY = original;
     }

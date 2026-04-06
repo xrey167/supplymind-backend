@@ -4,6 +4,7 @@ import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
 import { credentialsRepo } from './credentials.repo';
 import { encrypt, decrypt } from './credentials.provider';
+import { logger } from '../../config/logger';
 import type { Credential, CreateCredentialInput, UpdateCredentialInput } from './credentials.types';
 
 export class CredentialsService {
@@ -23,7 +24,7 @@ export class CredentialsService {
       workspaceId: credential.workspaceId,
       name: credential.name,
       provider: credential.provider,
-    });
+    }).catch((err: unknown) => logger.error({ err, credentialId: credential.id }, 'Failed to publish CREDENTIAL_CREATED event'));
     return ok(credential);
   }
 
@@ -73,7 +74,7 @@ export class CredentialsService {
       eventBus.publish(Topics.CREDENTIAL_DELETED, {
         credentialId: id,
         workspaceId: existing.workspaceId,
-      });
+      }).catch((err: unknown) => logger.error({ err, credentialId: id }, 'Failed to publish CREDENTIAL_DELETED event'));
     }
     return deleted;
   }

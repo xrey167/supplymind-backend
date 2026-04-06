@@ -23,8 +23,9 @@ export const AuditLogsRoutes = new OpenAPIHono();
 
 AuditLogsRoutes.openapi(listRoute, async (c) => {
   const query = c.req.valid('query');
+  const workspaceId = c.get('workspaceId') as string | undefined ?? query.workspaceId;
   const items = await auditLogsService.list({
-    workspaceId: query.workspaceId,
+    workspaceId,
     actorId: query.actorId,
     action: query.action as any,
     resourceType: query.resourceType as any,
@@ -39,8 +40,9 @@ AuditLogsRoutes.openapi(listRoute, async (c) => {
 
 AuditLogsRoutes.openapi(countRoute, async (c) => {
   const query = c.req.valid('query');
+  const workspaceId = c.get('workspaceId') as string | undefined ?? query.workspaceId;
   const count = await auditLogsService.count({
-    workspaceId: query.workspaceId,
+    workspaceId,
     actorId: query.actorId,
     action: query.action as any,
     resourceType: query.resourceType as any,

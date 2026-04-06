@@ -5,8 +5,10 @@ import { logger } from '../../config/logger';
 export async function handleStripeWebhook(rawBody: string, signature: string): Promise<void> {
   const secret = Bun.env.STRIPE_WEBHOOK_SECRET;
   if (!secret) throw new Error('STRIPE_WEBHOOK_SECRET not configured');
+  const apiKey = Bun.env.STRIPE_SECRET_KEY;
+  if (!apiKey) throw new Error('STRIPE_SECRET_KEY not configured');
 
-  const stripe = new Stripe(Bun.env.STRIPE_SECRET_KEY!, {
+  const stripe = new Stripe(apiKey, {
     apiVersion: '2025-03-31.basil' as any,
   });
 
