@@ -73,6 +73,11 @@ export const Topics = {
   COORDINATOR_PHASE_COMPLETED: 'coordinator.phase_completed',
   // Verification
   VERIFICATION_VERDICT: 'verification.verdict',
+  // Billing
+  SUBSCRIPTION_CREATED: 'billing.subscription_created',
+  SUBSCRIPTION_UPDATED: 'billing.subscription_updated',
+  SUBSCRIPTION_CANCELED: 'billing.subscription_canceled',
+  INVOICE_PAID: 'billing.invoice_paid',
   // Budget
   BUDGET_WARNING: 'billing.budget_warning',
   BUDGET_EXCEEDED: 'billing.budget_exceeded',
@@ -88,6 +93,10 @@ export const Topics = {
   MEMBER_JOINED: 'member.joined',
   MEMBER_REMOVED: 'member.removed',
   MEMBER_ROLE_CHANGED: 'member.role_changed',
+  // Notifications
+  NOTIFICATION_CREATED: 'notification.created',
+  NOTIFICATION_DELIVERED: 'notification.delivered',
+  NOTIFICATION_READ: 'notification.read',
   // User sync
   USER_SYNCED: 'user.synced',
   USER_DELETED: 'user.deleted',
