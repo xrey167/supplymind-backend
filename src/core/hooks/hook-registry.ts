@@ -32,14 +32,6 @@ export type HookEvent =
   | 'agent_stop'
   | 'session_start'
   | 'session_end'
-  | 'pre_compact'
-  | 'post_compact'
-  | 'permission_denied'
-  | 'subagent_start'
-  | 'subagent_stop'
-  | 'memory_extracted'
-  | 'workflow_gate'
-  | 'tool_discovery'
   | 'domain_registered';
 
 // ---------------------------------------------------------------------------
@@ -61,15 +53,6 @@ export interface HookPayloadMap {
   agent_stop: { agentId: string; taskId?: string; reason?: string };
   session_start: { sessionId: string };
   session_end: { sessionId: string; reason?: string };
-  // New events (9)
-  pre_compact: { sessionId: string; messageCount: number; workspaceId: string };
-  post_compact: { sessionId: string; removedCount: number; workspaceId: string };
-  permission_denied: { userId: string; workspaceId: string; reason: string };
-  subagent_start: { parentAgentId: string; subagentId: string; workspaceId: string };
-  subagent_stop: { parentAgentId: string; subagentId: string; workspaceId: string; durationMs?: number };
-  memory_extracted: { sessionId: string; workspaceId: string; scope: 'user' | 'workspace' | 'global'; factCount: number };
-  workflow_gate: { orchestrationId: string; gateId: string; workspaceId: string };
-  tool_discovery: { toolName: string; workspaceId: string; deferred: boolean };
   domain_registered: { domainName: string; workspaceId: string };
 }
 
@@ -143,43 +126,11 @@ interface StoredHook {
 // Registry
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// Simple typed handler type for on/off/emit API
-// ---------------------------------------------------------------------------
-
-export type SimpleHookHandler<E extends HookEvent> = (payload: HookPayloadMap[E]) => Promise<void>;
-
 export class LifecycleHookRegistry {
-  /** Simple on/off/emit handler map */
-  private simpleHandlers = new Map<HookEvent, Set<SimpleHookHandler<any>>>();
-
   /** Global hooks (fire for all workspaces) */
   private globalHooks: StoredHook[] = [];
   /** Per-workspace hooks */
   private workspaceHooks = new Map<string, StoredHook[]>();
-
-  // ---------------------------------------------------------------------------
-  // Simple on/off/emit API (for lightweight usage without HookContext)
-  // ---------------------------------------------------------------------------
-
-  on<E extends HookEvent>(event: E, handler: SimpleHookHandler<E>): void {
-    if (!this.simpleHandlers.has(event)) this.simpleHandlers.set(event, new Set());
-    this.simpleHandlers.get(event)!.add(handler);
-  }
-
-  off<E extends HookEvent>(event: E, handler: SimpleHookHandler<E>): void {
-    this.simpleHandlers.get(event)?.delete(handler);
-  }
-
-  async emit<E extends HookEvent>(event: E, payload: HookPayloadMap[E]): Promise<void> {
-    const handlers = this.simpleHandlers.get(event);
-    if (!handlers || handlers.size === 0) return;
-    await Promise.all([...handlers].map(h => h(payload)));
-  }
-
-  // ---------------------------------------------------------------------------
-  // Full register/run/notify API (workspace-scoped, with HookContext)
-  // ---------------------------------------------------------------------------
 
   /**
    * Register a hook globally (fires for all workspaces).
@@ -296,7 +247,29 @@ export class LifecycleHookRegistry {
   clear(): void {
     this.globalHooks = [];
     this.workspaceHooks.clear();
-    this.simpleHandlers.clear();
+  }
+
+  /**
+   * Convenience: subscribe globally to a specific event with a simplified handler.
+   * The handler receives only the payload (no ctx or HookResult return needed).
+   * Auto-generates a hook ID.
+   */
+  on<E extends HookEvent>(event: E, handler: (payload: HookPayloadMap[E]) => Promise<void>): string {
+    const id = `on_${event}_${Math.random().toString(36).slice(2)}`;
+    this.registerGlobal({
+      id,
+      event,
+      handler: async (_evt, payload) => { await handler(payload as HookPayloadMap[E]); },
+    });
+    return id;
+  }
+
+  /**
+   * Convenience: emit an event globally (fire-and-forget, system workspace).
+   * Returns a promise that resolves when all global hooks for the event have run.
+   */
+  async emit<E extends HookEvent>(event: E, payload: HookPayloadMap[E]): Promise<void> {
+    await this.run(event, payload, { workspaceId: 'system', callerId: 'emit' });
   }
 
   private getHooksForEvent(event: HookEvent, workspaceId: string): StoredHook[] {

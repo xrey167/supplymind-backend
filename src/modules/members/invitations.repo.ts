@@ -2,9 +2,9 @@ import { eq, and, isNull, lt, sql } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { workspaceInvitations } from '../../infra/db/schema';
 import { nanoid } from 'nanoid';
-import type { WorkspaceInvitation } from './members.types';
+import type { WorkspaceInvitation, WorkspaceRole } from './members.types';
 
-function hashToken(token: string): string {
+export function hashToken(token: string): string {
   const hash = new Bun.CryptoHasher('sha256');
   hash.update(token);
   return hash.digest('hex');
@@ -23,7 +23,7 @@ const DEFAULT_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 
 class InvitationsRepository {
   async create(workspaceId: string, input: {
-    email?: string; type: 'email' | 'link'; role: string;
+    email?: string; type: 'email' | 'link'; role: WorkspaceRole;
     invitedBy: string; expiresAt?: Date;
   }): Promise<{ token: string; invitation: WorkspaceInvitation }> {
     const token = nanoid(32);
@@ -31,7 +31,7 @@ class InvitationsRepository {
     const expiresAt = input.expiresAt ?? new Date(Date.now() + DEFAULT_EXPIRY_MS);
     const rows = await db.insert(workspaceInvitations).values({
       workspaceId, email: input.email ?? null, tokenHash: tokenHashValue,
-      type: input.type, role: input.role as any, invitedBy: input.invitedBy, expiresAt,
+      type: input.type, role: input.role, invitedBy: input.invitedBy, expiresAt,
     }).returning();
     return { token, invitation: toInvitation(rows[0]!) };
   }
@@ -66,13 +66,16 @@ class InvitationsRepository {
   }
 
   async findPendingByEmail(workspaceId: string, email: string): Promise<WorkspaceInvitation | null> {
+    const now = new Date();
     const rows = await db.select().from(workspaceInvitations)
       .where(and(
         eq(workspaceInvitations.workspaceId, workspaceId),
         eq(workspaceInvitations.email, email),
         isNull(workspaceInvitations.acceptedAt),
       )).limit(1);
-    return rows[0] ? toInvitation(rows[0]) : null;
+    const row = rows[0];
+    if (!row || row.expiresAt < now) return null;
+    return toInvitation(row);
   }
 
   async accept(id: string): Promise<void> {
@@ -91,19 +94,24 @@ class InvitationsRepository {
   }
 
   async listPending(workspaceId: string): Promise<WorkspaceInvitation[]> {
-    const now = new Date();
     const rows = await db.select().from(workspaceInvitations)
-      .where(and(eq(workspaceInvitations.workspaceId, workspaceId), isNull(workspaceInvitations.acceptedAt)));
-    return rows.filter(r => r.expiresAt >= now).map(toInvitation);
+      .where(and(
+        eq(workspaceInvitations.workspaceId, workspaceId),
+        isNull(workspaceInvitations.acceptedAt),
+        sql`${workspaceInvitations.expiresAt} >= now()`,
+      ));
+    return rows.map(toInvitation);
   }
 
   async deleteById(id: string): Promise<void> {
     await db.delete(workspaceInvitations).where(eq(workspaceInvitations.id, id));
   }
 
-  static hashToken(token: string): string {
-    return hashToken(token);
+  async deleteByIdAndWorkspace(workspaceId: string, id: string): Promise<void> {
+    await db.delete(workspaceInvitations).where(
+      and(eq(workspaceInvitations.id, id), eq(workspaceInvitations.workspaceId, workspaceId)),
+    );
   }
-}
 
+}
 export const invitationsRepo = new InvitationsRepository();
