@@ -1,7 +1,7 @@
 import { eq, and, sql } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { workspaceMembers, users } from '../../infra/db/schema';
-import type { WorkspaceMember, MemberWithUser } from './members.types';
+import type { WorkspaceMember, MemberWithUser, WorkspaceRole } from './members.types';
 
 function toMember(row: typeof workspaceMembers.$inferSelect): WorkspaceMember {
   return {
@@ -15,9 +15,9 @@ function toMember(row: typeof workspaceMembers.$inferSelect): WorkspaceMember {
 }
 
 class MembersRepository {
-  async addMember(workspaceId: string, userId: string, role: string, invitedBy?: string): Promise<WorkspaceMember> {
+  async addMember(workspaceId: string, userId: string, role: WorkspaceRole, invitedBy?: string): Promise<WorkspaceMember> {
     const rows = await db.insert(workspaceMembers).values({
-      workspaceId, userId, role: role as any, invitedBy: invitedBy ?? null,
+      workspaceId, userId, role, invitedBy: invitedBy ?? null,
     }).returning();
     return toMember(rows[0]!);
   }
@@ -47,9 +47,9 @@ class MembersRepository {
     }));
   }
 
-  async updateRole(workspaceId: string, userId: string, role: string): Promise<WorkspaceMember | null> {
+  async updateRole(workspaceId: string, userId: string, role: WorkspaceRole): Promise<WorkspaceMember | null> {
     const rows = await db.update(workspaceMembers)
-      .set({ role: role as any })
+      .set({ role })
       .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)))
       .returning();
     return rows[0] ? toMember(rows[0]) : null;

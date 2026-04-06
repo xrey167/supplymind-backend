@@ -4,8 +4,8 @@ import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
 import { NotFoundError, ForbiddenError, ValidationError } from '../../core/errors';
 import { membersRepo } from './members.repo';
-import { invitationsRepo } from './invitations.repo';
-import type { WorkspaceMember, InviteInput, MemberWithUser, WorkspaceInvitation } from './members.types';
+import { invitationsRepo, hashToken } from './invitations.repo';
+import type { WorkspaceMember, InviteInput, MemberWithUser, WorkspaceInvitation, WorkspaceRole } from './members.types';
 
 class MembersService {
   async invite(workspaceId: string, input: InviteInput): Promise<{ token: string; invitation: WorkspaceInvitation }> {
@@ -26,7 +26,7 @@ class MembersService {
   }
 
   async acceptInvitation(token: string, userId: string, userEmail: string): Promise<WorkspaceMember> {
-    const tokenHash = (() => { const h = new Bun.CryptoHasher('sha256'); h.update(token); return h.digest('hex'); })();
+    const tokenHash = hashToken(token);
 
     return db.transaction(async (tx) => {
       const invitation = await invitationsRepo.findByTokenHashForUpdate(tx, tokenHash);
@@ -66,7 +66,11 @@ class MembersService {
     });
   }
 
-  async updateRole(workspaceId: string, userId: string, newRole: string, changedBy: string): Promise<WorkspaceMember> {
+  async revokeInvitation(id: string): Promise<void> {
+    await invitationsRepo.deleteById(id);
+  }
+
+  async updateRole(workspaceId: string, userId: string, newRole: WorkspaceRole, changedBy: string): Promise<WorkspaceMember> {
     return db.transaction(async (tx) => {
       const ownerRows = await tx.execute(
         sql`SELECT user_id FROM workspace_members WHERE workspace_id = ${workspaceId} AND role = 'owner' FOR UPDATE`,

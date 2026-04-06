@@ -46,7 +46,10 @@ const mockDb = {
 };
 
 mock.module('../members.repo', () => ({ membersRepo: mockMembersRepo }));
-mock.module('../invitations.repo', () => ({ invitationsRepo: mockInvitationsRepo }));
+mock.module('../invitations.repo', () => ({
+  invitationsRepo: mockInvitationsRepo,
+  hashToken: (token: string) => `hashed_${token}`,
+}));
 mock.module('../../../events/bus', () => ({ eventBus: mockEventBus }));
 mock.module('../../../infra/db/client', () => ({ db: mockDb }));
 

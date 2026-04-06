@@ -1,6 +1,8 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { membersService } from './members.service';
+import { hasPermission } from '../../core/security/rbac';
+import { ForbiddenError } from '../../core/errors';
 import {
   createInvitationSchema,
   updateRoleSchema,
@@ -9,6 +11,16 @@ import {
 } from './members.schemas';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+
+function requireAdmin(c: any): void {
+  const callerRole = c.get('callerRole') as string;
+  if (!hasPermission(callerRole, 'admin')) throw new ForbiddenError('Insufficient permissions');
+}
+
+function requireOwner(c: any): void {
+  const workspaceRole = c.get('workspaceRole') as string;
+  if (workspaceRole !== 'owner') throw new ForbiddenError('Only owners can perform this action');
+}
 
 const listMembersRoute = createRoute({
   method: 'get', path: '/',
@@ -56,37 +68,32 @@ MembersRoutes.openapi(listMembersRoute, async (c) => {
 });
 
 MembersRoutes.openapi(createInvitationRoute, async (c) => {
+  requireAdmin(c);
   const workspaceId = c.get('workspaceId') as string;
   const callerId = c.get('callerId') as string;
-  const workspaceRole = c.get('workspaceRole') as string;
-  if (!['owner', 'admin'].includes(workspaceRole)) return c.json({ error: 'Only admins can create invitations' }, 403);
   const body = c.req.valid('json');
   const result = await membersService.invite(workspaceId, { email: body.email, role: body.role, invitedBy: callerId });
   return c.json({ data: { token: result.token, invitation: result.invitation } }, 201);
 });
 
 MembersRoutes.openapi(listInvitationsRoute, async (c) => {
+  requireAdmin(c);
   const workspaceId = c.get('workspaceId') as string;
-  const workspaceRole = c.get('workspaceRole') as string;
-  if (!['owner', 'admin'].includes(workspaceRole)) return c.json({ error: 'Only admins can view invitations' }, 403);
   const invitations = await membersService.listPendingInvitations(workspaceId);
   return c.json({ data: invitations });
 });
 
 MembersRoutes.openapi(revokeInvitationRoute, async (c) => {
-  const workspaceRole = c.get('workspaceRole') as string;
-  if (!['owner', 'admin'].includes(workspaceRole)) return c.json({ error: 'Only admins can revoke invitations' }, 403);
+  requireAdmin(c);
   const { id } = c.req.valid('param');
-  const { invitationsRepo } = await import('./invitations.repo');
-  await invitationsRepo.deleteById(id);
+  await membersService.revokeInvitation(id);
   return c.json({ success: true }, 204);
 });
 
 MembersRoutes.openapi(updateRoleRoute, async (c) => {
+  requireOwner(c);
   const workspaceId = c.get('workspaceId') as string;
   const callerId = c.get('callerId') as string;
-  const workspaceRole = c.get('workspaceRole') as string;
-  if (workspaceRole !== 'owner') return c.json({ error: 'Only owners can change roles' }, 403);
   const { userId } = c.req.valid('param');
   const { role } = c.req.valid('json');
   const member = await membersService.updateRole(workspaceId, userId, role, callerId);
@@ -96,11 +103,8 @@ MembersRoutes.openapi(updateRoleRoute, async (c) => {
 MembersRoutes.openapi(removeMemberRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const callerId = c.get('callerId') as string;
-  const workspaceRole = c.get('workspaceRole') as string;
   const { userId } = c.req.valid('param');
-  if (userId !== callerId && !['owner', 'admin'].includes(workspaceRole)) {
-    return c.json({ error: 'Only admins can remove other members' }, 403);
-  }
+  if (userId !== callerId) requireAdmin(c);
   await membersService.removeMember(workspaceId, userId, callerId);
   return c.json({ success: true }, 204);
 });
