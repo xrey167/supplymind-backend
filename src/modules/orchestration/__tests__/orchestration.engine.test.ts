@@ -3,6 +3,8 @@ import { describe, test, expect, mock, spyOn, beforeEach, afterAll } from 'bun:t
 import { runOrchestration } from '../orchestration.engine';
 import type { OrchestrationDefinition } from '../orchestration.types';
 import * as skillsDispatch from '../../skills/skills.dispatch';
+import { tasksService } from '../../tasks/tasks.service';
+import * as collabEngine from '../../collaboration/collaboration.engine';
 
 // Use spyOn instead of mock.module to avoid polluting skills.dispatch.test.ts
 const dispatchSpy = spyOn(skillsDispatch, 'dispatchSkill').mockResolvedValue({
@@ -10,14 +12,39 @@ const dispatchSpy = spyOn(skillsDispatch, 'dispatchSkill').mockResolvedValue({
   value: { echo: {} },
 } as any);
 
+const taskSendSpy = spyOn(tasksService, 'send').mockResolvedValue({
+  ok: true,
+  value: { id: 'task-1', status: { state: 'completed' }, artifacts: [], history: [] },
+} as any);
+
+const collaborateSpy = spyOn(collabEngine, 'collaborate').mockResolvedValue({
+  id: 'collab-1',
+  strategy: 'fan_out',
+  output: 'combined result',
+  responses: [],
+  totalDurationMs: 100,
+} as any);
+
 afterAll(() => {
   dispatchSpy.mockRestore();
+  taskSendSpy.mockRestore();
+  collaborateSpy.mockRestore();
 });
 
 describe('runOrchestration', () => {
   beforeEach(() => {
     dispatchSpy.mockReset();
     dispatchSpy.mockResolvedValue({ ok: true, value: { echo: {} } } as any);
+    taskSendSpy.mockReset();
+    taskSendSpy.mockResolvedValue({
+      ok: true,
+      value: { id: 'task-1', status: { state: 'completed' }, artifacts: [], history: [] },
+    } as any);
+    collaborateSpy.mockReset();
+    collaborateSpy.mockResolvedValue({
+      id: 'collab-1', strategy: 'fan_out', output: 'combined result',
+      responses: [], totalDurationMs: 100,
+    } as any);
   });
 
   test('executes single skill step', async () => {
@@ -157,5 +184,54 @@ describe('runOrchestration', () => {
     expect(result.status).toBe('failed');
     expect(result.stepResults.s1.status).toBe('failed');
     expect(result.stepResults.s1.error).toBe('always fails');
+  });
+
+  test('agent step sends task via tasksService', async () => {
+    const def: OrchestrationDefinition = {
+      steps: [{ id: 'a1', type: 'agent', agentId: 'agent-1', message: 'Analyze data' }],
+    };
+    const result = await runOrchestration(def, 'ws-1');
+    expect(result.status).toBe('completed');
+    expect(result.stepResults.a1.status).toBe('completed');
+    expect(taskSendSpy).toHaveBeenCalledWith('agent-1', 'Analyze data', 'ws-1', 'orchestration');
+  });
+
+  test('agent step fails when task send fails', async () => {
+    taskSendSpy.mockResolvedValue({ ok: false, error: new Error('Agent not found') } as any);
+    const def: OrchestrationDefinition = {
+      steps: [{ id: 'a1', type: 'agent', agentId: 'missing', message: 'Hello' }],
+    };
+    const result = await runOrchestration(def, 'ws-1');
+    expect(result.status).toBe('failed');
+    expect(result.stepResults.a1.error).toContain('Agent not found');
+  });
+
+  test('collaboration step runs collaborate engine', async () => {
+    const def: OrchestrationDefinition = {
+      steps: [{
+        id: 'c1', type: 'collaboration', strategy: 'fan_out',
+        agentIds: ['agent-1', 'agent-2'],
+      }],
+    };
+    const result = await runOrchestration(def, 'ws-1', { query: 'What is X?' });
+    expect(result.status).toBe('completed');
+    expect(result.stepResults.c1.status).toBe('completed');
+    expect(collaborateSpy).toHaveBeenCalled();
+  });
+
+  test('decision step picks first completed candidate', async () => {
+    dispatchSpy.mockResolvedValue({ ok: true, value: 'done' } as any);
+    const def: OrchestrationDefinition = {
+      steps: [
+        { id: 's1', type: 'skill', skillId: 'echo', args: {} },
+        { id: 's2', type: 'skill', skillId: 'echo', args: {} },
+        { id: 'd1', type: 'decision', pipelines: ['s1', 's2'], dependsOn: ['s1', 's2'] },
+      ],
+    };
+    const result = await runOrchestration(def, 'ws-1');
+    expect(result.status).toBe('completed');
+    expect(result.stepResults.d1.status).toBe('completed');
+    const decision = result.stepResults.d1.result as any;
+    expect(decision.decision).toBe('s1');
   });
 });
