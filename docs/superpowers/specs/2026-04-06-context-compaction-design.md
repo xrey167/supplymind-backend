@@ -141,3 +141,8 @@ Topics.SESSION_COMPACTED → {
 4. `SESSION_COMPACTED` event fires with correct token counts
 5. `sessions.context-compaction` flag = false → compaction never triggers
 6. Recursive: session where summary + 6 retained turns still exceed threshold → second pass runs, only 2 turns retained
+7. **Tier-down model selection** (unit-tested, no LLM call required):
+   - opus-4-6 session → summarizer is sonnet-4-6
+   - sonnet-4-6 session → summarizer is haiku-4-5-20251001
+   - haiku-4-5-20251001 session → summarizer is haiku-4-5-20251001 (floor)
+   - unknown/OpenAI/Google model → summarizer is haiku-4-5-20251001 (default)
