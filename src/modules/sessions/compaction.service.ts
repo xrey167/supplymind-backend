@@ -1,6 +1,6 @@
 import { db } from '../../infra/db/client';
 import { sessionMessages } from '../../infra/db/schema';
-import { eq, and, lte } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { AnthropicRawRuntime } from '../../infra/ai/anthropic';
 import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
@@ -68,15 +68,14 @@ export async function compactSession(
       .set({ isCompacted: true })
       .where(and(
         eq(sessionMessages.sessionId, sessionId),
-        lte(sessionMessages.createdAt, boundary.createdAt),
-        eq(sessionMessages.isCompacted, false),
+        inArray(sessionMessages.id, toSummarize.map(m => m.id)),
       ));
 
     await tx.insert(sessionMessages).values({
       sessionId,
-      role: 'system' as any,
+      role: 'system' as 'system',
       content: summaryText,
-      isCompacted: true,
+      isCompacted: false,
       tokenEstimate: summaryTokens,
     });
   });
