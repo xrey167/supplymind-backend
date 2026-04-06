@@ -1,4 +1,4 @@
-# SupplyMindAI Backend
+# AI Backend
 
 Multi-tenant API server for AI-powered supply chain management. Built on **Hono + Bun** with a multi-protocol agent runtime that supports MCP, A2A, WebSocket, SSE, and programmatic access through a unified gateway.
 
