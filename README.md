@@ -50,7 +50,7 @@ bun run seed      # seed database
                                  │
 ┌────────────────────────────────▼────────────────────────────────────────┐
 │                    Unified Gateway (execute)                            │
-│  27 ops  │  streaming  │  RBAC + audit  │  ACP client  │  rate limit  │
+│  19 ops  │  streaming  │  RBAC + audit  │  ACP client  │  rate limit  │
 └────────────────────────────────┬────────────────────────────────────────┘
                                  │
 ┌────────────────────────────────▼────────────────────────────────────────┐
@@ -93,7 +93,7 @@ The base layer is fully domain-agnostic. Domain modules plug in at the bottom vi
 
 The gateway is the central dispatch layer. All operations pass through it regardless of transport.
 
-### Operations (18 total)
+### Operations (19 total)
 
 | Operation | Description | Required Role |
 |-----------|-------------|---------------|
