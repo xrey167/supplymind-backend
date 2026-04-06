@@ -321,6 +321,81 @@ export const usageRecords = pgTable('usage_records', {
   index('ur_task_idx').on(t.taskId),
 ]);
 
+// Billing
+export const billingCustomers = pgTable('billing_customers', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  stripeCustomerId: text('stripe_customer_id').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (t) => [
+  uniqueIndex('bc_workspace_id_idx').on(t.workspaceId),
+  uniqueIndex('bc_stripe_customer_id_idx').on(t.stripeCustomerId),
+]);
+
+export const subscriptions = pgTable('subscriptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  stripeSubscriptionId: text('stripe_subscription_id').notNull(),
+  stripePriceId: text('stripe_price_id').notNull(),
+  plan: text('plan').notNull(),
+  status: text('status').notNull(),
+  currentPeriodStart: timestamp('current_period_start').notNull(),
+  currentPeriodEnd: timestamp('current_period_end').notNull(),
+  cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  uniqueIndex('sub_stripe_subscription_id_idx').on(t.stripeSubscriptionId),
+  index('sub_workspace_id_idx').on(t.workspaceId),
+]);
+
+export const invoices = pgTable('invoices', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  stripeInvoiceId: text('stripe_invoice_id').notNull(),
+  amountDue: integer('amount_due').notNull().default(0),
+  amountPaid: integer('amount_paid').notNull().default(0),
+  currency: text('currency').notNull().default('usd'),
+  status: text('status').notNull(),
+  periodStart: timestamp('period_start').notNull(),
+  periodEnd: timestamp('period_end').notNull(),
+  pdfUrl: text('pdf_url'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (t) => [
+  uniqueIndex('inv_stripe_invoice_id_idx').on(t.stripeInvoiceId),
+  index('inv_workspace_id_idx').on(t.workspaceId),
+]);
+
+// Notifications
+export const notifications = pgTable('notifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  userId: text('user_id'),
+  type: text('type').notNull(),
+  title: text('title').notNull(),
+  body: text('body'),
+  metadata: jsonb('metadata').default({}),
+  channel: text('channel').notNull(), // in_app | email | websocket
+  status: text('status').notNull().default('pending'), // pending | delivered | read | failed
+  readAt: timestamp('read_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (t) => [
+  index('notifications_user_workspace_idx').on(t.userId, t.workspaceId),
+  index('notifications_workspace_created_idx').on(t.workspaceId, t.createdAt),
+]);
+
+// Notification preferences
+export const notificationPreferences = pgTable('notification_preferences', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id').notNull(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(),
+  channels: jsonb('channels').default(['in_app']),
+  muted: boolean('muted').default(false),
+}, (t) => [
+  uniqueIndex('np_user_workspace_type_idx').on(t.userId, t.workspaceId, t.type),
+]);
+
 // Registered A2A agents (persistent registry)
 export const registeredAgents = pgTable('registered_agents', {
   id: uuid('id').primaryKey().defaultRandom(),
