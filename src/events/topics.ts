@@ -18,6 +18,7 @@ export const Topics = {
   // Agents
   AGENT_CREATED: 'agent.created',
   AGENT_UPDATED: 'agent.updated',
+  AGENT_DELETED: 'agent.deleted',
   AGENT_RUN_STARTED: 'agent.run.started',
   AGENT_RUN_COMPLETED: 'agent.run.completed',
   // MCP
@@ -81,6 +82,11 @@ export const Topics = {
   // Budget
   BUDGET_WARNING: 'billing.budget_warning',
   BUDGET_EXCEEDED: 'billing.budget_exceeded',
+  // Credentials
+  CREDENTIAL_CREATED: 'credentials.created',
+  CREDENTIAL_DELETED: 'credentials.deleted',
+  // Settings
+  SETTINGS_UPDATED: 'settings.updated',
   // System
   HEARTBEAT: 'system.heartbeat',
   // Workspace lifecycle
