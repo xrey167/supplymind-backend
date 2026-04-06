@@ -58,6 +58,7 @@ describe('skill_mcp builtin skill', () => {
     expect(skillMcp).toBeDefined();
     expect(skillMcp.providerType).toBe('builtin');
     expect(skillMcp.name).toBe('skill_mcp');
+    expect(skillMcp.concurrencySafe).toBe(true);
   });
 
   it('call_tool operation returns tool result', async () => {
@@ -171,6 +172,21 @@ describe('skill_mcp builtin skill', () => {
     }, ctx);
 
     expect(mockGetMcpConfig.mock.calls[0]).toEqual(['ws-1', 'skill-xyz']);
+  });
+
+  it('returns err when getMcpConfig returns a service error', async () => {
+    mockGetMcpConfig.mockImplementationOnce(async () =>
+      err(new Error('DB unavailable'))
+    );
+
+    const result = await skillMcp.handler({
+      skill_id: 'skill-abc',
+      mcp_name: 'analytics',
+      operation: 'list_tools',
+    }, ctx);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toBe('DB unavailable');
   });
 
   it('passes correct args to manager.callTool', async () => {
