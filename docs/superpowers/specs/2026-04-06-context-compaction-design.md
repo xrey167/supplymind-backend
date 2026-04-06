@@ -80,7 +80,16 @@ If after compaction the new active window still exceeds the threshold (e.g., the
 
 ### Model Selection
 
-Use `claude-haiku-4-5-20251001` for summarization. It is fast, cheap, and sufficient for structured extraction. The session's primary model is not used — this avoids a billing/latency spike on the user's main interaction.
+Use a model **one tier below** the session's primary model for summarization (structured extraction does not need full reasoning power):
+
+| Session model | Summarizer |
+|---|---|
+| claude-opus-4-6 | claude-sonnet-4-6 |
+| claude-sonnet-4-6 | claude-haiku-4-5-20251001 |
+| claude-haiku-4-5-20251001 | claude-haiku-4-5-20251001 |
+| (any OpenAI/Google model) | claude-haiku-4-5-20251001 |
+
+`compactSession` calls the AI provider **directly** via `AgentRuntime.run` (not through `sessionsService`). This is critical: `buildContextMessages` must never be re-entered during a compaction call.
 
 ---
 
