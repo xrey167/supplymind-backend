@@ -31,7 +31,8 @@ export type HookEvent =
   | 'agent_start'
   | 'agent_stop'
   | 'session_start'
-  | 'session_end';
+  | 'session_end'
+  | 'domain_registered';
 
 // ---------------------------------------------------------------------------
 // Typed payloads per event — customers get type safety on what they receive
@@ -52,6 +53,7 @@ export interface HookPayloadMap {
   agent_stop: { agentId: string; taskId?: string; reason?: string };
   session_start: { sessionId: string };
   session_end: { sessionId: string; reason?: string };
+  domain_registered: { domainName: string; workspaceId: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -124,7 +126,7 @@ interface StoredHook {
 // Registry
 // ---------------------------------------------------------------------------
 
-class LifecycleHookRegistry {
+export class LifecycleHookRegistry {
   /** Global hooks (fire for all workspaces) */
   private globalHooks: StoredHook[] = [];
   /** Per-workspace hooks */
@@ -245,6 +247,29 @@ class LifecycleHookRegistry {
   clear(): void {
     this.globalHooks = [];
     this.workspaceHooks.clear();
+  }
+
+  /**
+   * Convenience: subscribe globally to a specific event with a simplified handler.
+   * The handler receives only the payload (no ctx or HookResult return needed).
+   * Auto-generates a hook ID.
+   */
+  on<E extends HookEvent>(event: E, handler: (payload: HookPayloadMap[E]) => Promise<void>): string {
+    const id = `on_${event}_${Math.random().toString(36).slice(2)}`;
+    this.registerGlobal({
+      id,
+      event,
+      handler: async (_evt, payload) => { await handler(payload as HookPayloadMap[E]); },
+    });
+    return id;
+  }
+
+  /**
+   * Convenience: emit an event globally (fire-and-forget, system workspace).
+   * Returns a promise that resolves when all global hooks for the event have run.
+   */
+  async emit<E extends HookEvent>(event: E, payload: HookPayloadMap[E]): Promise<void> {
+    await this.run(event, payload, { workspaceId: 'system', callerId: 'emit' });
   }
 
   private getHooksForEvent(event: HookEvent, workspaceId: string): StoredHook[] {
