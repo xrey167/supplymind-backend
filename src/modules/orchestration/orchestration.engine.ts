@@ -1,8 +1,10 @@
-import type { OrchestrationDefinition, OrchestrationStep, StepResult, OrchestrationResult } from './orchestration.types';
+import type { OrchestrationDefinition, OrchestrationStep, StepResult, OrchestrationResult, AgentStep, CollaborationStep, DecisionStep } from './orchestration.types';
 import { logger } from '../../config/logger';
 import { resolveTemplate, evaluateCondition } from './orchestration.templates';
 import * as skillsDispatch from '../skills/skills.dispatch';
 import { emitStepCompleted, emitGateWaiting } from './orchestration.events';
+import { tasksService } from '../tasks/tasks.service';
+import { collaborate } from '../collaboration/collaboration.engine';
 
 const DEFAULT_MAX_CONCURRENCY = 5;
 const MAX_RETRIES = 5;
@@ -74,10 +76,65 @@ async function executeStep(
           break;
         }
 
-        case 'agent':
-        case 'collaboration':
-        case 'decision':
-          throw new Error(`Step type "${step.type}" is not yet implemented. Use type "skill" or remove this step.`);
+        case 'agent': {
+          const agentStep = step as AgentStep;
+          const message = agentStep.message
+            ? resolveTemplate(agentStep.message, stepResults, input)
+            : 'Execute the assigned task';
+          const taskResult = await tasksService.send(
+            agentStep.agentId,
+            message,
+            workspaceId,
+            'orchestration',
+          );
+          if (!taskResult.ok) throw new Error(taskResult.error.message);
+          result = taskResult.value;
+          break;
+        }
+
+        case 'collaboration': {
+          const collabStep = step as CollaborationStep;
+          const query = resolveTemplate(
+            (input.query as string) ?? 'Collaborate on the given task',
+            stepResults,
+            input,
+          );
+          const dispatch = async (skillId: string, args: Record<string, unknown>) => {
+            const r = await skillsDispatch.dispatchSkill(skillId, args, {
+              callerId: 'orchestration',
+              workspaceId,
+              callerRole: 'system' as const,
+            });
+            if (!r.ok) throw new Error(r.error instanceof Error ? r.error.message : String(r.error));
+            return typeof r.value === 'string' ? r.value : JSON.stringify(r.value);
+          };
+          const collabResult = await collaborate({
+            strategy: collabStep.strategy,
+            query,
+            agents: collabStep.agentIds,
+            mergeStrategy: collabStep.mergeStrategy,
+            maxRounds: collabStep.maxRounds,
+          }, dispatch);
+          result = collabResult;
+          break;
+        }
+
+        case 'decision': {
+          const decisionStep = step as DecisionStep;
+          // Evaluate previous step results to pick the best pipeline/branch
+          const candidates = decisionStep.pipelines ?? [];
+          // Use the first pipeline whose step result succeeded, or fall back to first
+          let chosen = candidates[0] ?? null;
+          for (const candidate of candidates) {
+            const candidateResult = stepResults[candidate];
+            if (candidateResult && candidateResult.status === 'completed') {
+              chosen = candidate;
+              break;
+            }
+          }
+          result = { decision: chosen, candidates };
+          break;
+        }
       }
 
       return { stepId: step.id, status: 'completed', result, durationMs: performance.now() - start };
