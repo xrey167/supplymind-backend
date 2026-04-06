@@ -1,6 +1,10 @@
+// Generic domain event contract — extend in any domain module
+export * from './types';
+
+// Supply-chain-specific domain event types and strategy infrastructure
 export { emitDomainEvents, registerStrategy } from './emitter';
 export type {
-  DomainEvent,
+  DomainEvent as SupplyChainDomainEvent,
   DomainEventStrategy,
   EntityType,
   StrategyContext,
@@ -12,5 +16,5 @@ export type {
   OrderCostOverrunPayload,
   LogisticsRouteDisruptionPayload,
   ForecastAccuracyDropPayload,
-} from './types';
+} from './supply-chain-types';
 export * from './strategies';

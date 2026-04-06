@@ -1,4 +1,4 @@
-import type { DomainEvent, DomainEventStrategy, EntityType, StrategyContext } from './types';
+import type { DomainEvent, DomainEventStrategy, EntityType, StrategyContext } from './supply-chain-types';
 import { supplierStrategy } from './strategies/supplier.strategy';
 import { materialStrategy } from './strategies/material.strategy';
 import { orderStrategy } from './strategies/order.strategy';
