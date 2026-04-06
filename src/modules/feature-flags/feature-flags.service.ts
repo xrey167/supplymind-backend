@@ -1,18 +1,13 @@
 import { DEFAULT_FLAGS, type FlagValue } from '../../config/flags';
-import { workspaceSettingsRepo } from '../settings/workspace-settings/workspace-settings.repo';
+import { featureFlagsRepo } from './feature-flags.repo';
 import { getCacheProvider } from '../../infra/cache';
 import { logger } from '../../config/logger';
 
-const FLAG_NAMESPACE = 'feature-flag:';
 const CACHE_TTL_MS = 60_000;
 
 class FeatureFlagsService {
   private cacheKey(workspaceId: string, flag: string): string {
     return `ff:${workspaceId}:${flag}`;
-  }
-
-  private dbKey(flag: string): string {
-    return `${FLAG_NAMESPACE}${flag}`;
   }
 
   async getValue<T extends FlagValue = FlagValue>(workspaceId: string, flag: string): Promise<T> {
@@ -22,8 +17,7 @@ class FeatureFlagsService {
     if (cached !== undefined) return cached;
 
     try {
-      const row = await workspaceSettingsRepo.get(workspaceId, this.dbKey(flag));
-      const value = (row?.value ?? DEFAULT_FLAGS[flag] ?? null) as T;
+      const value = (await featureFlagsRepo.get(workspaceId, flag) ?? DEFAULT_FLAGS[flag] ?? null) as T;
       await cache.set(cKey, value, CACHE_TTL_MS);
       return value;
     } catch (err) {
@@ -37,7 +31,7 @@ class FeatureFlagsService {
   }
 
   async setFlag(workspaceId: string, flag: string, value: FlagValue): Promise<void> {
-    await workspaceSettingsRepo.set(workspaceId, this.dbKey(flag), value);
+    await featureFlagsRepo.set(workspaceId, flag, value);
     await getCacheProvider().clear(`ff:${workspaceId}:`);
   }
 
@@ -49,13 +43,8 @@ class FeatureFlagsService {
 
     const result: Record<string, FlagValue> = { ...DEFAULT_FLAGS };
     try {
-      const rows = await workspaceSettingsRepo.getAll(workspaceId);
-      for (const row of rows) {
-        if (row.key.startsWith(FLAG_NAMESPACE)) {
-          const flag = row.key.slice(FLAG_NAMESPACE.length);
-          result[flag] = row.value as FlagValue;
-        }
-      }
+      const overrides = await featureFlagsRepo.getAll(workspaceId);
+      Object.assign(result, overrides);
     } catch (err) {
       logger.warn({ workspaceId, err }, 'FlagService: getAll failed, returning defaults');
     }

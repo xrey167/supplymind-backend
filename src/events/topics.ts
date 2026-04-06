@@ -60,6 +60,7 @@ export const Topics = {
   // Tool approvals
   TOOL_APPROVAL_REQUESTED: 'tool.approval_requested',
   TOOL_APPROVAL_RESOLVED: 'tool.approval_resolved',
+  TOOL_APPROVAL_EXPIRED: 'tool.approval_expired',
   // Security audit
   SECURITY_RBAC_DENIED: 'security.rbac.denied',
   SECURITY_PERMISSION_MODE_BLOCKED: 'security.permission_mode.blocked',
@@ -67,6 +68,11 @@ export const Topics = {
   SECURITY_SANDBOX_FAILED: 'security.sandbox.failed',
   // Computer Use
   COMPUTER_USE_BASH_WARNING: 'computer-use.bash.warning',
+  // Coordinator
+  COORDINATOR_PHASE_CHANGED: 'coordinator.phase_changed',
+  COORDINATOR_PHASE_COMPLETED: 'coordinator.phase_completed',
+  // Verification
+  VERIFICATION_VERDICT: 'verification.verdict',
   // System
   HEARTBEAT: 'system.heartbeat',
   // Workspace lifecycle
