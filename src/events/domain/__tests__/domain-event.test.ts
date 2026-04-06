@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import type { DomainEvent, DomainEventEnvelope } from '../types';
+import { registerStrategy, getStrategy, listStrategies } from '../types';
 
 describe('DomainEvent types', () => {
   it('DomainEventEnvelope has required fields', () => {
@@ -39,5 +40,19 @@ describe('DomainEvent types', () => {
     expect(event.version).toBe(1);
     expect(typeof event.eventId).toBe('string');
     expect(event.occurredAt instanceof Date).toBe(true);
+  });
+
+  it('registers and retrieves domain event strategies', () => {
+    registerStrategy({
+      entityType: 'ticket',
+      async evaluate(entity, ctx) { return []; },
+    });
+    expect(getStrategy('ticket')).toBeDefined();
+    expect(getStrategy('ticket')!.entityType).toBe('ticket');
+    expect(listStrategies()).toContain('ticket');
+  });
+
+  it('returns undefined for unregistered strategy', () => {
+    expect(getStrategy('nonexistent')).toBeUndefined();
   });
 });

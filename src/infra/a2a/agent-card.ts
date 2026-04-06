@@ -17,7 +17,7 @@ export function buildAgentCard(opts?: {
 
   return {
     name: opts?.name ?? 'SupplyMindAI Agent',
-    description: opts?.description ?? 'AI-powered supply chain management agent',
+    description: opts?.description ?? 'AI-powered multi-tenant agent',
     url: opts?.url ?? Bun.env.A2A_SERVER_URL ?? `http://localhost:${Bun.env.PORT ?? 3001}`,
     version: opts?.version ?? '1.0.0',
     capabilities: {
