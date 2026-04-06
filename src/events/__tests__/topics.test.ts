@@ -20,4 +20,17 @@ describe('Foundation event topics', () => {
     expect(Topics.USER_SYNCED).toBe('user.synced');
     expect(Topics.USER_DELETED).toBe('user.deleted');
   });
+
+  it('has coordinator phase topics', () => {
+    expect(Topics.COORDINATOR_PHASE_CHANGED).toBe('coordinator.phase_changed');
+    expect(Topics.COORDINATOR_PHASE_COMPLETED).toBe('coordinator.phase_completed');
+  });
+
+  it('has verification verdict topic', () => {
+    expect(Topics.VERIFICATION_VERDICT).toBe('verification.verdict');
+  });
+
+  it('has tool approval expiry topic', () => {
+    expect(Topics.TOOL_APPROVAL_EXPIRED).toBe('tool.approval_expired');
+  });
 });
