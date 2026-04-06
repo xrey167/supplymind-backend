@@ -136,6 +136,7 @@ export const workspaces = pgTable('workspaces', {
   createdBy: text('created_by').notNull(),   // Clerk userId
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
+  deletedAt: timestamp('deleted_at'),
 }, (t) => [
   uniqueIndex('workspaces_slug_idx').on(t.slug),
 ]);
@@ -150,6 +151,36 @@ export const workspaceMembers = pgTable('workspace_members', {
 }, (t) => [
   uniqueIndex('wm_workspace_user_idx').on(t.workspaceId, t.userId),
   index('wm_user_idx').on(t.userId),
+]);
+
+// Users — thin sync from Clerk
+export const users = pgTable('users', {
+  id: text('id').primaryKey(),              // Clerk userId (e.g. user_2x7...)
+  email: text('email').notNull(),
+  name: text('name'),
+  avatarUrl: text('avatar_url'),
+  lastSeenAt: timestamp('last_seen_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  uniqueIndex('users_email_idx').on(t.email),
+]);
+
+// Workspace invitations
+export const workspaceInvitations = pgTable('workspace_invitations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  email: text('email'),                     // null for link-only invites
+  tokenHash: text('token_hash').notNull(),  // SHA-256 of nanoid token
+  type: text('type').notNull(),             // 'email' | 'link'
+  role: workspaceRoleEnum('role').notNull().default('member'),
+  invitedBy: text('invited_by').notNull(),  // userId
+  expiresAt: timestamp('expires_at').notNull(),
+  acceptedAt: timestamp('accepted_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (t) => [
+  uniqueIndex('wi_token_hash_idx').on(t.tokenHash),
+  uniqueIndex('wi_workspace_email_idx').on(t.workspaceId, t.email),
 ]);
 
 // Sessions
@@ -234,7 +265,7 @@ export const orchestrations = pgTable('orchestrations', {
 // Workspace settings (key-value per workspace)
 export const workspaceSettings = pgTable('workspace_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: uuid('workspace_id').notNull(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   key: text('key').notNull(),
   value: jsonb('value').notNull(),
   updatedAt: timestamp('updated_at').defaultNow(),

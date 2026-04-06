@@ -1,7 +1,14 @@
-import { describe, it, expect, mock } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
 import { resolveSummarizerModel, compactSession, COMPACTION_THRESHOLD_TOKENS } from '../compaction.service';
 import type { SessionMessage } from '../sessions.types';
 import type { AgentRuntime } from '../../../infra/ai/types';
+import { logger } from '../../../config/logger';
+
+// Silence logger during tests that exercise error paths
+const silentLogger = { error: mock(() => {}), warn: mock(() => {}), info: mock(() => {}), debug: mock(() => {}) };
+let originalError: typeof logger.error;
+beforeEach(() => { originalError = logger.error; (logger as any).error = silentLogger.error; });
+afterEach(() => { (logger as any).error = originalError; silentLogger.error.mockClear(); });
 
 function makeMsg(id: string, role: 'user' | 'assistant', content: string, sessionId = 'sess-1'): SessionMessage {
   return {
@@ -88,5 +95,6 @@ describe('compactSession', () => {
     };
     // Should not throw — just log and return
     await expect(compactSession('sess-1', 'ws-1', msgs, 'claude-sonnet-4-6', mockRuntime)).resolves.toBeUndefined();
+    expect(silentLogger.error).toHaveBeenCalledTimes(1);
   });
 });
