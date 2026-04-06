@@ -57,6 +57,34 @@ describe('skillMcpConfigSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('rejects sse entry without url', () => {
+    const result = skillMcpConfigSchema.safeParse({
+      bad: { type: 'sse' },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects sse entry with invalid url', () => {
+    const result = skillMcpConfigSchema.safeParse({
+      bad: { type: 'sse', url: 'not-a-url' },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects key with spaces or special chars', () => {
+    const result = skillMcpConfigSchema.safeParse({
+      'bad key!': { type: 'streamable-http', url: 'http://localhost:4000' },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts key with hyphens and underscores', () => {
+    const result = skillMcpConfigSchema.safeParse({
+      'my-server_v2': { type: 'streamable-http', url: 'http://localhost:4000' },
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('rejects unknown type', () => {
     const result = skillMcpConfigSchema.safeParse({
       bad: { type: 'grpc', url: 'http://localhost' },

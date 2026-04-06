@@ -26,6 +26,10 @@ export class SkillEmbeddedMcpManager {
         return { ...base, transport: 'sse' as const, url: entry.url, headers: entry.headers };
       case 'stdio':
         return { ...base, transport: 'stdio' as const, command: entry.command, args: entry.args, env: entry.env };
+      default: {
+        const _exhaustive: never = entry;
+        throw new Error(`Unknown MCP entry type: ${JSON.stringify(_exhaustive)}`);
+      }
     }
   }
 

@@ -186,6 +186,36 @@ describe('McpClient', () => {
     expect(client.lastUsedAt).toBeGreaterThan(before);
   });
 
+  it('readResource returns blob content when text is absent', async () => {
+    mockSdkReadResource.mockImplementationOnce(async () => ({
+      contents: [{ uri: 'file:///img.png', blob: 'base64encodeddata' }],
+    }));
+    const client = new McpClient(stdioConfig);
+    const text = await client.readResource('file:///img.png');
+    expect(text).toBe('base64encodeddata');
+  });
+
+  it('getPrompt handles array content in message', async () => {
+    mockSdkGetPrompt.mockImplementationOnce(async () => ({
+      description: 'result',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Hello' },
+            { type: 'image', data: 'base64' },   // non-text, should be filtered out
+            { type: 'text', text: 'World' },
+          ],
+        },
+      ],
+    }));
+    const client = new McpClient(stdioConfig);
+    const result = await client.getPrompt('multi', {});
+    expect(result).toContain('Hello');
+    expect(result).toContain('World');
+    expect(result).not.toContain('base64');
+  });
+
   it('passes headers to StreamableHTTPClientTransport', async () => {
     const client = new McpClient(httpConfig);
     await client.connect();

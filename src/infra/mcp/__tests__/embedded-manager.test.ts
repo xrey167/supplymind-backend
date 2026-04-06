@@ -122,6 +122,27 @@ describe('SkillEmbeddedMcpManager', () => {
     });
   });
 
+  describe('getOrCreate — inFlight deduplication', () => {
+    it('concurrent calls to same key call connect exactly once', async () => {
+      // Fire two calls simultaneously before either resolves
+      const [a, b] = await Promise.all([
+        manager.listTools('ws-1', 'skill-abc', 'analytics', httpEntry),
+        manager.listTools('ws-1', 'skill-abc', 'analytics', httpEntry),
+      ]);
+      expect(mockConnect.mock.calls.length).toBe(1);
+      expect(a).toEqual(b);
+    });
+
+    it('clears inFlight on connect failure so retries can proceed', async () => {
+      mockConnect.mockImplementationOnce(async () => { throw new Error('Connection refused'); });
+      await expect(manager.callTool('ws-1', 'skill-abc', 'analytics', httpEntry, 'search', {})).rejects.toThrow('Connection refused');
+
+      // A subsequent call should attempt connect again (inFlight was cleared)
+      await manager.callTool('ws-1', 'skill-abc', 'analytics', httpEntry, 'search', {});
+      expect(mockConnect.mock.calls.length).toBe(2);
+    });
+  });
+
   describe('cleanupIdle', () => {
     it('disconnects clients idle past threshold', async () => {
       await manager.callTool('ws-1', 'skill-abc', 'analytics', httpEntry, 'search', {});

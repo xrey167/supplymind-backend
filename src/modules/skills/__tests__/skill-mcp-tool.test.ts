@@ -189,6 +189,26 @@ describe('skill_mcp builtin skill', () => {
     if (!result.ok) expect(result.error.message).toBe('DB unavailable');
   });
 
+  it('returns err when read_resource is called without a name', async () => {
+    const result = await skillMcp.handler({
+      skill_id: 'skill-abc',
+      mcp_name: 'analytics',
+      operation: 'read_resource',
+    }, ctx);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain('resource URI');
+  });
+
+  it('returns err when get_prompt is called without a name', async () => {
+    const result = await skillMcp.handler({
+      skill_id: 'skill-abc',
+      mcp_name: 'analytics',
+      operation: 'get_prompt',
+    }, ctx);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain('prompt name');
+  });
+
   it('passes correct args to manager.callTool', async () => {
     await skillMcp.handler({
       skill_id: 'skill-abc',

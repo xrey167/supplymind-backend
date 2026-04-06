@@ -73,7 +73,10 @@ export class SkillsService {
     try {
       const skill = await skillsRepo.findById(skillId);
       if (!skill) return err(new Error(`Skill not found: ${skillId}`));
-      if (skill.workspaceId && skill.workspaceId !== workspaceId) {
+      if (!skill.workspaceId) {
+        return err(new Error('Cannot set MCP config on a global skill'));
+      }
+      if (skill.workspaceId !== workspaceId) {
         return err(new Error('Skill not found in this workspace'));
       }
       await skillsRepo.setMcpConfig(skillId, config as Record<string, unknown>);

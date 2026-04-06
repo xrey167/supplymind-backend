@@ -39,6 +39,14 @@ export const skillMcpEntrySchema = z.discriminatedUnion('type', [
   skillMcpSseEntrySchema,
 ]);
 
-export const skillMcpConfigSchema = z.record(z.string().min(1), skillMcpEntrySchema);
+// MCP server names: alphanumeric, hyphens, underscores only
+export const skillMcpConfigSchema = z.record(
+  z.string().min(1).regex(/^[a-zA-Z0-9_-]+$/, 'MCP name must be alphanumeric with hyphens/underscores only'),
+  skillMcpEntrySchema,
+);
 
+/**
+ * Validated skill MCP config. Structurally identical to SkillMcpConfig from infra/mcp/types.ts
+ * — skills.schemas.ts is the single validation source; infra/mcp/types.ts is the single type source.
+ */
 export type SkillMcpConfigInput = z.infer<typeof skillMcpConfigSchema>;
