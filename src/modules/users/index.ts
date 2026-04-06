@@ -1,2 +1,3 @@
-export { UsersRoutes } from './users.routes';
-export { UsersService } from './users.service';
+export { usersRepo } from './users.repo';
+export { usersService } from './users.service';
+export type { User, ClerkWebhookEvent } from './users.types';
