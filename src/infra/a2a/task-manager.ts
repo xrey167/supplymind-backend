@@ -199,6 +199,26 @@ class TaskManager {
         cachedPermissionMode: permissionMode,
       };
 
+      // Pre-flight budget check
+      const budgetCheck = await usageService.checkBudget(config.workspaceId);
+      if (!budgetCheck.allowed) {
+        eventBus.publish(Topics.BUDGET_EXCEEDED, {
+          workspaceId: config.workspaceId,
+          usedUsd: budgetCheck.usedUsd,
+          limitUsd: budgetCheck.limitUsd,
+        });
+        this.updateStatus(taskId, 'failed', 'Workspace token budget exceeded');
+        return;
+      }
+      if (budgetCheck.limitUsd !== null && budgetCheck.pct >= budgetCheck.warningThreshold) {
+        eventBus.publish(Topics.BUDGET_WARNING, {
+          workspaceId: config.workspaceId,
+          usedUsd: budgetCheck.usedUsd,
+          limitUsd: budgetCheck.limitUsd,
+          pct: budgetCheck.pct,
+        });
+      }
+
       // Tool calling loop
       for (let i = 0; i < MAX_TOOL_CALL_ITERATIONS; i++) {
         if (signal.aborted) {
@@ -253,6 +273,7 @@ class TaskManager {
           model: config.model,
           temperature: config.temperature,
           maxTokens: config.maxTokens,
+          thinkingBudget: config.thinkingBudget,
           toolChoice: config.toolChoice,
           disableParallelToolUse: config.disableParallelToolUse,
           signal,

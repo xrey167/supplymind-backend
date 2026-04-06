@@ -26,6 +26,7 @@ export interface AgentConfig {
   workspaceId: string;
   temperature?: number;
   maxTokens?: number;
+  thinkingBudget?: number;
   toolChoice?: ToolChoice;
   disableParallelToolUse?: boolean;
 }

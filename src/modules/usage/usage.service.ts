@@ -1,6 +1,15 @@
 import { usageRepo } from './usage.repo';
 import { calculateCost, resolveProvider } from './pricing';
+import { workspaceSettingsService } from '../settings/workspace-settings/workspace-settings.service';
 import type { RecordUsageInput } from './usage.types';
+
+export interface BudgetCheckResult {
+  allowed: boolean;
+  usedUsd: number;
+  limitUsd: number | null;
+  pct: number;
+  warningThreshold: number;
+}
 
 function periodToSince(period: 'day' | 'week' | 'month' | 'all'): Date {
   const now = new Date();
@@ -59,5 +68,27 @@ export const usageService = {
 
   async getTotalCost(workspaceId: string, since: Date): Promise<number> {
     return usageRepo.totalCost(workspaceId, since);
+  },
+
+  async checkBudget(workspaceId: string): Promise<BudgetCheckResult> {
+    const budget = await workspaceSettingsService.getTokenBudget(workspaceId);
+    if (!budget || !budget.monthlyLimitUsd) {
+      return { allowed: true, usedUsd: 0, limitUsd: null, pct: 0, warningThreshold: 0.8 };
+    }
+
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const usedUsd = await usageRepo.totalCost(workspaceId, startOfMonth);
+    const pct = usedUsd / budget.monthlyLimitUsd;
+
+    return {
+      allowed: usedUsd < budget.monthlyLimitUsd,
+      usedUsd,
+      limitUsd: budget.monthlyLimitUsd,
+      pct,
+      warningThreshold: budget.warningThreshold,
+    };
   },
 };

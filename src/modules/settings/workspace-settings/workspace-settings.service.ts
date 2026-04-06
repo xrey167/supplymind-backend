@@ -5,8 +5,9 @@ import {
   allowedToolNamesSchema,
   sandboxPolicySchema,
   mcpServerPolicySchema,
+  tokenBudgetSchema,
 } from './workspace-settings.schemas';
-import type { ToolPermissionMode, SandboxPolicy, McpServerPolicy, WorkspaceSettingKey, UpdateWorkspaceSettingsInput } from './workspace-settings.schemas';
+import type { ToolPermissionMode, SandboxPolicy, McpServerPolicy, TokenBudget, WorkspaceSettingKey, UpdateWorkspaceSettingsInput } from './workspace-settings.schemas';
 import { logger } from '../../../config/logger';
 
 export class WorkspaceSettingsService {
@@ -96,6 +97,17 @@ export class WorkspaceSettingsService {
     if (!parsed.success) {
       logger.warn({ workspaceId, error: parsed.error.message }, 'Invalid MCP server policy in DB, using defaults');
       return mcpServerPolicySchema.parse({});
+    }
+    return parsed.data;
+  }
+
+  async getTokenBudget(workspaceId: string): Promise<TokenBudget | null> {
+    const raw = await this.getRaw(workspaceId, WorkspaceSettingKeys.TOKEN_BUDGET);
+    if (raw === null || raw === undefined) return null;
+    const parsed = tokenBudgetSchema.safeParse(raw);
+    if (!parsed.success) {
+      logger.warn({ workspaceId, raw, error: parsed.error.message }, 'Invalid token budget in DB, ignoring');
+      return null;
     }
     return parsed.data;
   }

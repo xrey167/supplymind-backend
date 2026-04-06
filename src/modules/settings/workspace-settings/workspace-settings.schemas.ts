@@ -9,6 +9,7 @@ export const WorkspaceSettingKeys = {
   APPROVAL_TIMEOUT_MS: 'approval_timeout_ms',
   BILLING_TIER: 'billing_tier',
   LICENSE_LIMITS: 'license_limits',
+  TOKEN_BUDGET: 'token_budget',
 } as const;
 
 export type WorkspaceSettingKey = (typeof WorkspaceSettingKeys)[keyof typeof WorkspaceSettingKeys];
@@ -36,6 +37,12 @@ export const mcpServerPolicySchema = z.object({
   requireApproval: z.boolean().default(false),
 });
 
+export const tokenBudgetSchema = z.object({
+  monthlyLimitUsd: z.number().positive().optional(),
+  warningThreshold: z.number().min(0).max(1).default(0.8),
+});
+
+export type TokenBudget = z.infer<typeof tokenBudgetSchema>;
 export type ToolPermissionMode = z.infer<typeof toolPermissionModeSchema>;
 export type SandboxPolicy = z.infer<typeof sandboxPolicySchema>;
 export type McpServerPolicy = z.infer<typeof mcpServerPolicySchema>;
