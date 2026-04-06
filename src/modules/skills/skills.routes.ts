@@ -81,6 +81,10 @@ SkillsRoutes.openapi(setMcpConfigRoute, async (c) => {
   const workspaceId = c.get('workspaceId') ?? 'default';
   const config = c.req.valid('json');
   const result = await skillsService.setMcpConfig(workspaceId, skillId, config);
-  if (!result.ok) return c.json({ error: result.error.message }, 400);
+  if (!result.ok) {
+    const isNotFound = result.error.message.startsWith('Skill not found') ||
+      result.error.message.includes('not found in this workspace');
+    return c.json({ error: result.error.message }, isNotFound ? 404 : 400);
+  }
   return c.json({ ok: true });
 });

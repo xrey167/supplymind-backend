@@ -14,3 +14,5 @@ export type {
   DispatchFn,
 } from './skills.types';
 export type { SkillRegisteredEvent, SkillInvokedEvent } from './skills.events';
+export { skillMcpConfigSchema } from './skills.schemas';
+export type { SkillMcpConfigInput } from './skills.schemas';
