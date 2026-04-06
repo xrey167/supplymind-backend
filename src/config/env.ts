@@ -16,6 +16,7 @@ export const envSchema = z.object({
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
   OTEL_SERVICE_NAME: z.string().default('supplymind-backend'),
   CORS_ALLOWED_ORIGINS: z.string().optional(),
+  CLERK_WEBHOOK_SECRET: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
