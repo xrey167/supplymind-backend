@@ -1,16 +1,11 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
+import { Hono } from 'hono';
+import { eventBus } from '../../../events/bus';
+import { auditMiddleware } from '../audit';
 
-// Mock eventBus before importing audit middleware
-const mockPublish = mock(() => Promise.resolve({} as any));
-mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mockPublish },
-}));
-mock.module('../../../config/logger', () => ({
-  logger: { warn: () => {}, info: () => {}, debug: () => {}, error: () => {} },
-}));
+const mockPublish = spyOn(eventBus, 'publish').mockResolvedValue({} as any);
 
-const { Hono } = await import('hono');
-const { auditMiddleware } = await import('../audit');
+afterAll(() => { mockPublish.mockRestore(); });
 
 describe('auditMiddleware', () => {
   beforeEach(() => {
@@ -27,9 +22,7 @@ describe('auditMiddleware', () => {
     });
     app.use('*', auditMiddleware);
     app.get('/test', (c) => c.json({ ok: true }));
-
     await app.request('/test');
-
     expect(mockPublish).toHaveBeenCalledTimes(1);
     const [topic, data] = mockPublish.mock.calls[0];
     expect(topic).toBe('audit.request');
@@ -45,9 +38,7 @@ describe('auditMiddleware', () => {
     const app = new Hono();
     app.use('*', auditMiddleware);
     app.get('/public', (c) => c.json({ ok: true }));
-
     await app.request('/public');
-
     const [, data] = mockPublish.mock.calls[0];
     expect(data.callerId).toBe('anonymous');
     expect(data.workspaceId).toBe('none');

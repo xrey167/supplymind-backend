@@ -8,9 +8,16 @@ import { eventBus } from '../../../events/bus';
 import { toolRegistry } from '../../../modules/tools/tools.registry';
 import { taskRepo } from '../task-repo';
 import { workspaceSettingsService } from '../../../modules/settings/workspace-settings/workspace-settings.service';
+import { usageService } from '../../../modules/usage/usage.service';
 
 // Mock workspaceSettingsService — no live DB in tests
 const permissionModeSpy = spyOn(workspaceSettingsService, 'getToolPermissionMode').mockResolvedValue('auto');
+
+// Mock usageService.checkBudget — no live DB in tests
+const checkBudgetSpy = spyOn(usageService, 'checkBudget').mockResolvedValue({
+  allowed: true, usedUsd: 0, limitUsd: null, pct: 0, warningThreshold: 0.8,
+});
+const recordUsageSpy = spyOn(usageService, 'record').mockResolvedValue(undefined as any);
 
 // Mock taskRepo so DB calls don't block (no live DB in tests)
 const taskRepoCreateSpy = spyOn(taskRepo, 'create').mockResolvedValue(undefined as any);
@@ -73,6 +80,8 @@ afterAll(() => {
   taskRepoGetDependenciesSpy.mockRestore();
   taskRepoUpdateStatusSpy.mockRestore();
   taskRepoLogToolCallSpy.mockRestore();
+  checkBudgetSpy.mockRestore();
+  recordUsageSpy.mockRestore();
 });
 
 function baseConfig() {
