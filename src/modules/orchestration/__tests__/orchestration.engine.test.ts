@@ -1,18 +1,30 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
-
-mock.module('../../skills/skills.dispatch', () => ({
-  dispatchSkill: mock(async (_name: string, args: any) => ({
-    ok: true,
-    value: { echo: args },
-  })),
-}));
+import { describe, test, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
 
 import { runOrchestration } from '../orchestration.engine';
 import type { OrchestrationDefinition } from '../orchestration.types';
 import * as skillsDispatch from '../../skills/skills.dispatch';
 
+// Use spyOn instead of mock.module to avoid polluting skills.dispatch.test.ts
+const dispatchSpy = spyOn(skillsDispatch, 'dispatchSkill').mockResolvedValue({
+  ok: true,
+  value: { echo: {} },
+} as any);
+
+afterAll(() => {
+  dispatchSpy.mockRestore();
+});
+
 describe('runOrchestration', () => {
+  beforeEach(() => {
+    dispatchSpy.mockReset();
+    dispatchSpy.mockResolvedValue({ ok: true, value: { echo: {} } } as any);
+  });
+
   test('executes single skill step', async () => {
+    dispatchSpy.mockImplementation(async (_name: string, args: any) => ({
+      ok: true,
+      value: { echo: args },
+    }));
     const def: OrchestrationDefinition = {
       steps: [{ id: 's1', type: 'skill', skillId: 'echo', args: { msg: 'hello' } }],
     };
@@ -22,6 +34,10 @@ describe('runOrchestration', () => {
   });
 
   test('executes steps in dependency order', async () => {
+    dispatchSpy.mockImplementation(async (_name: string, args: any) => ({
+      ok: true,
+      value: { echo: args },
+    }));
     const def: OrchestrationDefinition = {
       steps: [
         { id: 's2', type: 'skill', skillId: 'echo', args: { msg: 'second' }, dependsOn: ['s1'] },
@@ -35,6 +51,10 @@ describe('runOrchestration', () => {
   });
 
   test('skips step when condition is false', async () => {
+    dispatchSpy.mockImplementation(async (_name: string, args: any) => ({
+      ok: true,
+      value: { echo: args },
+    }));
     const def: OrchestrationDefinition = {
       steps: [
         { id: 's1', type: 'skill', skillId: 'echo', args: {} },
@@ -65,7 +85,7 @@ describe('runOrchestration', () => {
 
   test('should retry then succeed when step has onError: retry and maxRetries: 2', async () => {
     let callCount = 0;
-    (skillsDispatch.dispatchSkill as ReturnType<typeof mock>).mockImplementation(async (_name: string, args: any) => {
+    dispatchSpy.mockImplementation(async (_name: string, args: any) => {
       callCount++;
       if (callCount === 1) {
         return { ok: false, error: new Error('transient failure') };
@@ -84,7 +104,7 @@ describe('runOrchestration', () => {
   });
 
   test('should skip failed step and continue when step has onError: skip', async () => {
-    (skillsDispatch.dispatchSkill as ReturnType<typeof mock>).mockImplementation(async (name: string, args: any) => {
+    dispatchSpy.mockImplementation(async (name: string, args: any) => {
       if (name === 'failing-skill') {
         return { ok: false, error: new Error('skill error') };
       }
@@ -105,7 +125,7 @@ describe('runOrchestration', () => {
   });
 
   test('should fail with status failed when steps form a circular dependency', async () => {
-    (skillsDispatch.dispatchSkill as ReturnType<typeof mock>).mockImplementation(async (_name: string, args: any) => ({
+    dispatchSpy.mockImplementation(async (_name: string, args: any) => ({
       ok: true,
       value: { echo: args },
     }));
@@ -123,7 +143,7 @@ describe('runOrchestration', () => {
 
   test('should fail step after exhausting all retries when every attempt fails', async () => {
     let callCount = 0;
-    (skillsDispatch.dispatchSkill as ReturnType<typeof mock>).mockImplementation(async () => {
+    dispatchSpy.mockImplementation(async () => {
       callCount++;
       return { ok: false, error: new Error('always fails') };
     });

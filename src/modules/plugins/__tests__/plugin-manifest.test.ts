@@ -1,15 +1,9 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, mock, spyOn, afterAll } from 'bun:test';
 import { PluginManager, type PluginManifest } from '../plugin-manifest';
+import { skillRegistry } from '../../skills/skills.registry';
+import { lifecycleHooks } from '../../../core/hooks/hook-registry';
 
-// Mock dependencies
-mock.module('../../skills/skills.registry', () => ({
-  skillRegistry: { register: mock(() => {}), unregister: mock(() => {}) },
-}));
-
-mock.module('../../../core/hooks/hook-registry', () => ({
-  lifecycleHooks: { register: mock(() => {}), unregister: mock(() => {}), clear: mock(() => {}) },
-}));
-
+// Mock only the modules with external dependencies (DB)
 mock.module('../../../core/config/scoped-config', () => ({
   scopedConfig: { set: mock(() => {}), delete: mock(() => {}) },
 }));
@@ -17,6 +11,19 @@ mock.module('../../../core/config/scoped-config', () => ({
 mock.module('../../../config/logger', () => ({
   logger: { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} },
 }));
+
+// Use spyOn so we don't replace the real registry module for downstream tests
+const registerSkillSpy = spyOn(skillRegistry, 'register').mockReturnValue(undefined as any);
+const unregisterSkillSpy = spyOn(skillRegistry, 'unregister').mockReturnValue(undefined as any);
+const registerHookSpy = spyOn(lifecycleHooks, 'register').mockReturnValue(undefined as any);
+const unregisterHookSpy = spyOn(lifecycleHooks, 'unregister').mockReturnValue(undefined as any);
+
+afterAll(() => {
+  registerSkillSpy.mockRestore();
+  unregisterSkillSpy.mockRestore();
+  registerHookSpy.mockRestore();
+  unregisterHookSpy.mockRestore();
+});
 
 describe('PluginManager', () => {
   let manager: PluginManager;
@@ -39,6 +46,10 @@ describe('PluginManager', () => {
 
   beforeEach(() => {
     manager = new PluginManager();
+    registerSkillSpy.mockClear();
+    unregisterSkillSpy.mockClear();
+    registerHookSpy.mockClear();
+    unregisterHookSpy.mockClear();
   });
 
   it('installs a plugin and returns cleanup', async () => {
