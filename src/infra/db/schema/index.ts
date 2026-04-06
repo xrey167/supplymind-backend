@@ -396,6 +396,53 @@ export const notificationPreferences = pgTable('notification_preferences', {
   uniqueIndex('np_user_workspace_type_idx').on(t.userId, t.workspaceId, t.type),
 ]);
 
+// User settings (key-value per user)
+export const userSettings = pgTable('user_settings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id').notNull(),
+  key: text('key').notNull(),
+  value: jsonb('value').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  uniqueIndex('us_user_key_idx').on(t.userId, t.key),
+]);
+
+// Credentials (encrypted API keys for AI providers / MCP servers)
+export const credentialProviderEnum = pgEnum('credential_provider', ['anthropic', 'openai', 'google', 'custom']);
+
+export const credentials = pgTable('credentials', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  provider: credentialProviderEnum('provider').notNull(),
+  encryptedValue: text('encrypted_value').notNull(),
+  iv: text('iv').notNull(),
+  tag: text('tag').notNull(),
+  metadata: jsonb('metadata').default({}),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  index('credentials_workspace_id_idx').on(t.workspaceId),
+]);
+
+// Audit logs (append-only)
+export const auditLogs = pgTable('audit_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  actorId: text('actor_id').notNull(),
+  actorType: text('actor_type').notNull(), // user | agent | system | api_key
+  action: text('action').notNull(),
+  resourceType: text('resource_type').notNull(),
+  resourceId: text('resource_id'),
+  metadata: jsonb('metadata').default({}),
+  ipAddress: text('ip_address'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (t) => [
+  index('audit_logs_workspace_created_idx').on(t.workspaceId, t.createdAt),
+  index('audit_logs_actor_idx').on(t.actorId),
+]);
+
 // Registered A2A agents (persistent registry)
 export const registeredAgents = pgTable('registered_agents', {
   id: uuid('id').primaryKey().defaultRandom(),

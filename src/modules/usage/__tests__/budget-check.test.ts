@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
 
 const mockTotalCost = mock(() => Promise.resolve(0));
 const mockGetTokenBudget = mock(() => Promise.resolve(null));
@@ -13,11 +13,6 @@ mock.module('../usage.repo', () => ({
   },
 }));
 
-mock.module('../pricing', () => ({
-  calculateCost: () => 0,
-  resolveProvider: () => 'anthropic',
-}));
-
 mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
   workspaceSettingsService: {
     getTokenBudget: mockGetTokenBudget,
@@ -25,6 +20,9 @@ mock.module('../../settings/workspace-settings/workspace-settings.service', () =
 }));
 
 import { usageService } from '../usage.service';
+import * as pricingModule from '../pricing';
+const calcCostSpy = spyOn(pricingModule, 'calculateCost').mockReturnValue(0);
+afterAll(() => { calcCostSpy.mockRestore(); });
 
 describe('usageService.checkBudget', () => {
   beforeEach(() => {

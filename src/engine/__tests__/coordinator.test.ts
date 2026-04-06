@@ -1,23 +1,24 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
 import type { CoordinatorRunInput } from '../coordinator';
+import { taskManager } from '../../infra/a2a/task-manager';
+import { eventBus } from '../../events/bus';
+import { CoordinatorMode } from '../coordinator';
 
-// Mock taskManager before import
-const mockSend = mock(async () => ({
+const mockSend = spyOn(taskManager, 'send').mockResolvedValue({
   id: 'task-1',
   status: { state: 'completed' as const },
   artifacts: [{ name: 'out', parts: [{ kind: 'text', text: 'result' }] }],
   history: [],
-}));
+} as any);
 
-mock.module('../../infra/a2a/task-manager', () => ({
-  taskManager: { send: mockSend },
-}));
+const publishSpy = spyOn(eventBus, 'publish').mockResolvedValue({
+  id: 'e', topic: '', data: {}, source: '', timestamp: '',
+} as any);
 
-mock.module('../../events/bus', () => ({
-  eventBus: { publish: mock(async () => ({ id: 'e', topic: '', data: {}, source: '', timestamp: '' })) },
-}));
-
-const { CoordinatorMode } = await import('../coordinator');
+afterAll(() => {
+  mockSend.mockRestore();
+  publishSpy.mockRestore();
+});
 
 const BASE_INPUT: CoordinatorRunInput = {
   workspaceId: 'ws-1',
@@ -36,6 +37,12 @@ const BASE_INPUT: CoordinatorRunInput = {
 describe('CoordinatorMode', () => {
   beforeEach(() => {
     mockSend.mockClear();
+    mockSend.mockResolvedValue({
+      id: 'task-1',
+      status: { state: 'completed' as const },
+      artifacts: [{ name: 'out', parts: [{ kind: 'text', text: 'result' }] }],
+      history: [],
+    } as any);
   });
 
   it('runs all phases and returns completed', async () => {
@@ -56,9 +63,8 @@ describe('CoordinatorMode', () => {
     const order: string[] = [];
     mockSend.mockImplementation(async (params) => {
       order.push(params.agentConfig.id);
-      return { id: 'task-1', status: { state: 'completed' as const }, artifacts: [], history: [] };
+      return { id: 'task-1', status: { state: 'completed' as const }, artifacts: [], history: [] } as any;
     });
-
     const input: CoordinatorRunInput = {
       workspaceId: 'ws-1',
       phases: [
@@ -66,24 +72,20 @@ describe('CoordinatorMode', () => {
         { id: 'p2', label: 'Phase 2', tasks: [{ name: 't2', agentId: 'a2', message: { role: 'user', parts: [] } }] },
       ],
     };
-
     const coordinator = new CoordinatorMode();
     const result = await coordinator.run(input);
     expect(result.phases).toHaveLength(2);
-    // p1 task dispatched before p2 task
     expect(order[0]).toBe('a1');
     expect(order[1]).toBe('a2');
   });
 
   it('produces partial handoff on timeout when allowPartialHandoff=true', async () => {
-    // Use injectable setTimeout that fires immediately
     let timerFired = false;
     const fastTimeout: typeof setTimeout = ((fn: () => void) => {
-      fn(); // fire immediately to simulate timeout
+      fn();
       timerFired = true;
       return 1 as unknown as ReturnType<typeof setTimeout>;
     }) as typeof setTimeout;
-
     const input: CoordinatorRunInput = {
       workspaceId: 'ws-1',
       allowPartialHandoff: true,
@@ -92,12 +94,10 @@ describe('CoordinatorMode', () => {
         { id: 'p1', label: 'Timeout Phase', timeoutMs: 1, tasks: [{ name: 't1', agentId: 'a1', message: { role: 'user', parts: [] } }] },
       ],
     };
-
     const coordinator = new CoordinatorMode();
     const result = await coordinator.run(input);
-    // Should still complete overall (partial handoff)
     expect(result.status).toBe('completed');
-    expect(result.phases[0].status).toBe('failed'); // all tasks failed due to timeout
+    expect(result.phases[0].status).toBe('failed');
   });
 
   it('stops on phase failure when allowPartialHandoff=false', async () => {
@@ -106,8 +106,7 @@ describe('CoordinatorMode', () => {
       status: { state: 'failed' as const },
       artifacts: [],
       history: [],
-    }));
-
+    } as any));
     const input: CoordinatorRunInput = {
       workspaceId: 'ws-1',
       allowPartialHandoff: false,
@@ -116,11 +115,9 @@ describe('CoordinatorMode', () => {
         { id: 'p2', label: 'Phase 2', tasks: [{ name: 't2', agentId: 'a2', message: { role: 'user', parts: [] } }] },
       ],
     };
-
     const coordinator = new CoordinatorMode();
     const result = await coordinator.run(input);
     expect(result.status).toBe('failed');
-    // Should not have run phase 2
     expect(result.phases).toHaveLength(1);
   });
 });

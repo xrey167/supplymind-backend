@@ -19,7 +19,13 @@ mock.module('../gateway-stream', () => ({
 
 
 mock.module('../../../modules/skills/skills.registry', () => ({
-  skillRegistry: { register: mock(() => {}), unregister: mock(() => {}) },
+  skillRegistry: {
+    register: mock(() => {}),
+    unregister: mock(() => {}),
+    toToolDefinitions: mock(() => []),
+    list: mock(() => []),
+    get: mock(() => undefined),
+  },
 }));
 
 const { GatewayClient, createGatewayClient } = await import('../gateway-client');

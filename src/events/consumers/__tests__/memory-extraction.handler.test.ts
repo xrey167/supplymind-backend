@@ -1,31 +1,24 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
+import { eventBus } from '../../bus';
+import { taskRepo } from '../../../infra/a2a/task-repo';
+import { memoryService } from '../../../modules/memory/memory.service';
 
-// Mock dependencies before importing the handler
-const mockFindRawById = mock(() => Promise.resolve(null));
-const mockPropose = mock(() => Promise.resolve({ id: 'p-1' }));
+// Mock taskRepo and memoryService via spyOn to avoid polluting other test files
+const mockFindRawById = spyOn(taskRepo, 'findRawById').mockResolvedValue(null as any);
+const mockPropose = spyOn(memoryService, 'propose').mockResolvedValue({ id: 'p-1' } as any);
 
-mock.module('../../../infra/a2a/task-repo', () => ({
-  taskRepo: { findRawById: mockFindRawById },
-}));
-
-mock.module('../../../modules/memory/memory.service', () => ({
-  memoryService: { propose: mockPropose },
-}));
-
-// Capture event subscriptions
+// Capture event subscriptions via spyOn so the real bus still works in other tests
 const handlers = new Map<string, Function>();
-mock.module('../../bus', () => ({
-  eventBus: {
-    subscribe: (topic: string, handler: Function) => {
-      handlers.set(topic, handler);
-    },
-    publish: mock(() => {}),
-  },
-}));
+const subscribeSpy = spyOn(eventBus, 'subscribe').mockImplementation((topic: string, handler: any) => {
+  handlers.set(topic, handler);
+  return () => {};
+});
 
-mock.module('../../topics', () => ({
-  Topics: { TASK_COMPLETED: 'task.completed' },
-}));
+afterAll(() => {
+  mockFindRawById.mockRestore();
+  mockPropose.mockRestore();
+  subscribeSpy.mockRestore();
+});
 
 import { initMemoryExtractionHandler, _resetMemoryExtractionHandler } from '../memory-extraction.handler';
 
@@ -63,7 +56,7 @@ describe('memory extraction handler', () => {
       expect.objectContaining({
         workspaceId: 'ws-1',
         agentId: 'agent-1',
-        type: 'reference', // user-scoped facts get type 'reference'
+        type: 'reference',
         title: 'user_name',
         content: 'Alex',
         evidence: 'Auto-extracted (scope: user) from task task-1',
@@ -74,11 +67,9 @@ describe('memory extraction handler', () => {
 
   it('skips when task not found', async () => {
     mockFindRawById.mockResolvedValueOnce(null);
-
     initMemoryExtractionHandler();
     const handler = handlers.get('task.completed')!;
     await handler({ data: { taskId: 'missing' } });
-
     expect(mockPropose).not.toHaveBeenCalled();
   });
 
@@ -92,11 +83,9 @@ describe('memory extraction handler', () => {
         { role: 'user', parts: [{ kind: 'text', text: 'hello' }] },
       ],
     });
-
     initMemoryExtractionHandler();
     const handler = handlers.get('task.completed')!;
     await handler({ data: { taskId: 'task-2' } });
-
     expect(mockPropose).not.toHaveBeenCalled();
   });
 });

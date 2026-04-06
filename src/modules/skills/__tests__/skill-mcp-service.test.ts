@@ -1,48 +1,25 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
+import { skillsRepo } from '../skills.repo';
+import { SkillsService } from '../skills.service';
 
 // ---------- Mocks ----------
 
-const mockFindById = mock(async (_id: string) => undefined as any);
-const mockGetMcpConfig = mock(async (_id: string) => null as any);
-const mockSetMcpConfig = mock(async (_id: string, _cfg: unknown) => {});
+const mockFindById = spyOn(skillsRepo, 'findById').mockResolvedValue(undefined as any);
+const mockGetMcpConfig = spyOn(skillsRepo, 'getMcpConfig').mockResolvedValue(null as any);
+const mockSetMcpConfig = spyOn(skillsRepo, 'setMcpConfig').mockResolvedValue(undefined as any);
 
-mock.module('../skills.repo', () => ({
-  skillsRepo: {
-    findById: mockFindById,
-    getMcpConfig: mockGetMcpConfig,
-    setMcpConfig: mockSetMcpConfig,
-    findGlobal: mock(async () => []),
-  },
-}));
-
-// Stub out providers so loadSkills() is a no-op
-mock.module('../providers/builtin.provider', () => ({
-  BuiltinSkillProvider: class { async loadSkills() { return []; } },
-}));
-mock.module('../providers/collaboration.provider', () => ({
-  CollaborationSkillProvider: class { async loadSkills() { return []; } },
-}));
-mock.module('../providers/workflow.provider', () => ({
-  WorkflowSkillProvider: class { async loadSkills() { return []; } },
-}));
-mock.module('../skills.registry', () => ({
-  skillRegistry: {
-    loadFromProviders: mock(async () => {}),
-    register: mock(() => {}),
-    list: mock(() => []),
-  },
-}));
-mock.module('../../tools/tools.service', () => ({ toolsService: { toSkill: mock(() => ({})) } }));
-mock.module('../skills.dispatch', () => ({ dispatchSkill: mock(async () => ({ ok: true, value: null })) }));
-
-const { SkillsService } = await import('../skills.service');
+afterAll(() => {
+  mockFindById.mockRestore();
+  mockGetMcpConfig.mockRestore();
+  mockSetMcpConfig.mockRestore();
+});
 
 const VALID_CONFIG = {
   analytics: { type: 'streamable-http' as const, url: 'http://localhost:4000' },
 };
 
 describe('SkillsService — MCP config', () => {
-  let service: InstanceType<typeof SkillsService>;
+  let service: SkillsService;
 
   beforeEach(() => {
     service = new SkillsService();
@@ -53,8 +30,8 @@ describe('SkillsService — MCP config', () => {
 
   describe('getMcpConfig', () => {
     it('returns null when skill has no mcp_config stored', async () => {
-      mockFindById.mockImplementationOnce(async () => ({ id: 'skill-1', workspaceId: 'ws-1' }));
-      mockGetMcpConfig.mockImplementationOnce(async () => null);
+      mockFindById.mockResolvedValueOnce({ id: 'skill-1', workspaceId: 'ws-1' } as any);
+      mockGetMcpConfig.mockResolvedValueOnce(null);
 
       const result = await service.getMcpConfig('ws-1', 'skill-1');
       expect(result.ok).toBe(true);
@@ -62,8 +39,8 @@ describe('SkillsService — MCP config', () => {
     });
 
     it('returns err when stored config is invalid (safeParse fails)', async () => {
-      mockFindById.mockImplementationOnce(async () => ({ id: 'skill-1', workspaceId: 'ws-1' }));
-      mockGetMcpConfig.mockImplementationOnce(async () => ({ bad: { type: 'grpc' } }));
+      mockFindById.mockResolvedValueOnce({ id: 'skill-1', workspaceId: 'ws-1' } as any);
+      mockGetMcpConfig.mockResolvedValueOnce({ bad: { type: 'grpc' } } as any);
 
       const result = await service.getMcpConfig('ws-1', 'skill-1');
       expect(result.ok).toBe(false);
@@ -71,22 +48,22 @@ describe('SkillsService — MCP config', () => {
     });
 
     it('returns err when skill not found', async () => {
-      mockFindById.mockImplementationOnce(async () => undefined);
+      mockFindById.mockResolvedValueOnce(undefined);
 
       const result = await service.getMcpConfig('ws-1', 'skill-missing');
       expect(result.ok).toBe(false);
     });
 
     it('returns err when skill belongs to different workspace', async () => {
-      mockFindById.mockImplementationOnce(async () => ({ id: 'skill-1', workspaceId: 'ws-other' }));
+      mockFindById.mockResolvedValueOnce({ id: 'skill-1', workspaceId: 'ws-other' } as any);
 
       const result = await service.getMcpConfig('ws-1', 'skill-1');
       expect(result.ok).toBe(false);
     });
 
     it('allows any workspace to read a global skill (null workspaceId)', async () => {
-      mockFindById.mockImplementationOnce(async () => ({ id: 'skill-global', workspaceId: null }));
-      mockGetMcpConfig.mockImplementationOnce(async () => VALID_CONFIG);
+      mockFindById.mockResolvedValueOnce({ id: 'skill-global', workspaceId: null } as any);
+      mockGetMcpConfig.mockResolvedValueOnce(VALID_CONFIG as any);
 
       const result = await service.getMcpConfig('ws-anything', 'skill-global');
       expect(result.ok).toBe(true);
@@ -95,7 +72,7 @@ describe('SkillsService — MCP config', () => {
 
   describe('setMcpConfig', () => {
     it('saves config for a workspace-owned skill', async () => {
-      mockFindById.mockImplementationOnce(async () => ({ id: 'skill-1', workspaceId: 'ws-1' }));
+      mockFindById.mockResolvedValueOnce({ id: 'skill-1', workspaceId: 'ws-1' } as any);
 
       const result = await service.setMcpConfig('ws-1', 'skill-1', VALID_CONFIG);
       expect(result.ok).toBe(true);
@@ -103,7 +80,7 @@ describe('SkillsService — MCP config', () => {
     });
 
     it('returns err for global skill (null workspaceId) — cannot mutate shared state', async () => {
-      mockFindById.mockImplementationOnce(async () => ({ id: 'skill-global', workspaceId: null }));
+      mockFindById.mockResolvedValueOnce({ id: 'skill-global', workspaceId: null } as any);
 
       const result = await service.setMcpConfig('ws-1', 'skill-global', VALID_CONFIG);
       expect(result.ok).toBe(false);
@@ -112,7 +89,7 @@ describe('SkillsService — MCP config', () => {
     });
 
     it('returns err when skill belongs to different workspace', async () => {
-      mockFindById.mockImplementationOnce(async () => ({ id: 'skill-1', workspaceId: 'ws-other' }));
+      mockFindById.mockResolvedValueOnce({ id: 'skill-1', workspaceId: 'ws-other' } as any);
 
       const result = await service.setMcpConfig('ws-1', 'skill-1', VALID_CONFIG);
       expect(result.ok).toBe(false);
@@ -120,7 +97,7 @@ describe('SkillsService — MCP config', () => {
     });
 
     it('returns err when skill not found', async () => {
-      mockFindById.mockImplementationOnce(async () => undefined);
+      mockFindById.mockResolvedValueOnce(undefined);
 
       const result = await service.setMcpConfig('ws-1', 'skill-missing', VALID_CONFIG);
       expect(result.ok).toBe(false);
