@@ -1,5 +1,5 @@
 import { McpClient } from './client';
-import type { SkillMcpServerEntry, McpToolDef, McpResourceDef, McpPromptDef } from './types';
+import type { SkillMcpServerEntry, McpToolDef, McpResourceDef, McpPromptDef, McpServerConfig } from './types';
 
 /**
  * Manages lazy MCP client connections scoped to individual skills.
@@ -10,26 +10,22 @@ import type { SkillMcpServerEntry, McpToolDef, McpResourceDef, McpPromptDef } fr
  */
 export class SkillEmbeddedMcpManager {
   private clients = new Map<string, McpClient>();
+  private inFlight = new Map<string, Promise<McpClient>>();
 
   private poolKey(workspaceId: string, skillId: string, mcpName: string): string {
     return `${workspaceId}:${skillId}:${mcpName}`;
   }
 
-  private entryToConfig(mcpName: string, entry: SkillMcpServerEntry) {
-    return {
-      id: mcpName,
-      workspaceId: null as string | null,
-      name: mcpName,
-      transport: entry.type === 'stdio' ? 'stdio' as const
-               : entry.type === 'sse'   ? 'sse' as const
-               : 'streamable-http' as const,
-      url:     (entry as any).url,
-      command: (entry as any).command,
-      args:    (entry as any).args,
-      env:     (entry as any).env,
-      headers: (entry as any).headers,
-      enabled: true,
-    };
+  private entryToConfig(mcpName: string, entry: SkillMcpServerEntry): McpServerConfig {
+    const base = { id: mcpName, workspaceId: null as string | null, name: mcpName, enabled: true };
+    switch (entry.type) {
+      case 'streamable-http':
+        return { ...base, transport: 'streamable-http' as const, url: entry.url, headers: entry.headers };
+      case 'sse':
+        return { ...base, transport: 'sse' as const, url: entry.url, headers: entry.headers };
+      case 'stdio':
+        return { ...base, transport: 'stdio' as const, command: entry.command, args: entry.args, env: entry.env };
+    }
   }
 
   private async getOrCreate(
@@ -42,11 +38,20 @@ export class SkillEmbeddedMcpManager {
     const existing = this.clients.get(key);
     if (existing?.isConnected()) return existing;
 
-    const config = this.entryToConfig(mcpName, entry);
-    const client = new McpClient(config as any);
-    await client.connect();
-    this.clients.set(key, client);
-    return client;
+    const inflight = this.inFlight.get(key);
+    if (inflight) return inflight;
+
+    const promise = (async () => {
+      const config = this.entryToConfig(mcpName, entry);
+      const client = new McpClient(config);
+      await client.connect();
+      this.clients.set(key, client);
+      this.inFlight.delete(key);
+      return client;
+    })();
+
+    this.inFlight.set(key, promise);
+    return promise;
   }
 
   async listTools(
@@ -126,6 +131,7 @@ export class SkillEmbeddedMcpManager {
   }
 
   async disconnectAll(): Promise<void> {
+    this.inFlight.clear();
     for (const client of this.clients.values()) {
       try { await client.disconnect(); } catch { /* best-effort */ }
     }

@@ -79,6 +79,11 @@ SkillsRoutes.openapi(getMcpConfigRoute, async (c) => {
 SkillsRoutes.openapi(setMcpConfigRoute, async (c) => {
   const { skillId } = c.req.valid('param');
   const workspaceId = c.get('workspaceId') ?? 'default';
+  const callerRole = c.get('callerRole') ?? c.get('role');
+  const allowedRoles = [Roles.ADMIN, 'owner'];
+  if (!callerRole || !allowedRoles.includes(callerRole)) {
+    return c.json({ error: 'Insufficient permissions: admin or owner role required to configure skill MCP servers' }, 403);
+  }
   const config = c.req.valid('json');
   const result = await skillsService.setMcpConfig(workspaceId, skillId, config);
   if (!result.ok) {

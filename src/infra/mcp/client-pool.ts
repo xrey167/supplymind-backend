@@ -82,7 +82,7 @@ export class McpClientPool {
   cleanupIdle(idleThresholdMs: number): void {
     const now = Date.now();
     for (const [id, client] of this.clients) {
-      if (now - client.lastUsedAt > idleThresholdMs) {
+      if (now - client.lastUsedAt >= idleThresholdMs) {
         client.disconnect().catch(() => {});
         this.clients.delete(id);
       }
