@@ -12,15 +12,11 @@ export class McpClientPool {
     const existing = this.clients.get(config.id);
     if (existing?.isConnected()) return existing;
 
-    const client = new McpClient(config);
-    if (client.isConnected()) {
-      this.clients.set(config.id, client);
-      return client;
-    }
     let lastError: Error = new Error('Unknown error');
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
+        const client = new McpClient(config);
         await client.connect();
         this.clients.set(config.id, client);
         return client;

@@ -91,7 +91,8 @@ describe('McpClientPool', () => {
       await pool.listTools(cfg());
       await pool.listTools(cfg());
 
-      expect(mockConnect.mock.calls.length).toBe(0);
+      // First call connects once; second call hits the cached client (isConnected=true), no extra connects
+      expect(mockConnect.mock.calls.length).toBe(1);
     });
   });
 
@@ -105,6 +106,8 @@ describe('McpClientPool', () => {
       pool.cleanupIdle(5 * 60 * 1000);
 
       expect(mockDisconnect.mock.calls.length).toBe(1);
+      // Assert the client is removed from the pool map
+      await expect(pool.readResource('srv-1', 'file:///x')).rejects.toThrow('No MCP client');
     });
 
     it('keeps clients that are not idle', async () => {
