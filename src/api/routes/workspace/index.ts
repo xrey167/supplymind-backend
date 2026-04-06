@@ -18,6 +18,7 @@ import { workspaceSettingsRoutes } from '../../../modules/settings/workspace-set
 import { ApiKeysRoutes } from '../../../modules/api-keys';
 import { usageRoutes } from '../../../modules/usage/usage.routes';
 import { FeatureFlagsRoutes } from '../../../modules/feature-flags/feature-flags.routes';
+import { MembersRoutes } from '../../../modules/members';
 
 const workspaceRoutes = new OpenAPIHono();
 
@@ -43,5 +44,6 @@ workspaceRoutes.route('/settings', workspaceSettingsRoutes);
 workspaceRoutes.route('/api-keys', ApiKeysRoutes);
 workspaceRoutes.route('/usage', usageRoutes);
 workspaceRoutes.route('/feature-flags', FeatureFlagsRoutes);
+workspaceRoutes.route('/members', MembersRoutes);
 
 export { workspaceRoutes };

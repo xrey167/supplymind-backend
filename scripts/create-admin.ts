@@ -8,9 +8,10 @@
  * Outputs the workspace ID and API key to stdout. Safe to run multiple times
  * (uses upsert / idempotent inserts where possible).
  */
+import { workspacesRepo } from '../src/modules/workspaces/workspaces.repo';
+import { membersRepo } from '../src/modules/members/members.repo';
 import { db } from '../src/infra/db/client';
-import { workspaces, workspaceMembers, apiKeys } from '../src/infra/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { apiKeys } from '../src/infra/db/schema';
 import { randomBytes, createHash } from 'crypto';
 
 const args = Object.fromEntries(
@@ -27,32 +28,22 @@ const userId = args['user-id'] ?? 'dev-admin';
 console.log(`\nCreating admin workspace "${workspaceName}" for user "${userId}"...\n`);
 
 // 1. Upsert workspace
-let [workspace] = await db.select().from(workspaces)
-  .where(eq(workspaces.slug, workspaceSlug))
-  .limit(1);
+let workspace = await workspacesRepo.findBySlug(workspaceSlug);
 
 if (!workspace) {
-  [workspace] = await db.insert(workspaces)
-    .values({ name: workspaceName, slug: workspaceSlug, createdBy: userId })
-    .returning();
-  console.log(`  ✓ Workspace created: ${workspace!.id}`);
+  workspace = await workspacesRepo.create({ name: workspaceName, slug: workspaceSlug, createdBy: userId });
+  console.log(`  ✓ Workspace created: ${workspace.id}`);
 } else {
   console.log(`  ✓ Workspace exists:  ${workspace.id}`);
 }
 
-const workspaceId = workspace!.id;
+const workspaceId = workspace.id;
 
 // 2. Upsert membership (owner role)
-const [existing] = await db.select().from(workspaceMembers)
-  .where(and(
-    eq(workspaceMembers.workspaceId, workspaceId),
-    eq(workspaceMembers.userId, userId),
-  ))
-  .limit(1);
+const existing = await membersRepo.findMember(workspaceId, userId);
 
 if (!existing) {
-  await db.insert(workspaceMembers)
-    .values({ workspaceId, userId, role: 'owner', invitedBy: userId });
+  await membersRepo.addMember(workspaceId, userId, 'owner', userId);
   console.log(`  ✓ Membership created: ${userId} → owner`);
 } else {
   console.log(`  ✓ Membership exists:  ${userId} → ${existing.role}`);
