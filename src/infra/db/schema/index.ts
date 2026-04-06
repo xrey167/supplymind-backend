@@ -443,6 +443,25 @@ export const auditLogs = pgTable('audit_logs', {
   index('audit_logs_actor_idx').on(t.actorId),
 ]);
 
+// Prompts
+export const prompts = pgTable('prompts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  content: text('content').notNull(),
+  variables: jsonb('variables').default([]),
+  tags: jsonb('tags').default([]),
+  version: integer('version').notNull().default(1),
+  isActive: boolean('is_active').notNull().default(true),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  uniqueIndex('prompts_workspace_name_version_idx').on(t.workspaceId, t.name, t.version),
+  index('prompts_workspace_id_idx').on(t.workspaceId),
+]);
+
 // Registered A2A agents (persistent registry)
 export const registeredAgents = pgTable('registered_agents', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -456,4 +475,23 @@ export const registeredAgents = pgTable('registered_agents', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex('registered_agents_workspace_url_idx').on(t.workspaceId, t.url),
+]);
+
+// Inbox items (unified workspace activity feed)
+export const inboxItems = pgTable('inbox_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  userId: text('user_id'),
+  type: text('type').notNull(), // notification | task_update | system | alert
+  title: text('title').notNull(),
+  body: text('body'),
+  metadata: jsonb('metadata').default({}),
+  sourceType: text('source_type'), // task | agent | billing | system
+  sourceId: text('source_id'),
+  read: boolean('read').notNull().default(false),
+  pinned: boolean('pinned').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (t) => [
+  index('inbox_items_user_workspace_idx').on(t.userId, t.workspaceId),
+  index('inbox_items_workspace_created_idx').on(t.workspaceId, t.createdAt),
 ]);
