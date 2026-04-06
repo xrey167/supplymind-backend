@@ -31,7 +31,16 @@ export type HookEvent =
   | 'agent_start'
   | 'agent_stop'
   | 'session_start'
-  | 'session_end';
+  | 'session_end'
+  | 'pre_compact'
+  | 'post_compact'
+  | 'permission_denied'
+  | 'subagent_start'
+  | 'subagent_stop'
+  | 'memory_extracted'
+  | 'workflow_gate'
+  | 'tool_discovery'
+  | 'domain_registered';
 
 // ---------------------------------------------------------------------------
 // Typed payloads per event — customers get type safety on what they receive
@@ -52,6 +61,16 @@ export interface HookPayloadMap {
   agent_stop: { agentId: string; taskId?: string; reason?: string };
   session_start: { sessionId: string };
   session_end: { sessionId: string; reason?: string };
+  // New events (9)
+  pre_compact: { sessionId: string; messageCount: number; workspaceId: string };
+  post_compact: { sessionId: string; removedCount: number; workspaceId: string };
+  permission_denied: { userId: string; workspaceId: string; reason: string };
+  subagent_start: { parentAgentId: string; subagentId: string; workspaceId: string };
+  subagent_stop: { parentAgentId: string; subagentId: string; workspaceId: string; durationMs?: number };
+  memory_extracted: { sessionId: string; workspaceId: string; scope: 'user' | 'workspace' | 'global'; factCount: number };
+  workflow_gate: { orchestrationId: string; gateId: string; workspaceId: string };
+  tool_discovery: { toolName: string; workspaceId: string; deferred: boolean };
+  domain_registered: { domainName: string; workspaceId: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -124,11 +143,43 @@ interface StoredHook {
 // Registry
 // ---------------------------------------------------------------------------
 
-class LifecycleHookRegistry {
+// ---------------------------------------------------------------------------
+// Simple typed handler type for on/off/emit API
+// ---------------------------------------------------------------------------
+
+export type SimpleHookHandler<E extends HookEvent> = (payload: HookPayloadMap[E]) => Promise<void>;
+
+export class LifecycleHookRegistry {
+  /** Simple on/off/emit handler map */
+  private simpleHandlers = new Map<HookEvent, Set<SimpleHookHandler<any>>>();
+
   /** Global hooks (fire for all workspaces) */
   private globalHooks: StoredHook[] = [];
   /** Per-workspace hooks */
   private workspaceHooks = new Map<string, StoredHook[]>();
+
+  // ---------------------------------------------------------------------------
+  // Simple on/off/emit API (for lightweight usage without HookContext)
+  // ---------------------------------------------------------------------------
+
+  on<E extends HookEvent>(event: E, handler: SimpleHookHandler<E>): void {
+    if (!this.simpleHandlers.has(event)) this.simpleHandlers.set(event, new Set());
+    this.simpleHandlers.get(event)!.add(handler);
+  }
+
+  off<E extends HookEvent>(event: E, handler: SimpleHookHandler<E>): void {
+    this.simpleHandlers.get(event)?.delete(handler);
+  }
+
+  async emit<E extends HookEvent>(event: E, payload: HookPayloadMap[E]): Promise<void> {
+    const handlers = this.simpleHandlers.get(event);
+    if (!handlers || handlers.size === 0) return;
+    await Promise.all([...handlers].map(h => h(payload)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Full register/run/notify API (workspace-scoped, with HookContext)
+  // ---------------------------------------------------------------------------
 
   /**
    * Register a hook globally (fires for all workspaces).
@@ -245,6 +296,7 @@ class LifecycleHookRegistry {
   clear(): void {
     this.globalHooks = [];
     this.workspaceHooks.clear();
+    this.simpleHandlers.clear();
   }
 
   private getHooksForEvent(event: HookEvent, workspaceId: string): StoredHook[] {
