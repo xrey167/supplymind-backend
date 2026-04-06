@@ -47,6 +47,6 @@ export interface McpToolManifest {
 export type SkillMcpConfig = Record<string, SkillMcpServerEntry>;
 
 export type SkillMcpServerEntry =
-  | { type: 'http'; url: string; headers?: Record<string, string> }
+  | { type: 'streamable-http'; url: string; headers?: Record<string, string> }
   | { type: 'stdio'; command: string; args?: string[]; env?: Record<string, string> }
   | { type: 'sse'; url: string; headers?: Record<string, string> };
