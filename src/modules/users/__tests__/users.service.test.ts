@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
 
 // ---- Mocks ----------------------------------------------------------------
 
@@ -13,8 +13,6 @@ const mockUpsert = mock(async () => ({
 }));
 const mockDelete = mock(async () => {});
 const mockPublish = mock(() => {});
-const mockFindByUserId = mock(async () => []);
-const mockCountOwners = mock(async () => 2);
 
 mock.module('../../../infra/db/client', () => ({ db: {} }));
 mock.module('../../../infra/db/schema', () => ({ users: {} }));
@@ -32,18 +30,24 @@ mock.module('../../../config/logger', () => ({
   logger: { warn: mock(() => {}), debug: mock(() => {}) },
 }));
 
-mock.module('../../members/members.repo', () => ({
-  membersRepo: { findByUserId: mockFindByUserId, countOwners: mockCountOwners },
-}));
-
-mock.module('../../workspaces/workspaces.repo', () => ({
-  workspacesRepo: { softDelete: mock(async () => {}) },
-}));
-
 // ---- Import after mocks ---------------------------------------------------
 
 import { usersService } from '../users.service';
 import { Topics } from '../../../events/topics';
+import { membersRepo } from '../../members/members.repo';
+import { workspacesRepo } from '../../workspaces/workspaces.repo';
+
+// ---- Cross-module spies (restored in afterAll to avoid pollution) ---------
+
+const findByUserIdSpy = spyOn(membersRepo, 'findByUserId').mockResolvedValue([]);
+const countOwnersSpy = spyOn(membersRepo, 'countOwners').mockResolvedValue(2);
+const softDeleteSpy = spyOn(workspacesRepo, 'softDelete').mockResolvedValue(undefined as any);
+
+afterAll(() => {
+  findByUserIdSpy.mockRestore();
+  countOwnersSpy.mockRestore();
+  softDeleteSpy.mockRestore();
+});
 
 // ---- Helpers ---------------------------------------------------------------
 
@@ -69,7 +73,9 @@ describe('UsersService.syncFromClerk', () => {
     mockUpsert.mockClear();
     mockDelete.mockClear();
     mockPublish.mockClear();
-    mockFindByUserId.mockClear();
+    findByUserIdSpy.mockClear();
+    countOwnersSpy.mockClear();
+    softDeleteSpy.mockClear();
   });
 
   it('user.created — calls upsert and publishes USER_SYNCED', async () => {

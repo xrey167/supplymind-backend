@@ -14,8 +14,12 @@ const publishedEvents: { topic: string; data: any }[] = [];
 // bun's mock.module resolves specifiers as they appear in the source
 mock.module('../../../events/bus', () => ({
   eventBus: {
-    publish: (topic: string, data: any) => { publishedEvents.push({ topic, data }); },
+    publish: (topic: string, data: any) => { publishedEvents.push({ topic, data }); return Promise.resolve({ id: 'evt-1', topic, data, source: '', timestamp: '' }); },
   },
+}));
+
+mock.module('../../../config/logger', () => ({
+  logger: { info: () => {}, debug: () => {}, warn: () => {}, error: () => {} },
 }));
 
 mock.module('../credentials.repo', () => ({

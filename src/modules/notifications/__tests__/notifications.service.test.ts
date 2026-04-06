@@ -1,6 +1,78 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import type { CreateNotificationInput, Notification } from '../notifications.types';
 
+// --- Mock all transitive deps that fail in test context ---
+
+mock.module('../../../infra/db/client', () => ({ db: {} }));
+mock.module('../../../infra/db/schema', () => ({ notifications: {}, notificationPreferences: {} }));
+mock.module('../../../infra/realtime/ws-server', () => ({
+  wsServer: { broadcastToSubscribed: mock(() => {}) },
+}));
+mock.module('drizzle-orm', () => ({
+  eq: mock(() => {}),
+  and: mock(() => {}),
+  isNull: mock(() => {}),
+  desc: mock(() => {}),
+  sql: mock(() => {}),
+}));
+
+// --- Mock direct deps of the service ---
+
+// fakeNotification is defined below; mock factories return it lazily via beforeEach mockResolvedValue
+const mockCreate = mock(() => Promise.resolve(null as any));
+const mockList = mock(() => Promise.resolve([]));
+const mockMarkRead = mock(() => Promise.resolve(null as any));
+const mockMarkAllRead = mock(() => Promise.resolve());
+const mockGetUnreadCount = mock(() => Promise.resolve(5));
+
+mock.module('../notifications.repo', () => ({
+  notificationsRepo: {
+    create: mockCreate,
+    list: mockList,
+    markRead: mockMarkRead,
+    markAllRead: mockMarkAllRead,
+    getUnreadCount: mockGetUnreadCount,
+  },
+}));
+
+const mockPrefGet = mock(() => Promise.resolve(null));
+
+mock.module('../preferences/notification-preferences.repo', () => ({
+  notificationPreferencesRepo: {
+    get: mockPrefGet,
+  },
+}));
+
+const mockDeliverInApp = mock(() => Promise.resolve());
+mock.module('../channels/in-app/in-app.channel', () => ({
+  deliverInApp: mockDeliverInApp,
+}));
+
+const mockDeliverWebSocket = mock(() => Promise.resolve());
+mock.module('../channels/websocket/websocket.channel', () => ({
+  deliverWebSocket: mockDeliverWebSocket,
+}));
+
+const mockPublish = mock(() =>
+  Promise.resolve({ id: 'evt-1', topic: '', data: null, source: '', timestamp: '' }),
+);
+mock.module('../../../events/bus', () => ({
+  eventBus: { publish: mockPublish },
+}));
+
+mock.module('../../../config/logger', () => ({
+  logger: {
+    info: () => {},
+    debug: () => {},
+    warn: () => {},
+    error: () => {},
+  },
+}));
+
+// --- Import the actual service AFTER mocks are set up ---
+
+const { NotificationsService } = await import('../notifications.service');
+
 const fakeNotification: Notification = {
   id: 'notif-1',
   workspaceId: 'ws-1',
@@ -15,78 +87,90 @@ const fakeNotification: Notification = {
   createdAt: new Date(),
 };
 
-// Direct mock objects — no mock.module needed
-const repo = {
-  create: mock(() => Promise.resolve(fakeNotification)),
-  list: mock(() => Promise.resolve([])),
-  markRead: mock(() => Promise.resolve(fakeNotification)),
-  markAllRead: mock(() => Promise.resolve()),
-  getUnreadCount: mock(() => Promise.resolve(5)),
-};
+describe('NotificationsService', () => {
+  let service: InstanceType<typeof NotificationsService>;
 
-const prefRepo = {
-  get: mock(() => Promise.resolve(null as any)),
-};
-
-const bus = {
-  publish: mock(() => Promise.resolve({ id: 'evt-1', topic: '', data: null, source: '', timestamp: '' })),
-};
-
-// Test the service logic directly by reimplementing the thin orchestration
-// This avoids bun mock.module transitive dependency issues
-describe('NotificationsService (logic)', () => {
   beforeEach(() => {
-    repo.create.mockClear();
-    repo.list.mockClear();
-    repo.markRead.mockClear();
-    repo.markAllRead.mockClear();
-    repo.getUnreadCount.mockClear();
-    prefRepo.get.mockClear();
-    prefRepo.get.mockResolvedValue(null);
+    service = new NotificationsService();
+    mockCreate.mockClear();
+    mockList.mockClear();
+    mockMarkRead.mockClear();
+    mockMarkAllRead.mockClear();
+    mockGetUnreadCount.mockClear();
+    mockPrefGet.mockClear();
+    mockDeliverInApp.mockClear();
+    mockDeliverWebSocket.mockClear();
+    mockPublish.mockClear();
+
+    // Defaults
+    mockPrefGet.mockResolvedValue(null);
+    mockCreate.mockResolvedValue(fakeNotification);
   });
 
-  test('notify creates notification when not muted', async () => {
-    const input: CreateNotificationInput = {
-      workspaceId: 'ws-1',
-      userId: 'user-1',
-      type: 'task_error',
-      title: 'Test',
-    };
+  const baseInput: CreateNotificationInput = {
+    workspaceId: 'ws-1',
+    userId: 'user-1',
+    type: 'task_error',
+    title: 'Test',
+  };
 
-    // Simulate service logic: check pref, create if not muted
-    const pref = await prefRepo.get(input.userId!, input.workspaceId, input.type);
-    expect(pref).toBeNull(); // no pref = not muted
+  test('notify() creates notification when not muted', async () => {
+    const result = await service.notify(baseInput);
 
-    const result = await repo.create(input as any, 'in_app' as any);
-    expect(result.id).toBe('notif-1');
-    expect(repo.create).toHaveBeenCalledTimes(1);
+    expect(result).not.toBeNull();
+    expect(result!.id).toBe('notif-1');
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(mockCreate).toHaveBeenCalledWith(baseInput, 'in_app');
+    expect(mockDeliverInApp).toHaveBeenCalledTimes(1);
+    expect(mockPublish).toHaveBeenCalledTimes(1);
   });
 
-  test('muted preference skips creation', async () => {
-    prefRepo.get.mockResolvedValueOnce({ muted: true, channels: ['in_app'] });
+  test('notify() returns null when muted', async () => {
+    mockPrefGet.mockResolvedValueOnce({ muted: true, channels: ['in_app'] });
 
-    const pref = await prefRepo.get('user-1', 'ws-1', 'task_error');
-    expect(pref?.muted).toBe(true);
-    // Service would return null and not call create
+    const result = await service.notify(baseInput);
+
+    expect(result).toBeNull();
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  test('list delegates to repo', async () => {
-    await repo.list('user-1' as any, 'ws-1' as any, { limit: 10 } as any);
-    expect(repo.list).toHaveBeenCalledTimes(1);
+  test('notify() dispatches to websocket when preference includes it', async () => {
+    mockPrefGet.mockResolvedValueOnce({ muted: false, channels: ['in_app', 'websocket'] });
+
+    const result = await service.notify(baseInput);
+
+    expect(result).not.toBeNull();
+    expect(mockDeliverWebSocket).toHaveBeenCalledTimes(1);
+    expect(mockDeliverInApp).toHaveBeenCalledTimes(1);
   });
 
-  test('markRead delegates to repo', async () => {
-    await repo.markRead('notif-1' as any);
-    expect(repo.markRead).toHaveBeenCalledWith('notif-1');
+  test('list() delegates to repo', async () => {
+    const filter = { limit: 10 };
+    await service.list('user-1', 'ws-1', filter as any);
+
+    expect(mockList).toHaveBeenCalledTimes(1);
+    expect(mockList).toHaveBeenCalledWith('user-1', 'ws-1', filter);
   });
 
-  test('markAllRead delegates to repo', async () => {
-    await repo.markAllRead('user-1' as any, 'ws-1' as any);
-    expect(repo.markAllRead).toHaveBeenCalledWith('user-1', 'ws-1');
+  test('markRead() delegates to repo', async () => {
+    await service.markRead('notif-1');
+
+    expect(mockMarkRead).toHaveBeenCalledTimes(1);
+    expect(mockMarkRead).toHaveBeenCalledWith('notif-1');
   });
 
-  test('getUnreadCount returns count from repo', async () => {
-    const count = await repo.getUnreadCount('user-1' as any, 'ws-1' as any);
+  test('markAllRead() delegates to repo', async () => {
+    await service.markAllRead('user-1', 'ws-1');
+
+    expect(mockMarkAllRead).toHaveBeenCalledTimes(1);
+    expect(mockMarkAllRead).toHaveBeenCalledWith('user-1', 'ws-1');
+  });
+
+  test('getUnreadCount() delegates to repo', async () => {
+    const count = await service.getUnreadCount('user-1', 'ws-1');
+
     expect(count).toBe(5);
+    expect(mockGetUnreadCount).toHaveBeenCalledTimes(1);
+    expect(mockGetUnreadCount).toHaveBeenCalledWith('user-1', 'ws-1');
   });
 });

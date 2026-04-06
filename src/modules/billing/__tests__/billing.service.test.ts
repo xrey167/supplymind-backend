@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, mock } from 'bun:test';
+import { describe, test, expect, beforeEach, mock, spyOn, afterAll } from 'bun:test';
 import type { PlanTier } from '../billing.types';
 
 // Mock Stripe
@@ -57,13 +57,6 @@ mock.module('../billing.events', () => ({
   emitInvoicePaid: mock(() => Promise.resolve()),
 }));
 
-// Mock settings
-mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
-  WorkspaceSettingsService: class {
-    set = mock(() => Promise.resolve());
-  },
-}));
-
 // Mock logger
 mock.module('../../../config/logger', () => ({
   logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
@@ -76,6 +69,10 @@ process.env.STRIPE_PRICE_PRO = 'price_pro_456';
 process.env.STRIPE_PRICE_ENTERPRISE = 'price_enterprise_789';
 
 import { BillingService } from '../billing.service';
+import { WorkspaceSettingsService } from '../../settings/workspace-settings/workspace-settings.service';
+
+const settingsSetSpy = spyOn(WorkspaceSettingsService.prototype, 'set').mockResolvedValue({} as any);
+afterAll(() => { settingsSetSpy.mockRestore(); });
 
 describe('BillingService', () => {
   let service: BillingService;

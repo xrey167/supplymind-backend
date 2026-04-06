@@ -1,5 +1,6 @@
-import { join, dirname } from 'node:path';
+import { join, resolve } from 'node:path';
 import { mkdir, readFile, writeFile, unlink, stat } from 'node:fs/promises';
+import { logger } from '../../config/logger';
 
 export interface StorageProvider {
   put(key: string, data: Buffer | Uint8Array, contentType?: string): Promise<string>;
@@ -12,18 +13,20 @@ export class LocalStorage implements StorageProvider {
   private basePath: string;
 
   constructor(basePath?: string) {
-    this.basePath = basePath ?? Bun.env.STORAGE_PATH ?? './data/storage';
+    this.basePath = resolve(basePath ?? Bun.env.STORAGE_PATH ?? './data/storage');
   }
 
   private filePath(key: string): string {
-    return join(this.basePath, key);
+    const resolved = resolve(join(this.basePath, key));
+    if (!resolved.startsWith(this.basePath)) {
+      throw new Error('Invalid storage key: path traversal detected');
+    }
+    return resolved;
   }
 
   private async ensureDir(filePath: string): Promise<void> {
-    const dir = dirname(filePath);
-    if (dir) {
-      await mkdir(dir, { recursive: true });
-    }
+    const dir = resolve(filePath, '..');
+    await mkdir(dir, { recursive: true });
   }
 
   async put(key: string, data: Buffer | Uint8Array, _contentType?: string): Promise<string> {
@@ -36,8 +39,10 @@ export class LocalStorage implements StorageProvider {
   async get(key: string): Promise<Buffer | null> {
     try {
       return await readFile(this.filePath(key));
-    } catch {
-      return null;
+    } catch (err: any) {
+      if (err?.code === 'ENOENT') return null;
+      logger.error({ key, err }, 'Storage read failed');
+      throw err;
     }
   }
 
@@ -45,8 +50,10 @@ export class LocalStorage implements StorageProvider {
     try {
       await unlink(this.filePath(key));
       return true;
-    } catch {
-      return false;
+    } catch (err: any) {
+      if (err?.code === 'ENOENT') return false;
+      logger.error({ key, err }, 'Storage delete failed');
+      throw err;
     }
   }
 
@@ -54,8 +61,10 @@ export class LocalStorage implements StorageProvider {
     try {
       await stat(this.filePath(key));
       return true;
-    } catch {
-      return false;
+    } catch (err: any) {
+      if (err?.code === 'ENOENT') return false;
+      logger.error({ key, err }, 'Storage stat failed');
+      throw err;
     }
   }
 }

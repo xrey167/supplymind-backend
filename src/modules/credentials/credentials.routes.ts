@@ -39,7 +39,8 @@ export const CredentialsRoutes = new OpenAPIHono();
 
 CredentialsRoutes.openapi(listRoute, async (c) => {
   const query = c.req.valid('query');
-  const credentials = await credentialsService.list(query.workspaceId);
+  const workspaceId = c.get('workspaceId') as string | undefined ?? query.workspaceId;
+  const credentials = await credentialsService.list(workspaceId);
   return c.json({ data: credentials });
 });
 
