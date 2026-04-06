@@ -62,7 +62,7 @@ export class AnthropicRawRuntime implements AgentRuntime {
       if (input.thinkingBudget && input.thinkingBudget > 0) {
         (params as any).thinking = { type: 'enabled', budget_tokens: input.thinkingBudget };
         params.temperature = 1;
-        delete (params as any).max_tokens;
+        params.max_tokens = Math.max(input.maxTokens ?? 16000, input.thinkingBudget);
       }
 
       const hasBetaTools = input.tools?.some(t => t.betaType) ?? false;
@@ -156,7 +156,7 @@ export class AnthropicRawRuntime implements AgentRuntime {
       if (input.thinkingBudget && input.thinkingBudget > 0) {
         (params as any).thinking = { type: 'enabled', budget_tokens: input.thinkingBudget };
         params.temperature = 1;
-        delete (params as any).max_tokens;
+        params.max_tokens = Math.max(input.maxTokens ?? 16000, input.thinkingBudget);
       }
 
       const hasBetaTools = input.tools?.some(t => t.betaType) ?? false;

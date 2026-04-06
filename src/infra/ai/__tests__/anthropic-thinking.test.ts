@@ -29,7 +29,7 @@ describe('AnthropicRawRuntime extended thinking', () => {
 
     expect(capturedParams.thinking).toEqual({ type: 'enabled', budget_tokens: 10000 });
     expect(capturedParams.temperature).toBe(1); // forced to 1
-    expect(capturedParams.max_tokens).toBeUndefined(); // deleted
+    expect(capturedParams.max_tokens).toBe(10000); // max(4096, 10000)
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.content).toBe('answer'); // thinking block skipped

@@ -27,13 +27,14 @@ mock.module('../../topics', () => ({
   Topics: { TASK_COMPLETED: 'task.completed' },
 }));
 
-import { initMemoryExtractionHandler } from '../memory-extraction.handler';
+import { initMemoryExtractionHandler, _resetMemoryExtractionHandler } from '../memory-extraction.handler';
 
 describe('memory extraction handler', () => {
   beforeEach(() => {
     handlers.clear();
     mockFindRawById.mockClear();
     mockPropose.mockClear();
+    _resetMemoryExtractionHandler();
   });
 
   it('subscribes to TASK_COMPLETED', () => {
@@ -62,10 +63,10 @@ describe('memory extraction handler', () => {
       expect.objectContaining({
         workspaceId: 'ws-1',
         agentId: 'agent-1',
-        type: 'domain',
+        type: 'reference', // user-scoped facts get type 'reference'
         title: 'user_name',
         content: 'Alex',
-        evidence: 'Auto-extracted from task task-1',
+        evidence: 'Auto-extracted (scope: user) from task task-1',
         sessionId: 'sess-1',
       }),
     );

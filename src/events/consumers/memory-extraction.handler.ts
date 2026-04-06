@@ -8,7 +8,17 @@ import type { TranscriptEntry } from '../../modules/sessions/transcript-chain';
 
 const MIN_CONFIDENCE = 0.7;
 
+let registered = false;
+
+/** Reset registration state (for testing only) */
+export function _resetMemoryExtractionHandler() {
+  registered = false;
+}
+
 export function initMemoryExtractionHandler() {
+  if (registered) return;
+  registered = true;
+
   eventBus.subscribe(Topics.TASK_COMPLETED, async (event) => {
     const { taskId } = event.data as { taskId: string };
 
@@ -39,10 +49,10 @@ export function initMemoryExtractionHandler() {
         await memoryService.propose({
           workspaceId: row.workspaceId,
           agentId: row.agentId,
-          type: 'domain',
+          type: fact.scope === 'user' ? 'reference' : 'domain',
           title: fact.key,
           content: String(fact.value),
-          evidence: `Auto-extracted from task ${taskId}`,
+          evidence: `Auto-extracted (scope: ${fact.scope}) from task ${taskId}`,
           sessionId: row.sessionId ?? undefined,
         });
         proposed++;

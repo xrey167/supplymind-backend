@@ -7,7 +7,7 @@ mock.module('../../skills/skills.registry', () => ({
 }));
 
 mock.module('../../../core/hooks/hook-registry', () => ({
-  lifecycleHooks: { register: mock(() => {}), unregister: mock(() => {}) },
+  lifecycleHooks: { register: mock(() => {}), unregister: mock(() => {}), clear: mock(() => {}) },
 }));
 
 mock.module('../../../core/config/scoped-config', () => ({

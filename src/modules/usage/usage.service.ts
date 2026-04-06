@@ -76,9 +76,8 @@ export const usageService = {
       return { allowed: true, usedUsd: 0, limitUsd: null, pct: 0, warningThreshold: 0.8 };
     }
 
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
     const usedUsd = await usageRepo.totalCost(workspaceId, startOfMonth);
     const pct = usedUsd / budget.monthlyLimitUsd;
