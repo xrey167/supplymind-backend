@@ -9,3 +9,4 @@ drizzle/
 *.log
 .DS_Store
 .worktrees/
+.claude/worktrees/
