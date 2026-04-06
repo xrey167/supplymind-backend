@@ -59,6 +59,7 @@ export const skillDefinitions = pgTable('skill_definitions', {
   inputSchema: jsonb('input_schema').default({}),
   handlerConfig: jsonb('handler_config').default({}),
   enabled: boolean('enabled').default(true),
+  mcpConfig: jsonb('mcp_config').default({}),   // SkillMcpConfig — keyed by mcp name
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
