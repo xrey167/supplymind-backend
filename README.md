@@ -43,44 +43,69 @@ bun run seed      # seed database
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           Protocol Layer                                │
-│  WebSocket (A2UI)  │  HTTP/REST  │  A2A (JSON-RPC)  │  MCP  │  SSE    │
-└────────────────────────────────┬────────────────────────────────────────┘
-                                 │
-┌────────────────────────────────▼────────────────────────────────────────┐
-│                    Unified Gateway (execute)                            │
-│  19 ops  │  streaming  │  RBAC + audit  │  ACP client  │  rate limit  │
-└────────────────────────────────┬────────────────────────────────────────┘
-                                 │
-┌────────────────────────────────▼────────────────────────────────────────┐
-│                         Security Layer                                  │
-│  Permission Pipeline  │  Sandbox  │  Tool Approvals  │  Verification   │
-└────────────────────────────────┬────────────────────────────────────────┘
-                                 │
-    ┌──────────┬─────────┬───────┼───────┬───────────┬──────────────┐
-    ▼          ▼         ▼       ▼       ▼           ▼              ▼
-┌────────┐┌────────┐┌────────┐┌──────┐┌──────────┐┌───────────┐┌────────┐
-│ Skills ││ Agents ││ Tasks  ││Memory││ Sessions ││Orchestrate││Collab- │
-│Registry││Runtime ││ (A2A)  ││3-Scope││ Context  ││  Engine   ││oration│
-│+ Search││Fallback││Coordin-││Auto- ││Transcript││  Gates    ││        │
-│        ││ Chain  ││ ator   ││Extract││Compaction││           ││        │
-└────────┘└────────┘└────────┘└──────┘└──────────┘└───────────┘└────────┘
-    │          │         │       │       │           │              │
-    ▼          ▼         ▼       ▼       ▼           ▼              ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         Infrastructure                                  │
-│  Drizzle/PG  │  BullMQ/Redis  │  AI SDKs (3 providers)  │  MCP Client │
-│  EventBus    │  SSE Sequence  │  Batch Uploader          │  Webhooks   │
-│  Clerk Auth  │  OTel + Sentry │  Feature Flags           │  Cache      │
-└─────────────────────────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     Domain Plugin Layer                                  │
-│  Domain Event Strategies  │  buildTool()  │  Lifecycle Hooks            │
-│  Scoped Config            │  Tool Search  │  Permission Layers          │
-└─────────────────────────────────────────────────────────────────────────┘
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          ⬡ PROTOCOL LAYER                                  ║
+║                                                                            ║
+║   ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌─────────┐  ┌───────────┐  ║
+║   │ WebSocket│  │HTTP / REST│  │A2A JSON-RPC│  │   MCP   │  │    SSE    │  ║
+║   │  (A2UI)  │  │  OpenAPI  │  │  tasks/*   │  │ tools/* │  │ streaming │  ║
+║   └────┬─────┘  └────┬─────┘  └─────┬──────┘  └────┬────┘  └─────┬─────┘  ║
+╚════════╪═════════════╪══════════════╪═══════════════╪═════════════╪════════╝
+         │             │              │               │             │
+         └─────────────┴──────┬───────┴───────────────┴─────────────┘
+                              │
+         ╔════════════════════▼════════════════════════════════════════╗
+         ║              UNIFIED GATEWAY  ─  execute()                 ║
+         ║                                                            ║
+         ║  19 ops  ·  streaming  ·  RBAC + audit  ·  rate limiting  ║
+         ║  ACP typed client  ·  AbortSignal  ·  distributed tracing ║
+         ╚════════════════════╤════════════════════════════════════════╝
+                              │
+         ┌────────────────────▼────────────────────────────────────┐
+         │               SECURITY LAYER                            │
+         │                                                         │
+         │  Permission Pipeline ── Sandbox ── Tool Approvals       │
+         │  Verification Agent ── Bash Risk Classifier             │
+         └────────────────────┬────────────────────────────────────┘
+                              │
+    ┌─────────┬───────────┬───┴───┬───────────┬────────────┬───────────┐
+    │         │           │       │           │            │           │
+┌───▼────┐┌───▼───┐┌──────▼──┐┌───▼───┐┌──────▼─────┐┌────▼─────┐┌───▼────────┐
+│ SKILLS ││AGENTS ││  TASKS  ││MEMORY ││  SESSIONS  ││ORCHESTR. ││COLLABORATION│
+│        ││       ││         ││       ││            ││          ││            │
+│Registry││Runtime││ A2A     ││Scoped ││Transcript  ││ Engine   ││ Multi-agent│
+│Dispatch││Config ││ States  ││ Store ││  Chain     ││  Steps   ││ Delegation │
+│Search  ││       ││Coordin- ││       ││            ││          ││            │
+│Builtin ││Fallbk ││  ator   ││Auto-  ││Compaction  ││ Gates    ││            │
+│MCP/Ext ││ Chain ││         ││Extract││  Ranker    ││ Retry    ││            │
+└───┬────┘└───┬───┘└────┬────┘└───┬───┘└──────┬─────┘└────┬─────┘└─────┬──────┘
+    └─────────┴─────────┴─────────┴───────────┴───────────┴────────────┘
+                                  │
+    ╔═════════════════════════════▼════════════════════════════════════════╗
+    ║                       INFRASTRUCTURE                                ║
+    ║                                                                     ║
+    ║  ┌─ Data ──────────┐  ┌─ AI ──────────────┐  ┌─ Messaging ───────┐ ║
+    ║  │ Drizzle ORM     │  │ Anthropic SDK     │  │ EventBus (50 topics)│║
+    ║  │ PostgreSQL      │  │ OpenAI SDK        │  │ Redis Pub/Sub     │ ║
+    ║  │ pgvector        │  │ Google GenAI SDK  │  │ BullMQ (5 queues) │ ║
+    ║  └─────────────────┘  └───────────────────┘  └───────────────────┘ ║
+    ║                                                                     ║
+    ║  ┌─ Auth & Security─┐  ┌─ Delivery ──────┐  ┌─ Observability ───┐ ║
+    ║  │ Clerk Auth       │  │ Webhooks (Svix) │  │ OpenTelemetry    │ ║
+    ║  │ API Keys (RBAC)  │  │ Batch Uploader  │  │ Sentry           │ ║
+    ║  │ Rate Limiter     │  │ SSE + Sequence  │  │ Pino Logging     │ ║
+    ║  └─────────────────┘  │ Email (Resend)  │  │ Feature Flags    │ ║
+    ║                       │ Novu Notifs     │  └──────────────────┘ ║
+    ║                       └────────────────┘                        ║
+    ╚═════════════════════════════╤════════════════════════════════════════╝
+                                  │
+    ┌─────────────────────────────▼────────────────────────────────────────┐
+    │                    DOMAIN PLUGIN LAYER                                │
+    │                                                                      │
+    │  Domain Event Strategies  ·  buildTool() factory  ·  Lifecycle Hooks │
+    │  Scoped Config Store      ·  Tool Search / Defer  ·  Permission Ext. │
+    │  Plugin Manifests         ·  Skill Providers      ·  Hook Registry   │
+    └──────────────────────────────────────────────────────────────────────┘
 ```
 
 Every protocol surface — WebSocket messages, A2A JSON-RPC calls, MCP tool invocations, SSE streams, and programmatic `GatewayClient` calls — converges into a single `execute(op, params, context)` function. This means adding a new protocol is just writing a thin adapter that maps its wire format to a `GatewayOp`.
