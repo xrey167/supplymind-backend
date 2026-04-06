@@ -8,6 +8,7 @@ import { publicRoutes } from '../api/routes/public';
 import { workspaceRoutes } from '../api/routes/workspace';
 import { handleMcpRequest } from '../infra/mcp/server';
 import { clerkWebhookRoutes } from '../api/routes/webhooks/clerk';
+import { stripeWebhookRoutes } from '../api/routes/webhooks/stripe';
 import { WorkspacesRoutes } from '../modules/workspaces';
 import { invitationRoutes } from '../api/routes/invitations';
 import { initSubsystems, destroySubsystems } from './bootstrap';
@@ -69,6 +70,7 @@ export async function createApp() {
   app.route('/', publicRoutes);
 
   app.route('/webhooks/clerk', clerkWebhookRoutes);
+  app.route('/webhooks/stripe', stripeWebhookRoutes);
   app.route('/api/v1/workspace-management', WorkspacesRoutes);
   app.route('/api/v1/invitations', invitationRoutes);
 
@@ -79,6 +81,12 @@ export async function createApp() {
   app.all('/mcp', async (c) => {
     const response = await handleMcpRequest(c.req.raw);
     return response;
+  });
+
+  // OpenAPI spec endpoint
+  app.doc('/api/openapi.json', {
+    openapi: '3.1.0',
+    info: { title: 'SupplyMind API', version: '0.1.0', description: 'Multi-protocol agent orchestration platform' },
   });
 
   // Initialize all subsystems (skills, WS, event consumers, Redis, MCP)
