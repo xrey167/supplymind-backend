@@ -1,7 +1,8 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import type { McpServerConfig } from '../types';
+import { McpClientPool } from '../client-pool';
 
-// --- Mocks for McpClient ---
+// --- Mock McpClient instance (injected via factory) ---
 const mockConnect = mock(async () => {});
 const mockListTools = mock(async () => []);
 const mockCallTool = mock(async () => 'result');
@@ -14,22 +15,20 @@ const mockGetPrompt = mock(async (_name: string, _args?: any) => 'prompt result'
 
 let mockLastUsedAt = Date.now();
 
-mock.module('../client', () => ({
-  McpClient: class {
-    get lastUsedAt() { return mockLastUsedAt; }
-    connect = mockConnect;
-    listTools = mockListTools;
-    callTool = mockCallTool;
-    disconnect = mockDisconnect;
-    isConnected = mockIsConnected;
-    listResources = mockListResources;
-    readResource = mockReadResource;
-    listPrompts = mockListPrompts;
-    getPrompt = mockGetPrompt;
-  },
-}));
-
-const { McpClientPool } = await import('../client-pool');
+function makeClient() {
+  return {
+    get lastUsedAt() { return mockLastUsedAt; },
+    connect: mockConnect,
+    listTools: mockListTools,
+    callTool: mockCallTool,
+    disconnect: mockDisconnect,
+    isConnected: mockIsConnected,
+    listResources: mockListResources,
+    readResource: mockReadResource,
+    listPrompts: mockListPrompts,
+    getPrompt: mockGetPrompt,
+  };
+}
 
 const cfg = (): McpServerConfig => ({
   id: 'srv-1', workspaceId: 'ws-1', name: 'test',
@@ -37,10 +36,10 @@ const cfg = (): McpServerConfig => ({
 });
 
 describe('McpClientPool', () => {
-  let pool: InstanceType<typeof McpClientPool>;
+  let pool: McpClientPool;
 
   beforeEach(() => {
-    pool = new McpClientPool();
+    pool = new McpClientPool(() => makeClient() as any);
     mockConnect.mockReset();
     mockConnect.mockImplementation(async () => {});
     mockListTools.mockReset();
