@@ -2,24 +2,11 @@ import { createMiddleware } from 'hono/factory';
 import { UnauthorizedError, ForbiddenError } from '../../core/errors';
 import { logger } from '../../config/logger';
 import { validateApiKey } from '../../infra/auth/api-key';
+import { getClerkClient } from '../../infra/auth/clerk';
+import { decodeJwtPayload } from '../../infra/auth/jwt';
 import { hasPermission } from '../../core/security/rbac';
 import type { Role } from '../../core/security/rbac';
 import { usersRepo } from '../../modules/users/users.repo';
-
-// Try to initialise Clerk client — graceful fallback if secret key is absent
-let clerkClient: { verifyToken: (token: string) => Promise<{ sub: string; metadata?: { role?: string } }> } | null = null;
-try {
-  const clerkSecretKey = Bun.env.CLERK_SECRET_KEY;
-  if (clerkSecretKey) {
-    const { createClerkClient } = await import('@clerk/backend');
-    clerkClient = createClerkClient({ secretKey: clerkSecretKey });
-    logger.info('Clerk client initialised');
-  } else {
-    logger.warn('CLERK_SECRET_KEY not set — falling back to dev-mode JWT parsing (INSECURE)');
-  }
-} catch (err) {
-  logger.warn({ err }, 'Failed to initialise Clerk client — falling back to dev-mode JWT parsing (INSECURE)');
-}
 
 export const authMiddleware = createMiddleware(async (c, next) => {
   const authHeader = c.req.header('Authorization');
@@ -43,18 +30,16 @@ export const authMiddleware = createMiddleware(async (c, next) => {
       return next();
     } catch (error) {
       if (error instanceof UnauthorizedError) throw error;
-      // Infrastructure error (DB down, Redis timeout, etc.) — rethrow as-is so
-      // the global error handler can return 500/503 instead of misleading 401.
       logger.error({ error }, 'API key validation encountered an infrastructure error');
       throw error;
     }
   }
 
   // JWT auth via Clerk (production) or decode-only fallback (dev)
-  if (clerkClient) {
-    // Production: cryptographically verify with Clerk
+  const clerk = getClerkClient();
+  if (clerk) {
     try {
-      const payload = await clerkClient.verifyToken(token);
+      const payload = await clerk.verifyToken(token);
       c.set('callerId', payload.sub);
       c.set('callerRole', (payload.metadata as any)?.role ?? 'viewer');
       usersRepo.updateLastSeen(payload.sub).catch(() => {});
@@ -66,13 +51,12 @@ export const authMiddleware = createMiddleware(async (c, next) => {
   } else {
     // Dev fallback: decode without verification — INSECURE, dev only
     try {
-      const parts = token.split('.');
-      if (parts.length !== 3) throw new Error('Not a JWT');
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
-      c.set('callerId', payload.sub ?? 'dev-user');
-      c.set('callerRole', payload.role ?? payload.metadata?.role ?? 'viewer');
-      logger.debug({ sub: payload.sub }, 'Dev-mode JWT auth (no verification)');
-      usersRepo.updateLastSeen(payload.sub ?? 'dev-user').catch(() => {});
+      const payload = decodeJwtPayload(token);
+      const sub = (payload.sub as string) ?? 'dev-user';
+      c.set('callerId', sub);
+      c.set('callerRole', (payload.role as string) ?? (payload.metadata as any)?.role ?? 'viewer');
+      logger.debug({ sub }, 'Dev-mode JWT auth (no verification)');
+      usersRepo.updateLastSeen(sub).catch(() => {});
       return next();
     } catch {
       throw new UnauthorizedError('Invalid token format');

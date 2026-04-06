@@ -1,4 +1,6 @@
 import { logger } from '../../config/logger';
+import { getClerkClient } from '../auth/clerk';
+import { decodeJwtPayload } from '../auth/jwt';
 import { db } from '../db/client';
 import { workspaceMembers } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -17,19 +19,15 @@ export async function verifyWsToken(token: string): Promise<{ userId: string; wo
 }
 
 async function resolveUserId(token: string): Promise<string> {
-  const clerkSecretKey = Bun.env.CLERK_SECRET_KEY;
-  if (clerkSecretKey) {
-    const { createClerkClient } = await import('@clerk/backend');
-    const clerk = createClerkClient({ secretKey: clerkSecretKey });
+  const clerk = getClerkClient();
+  if (clerk) {
     const payload = await clerk.verifyToken(token);
     return payload.sub;
   }
 
-  // Dev fallback: decode JWT without verification (insecure, matches auth middleware behaviour)
+  // Dev fallback: decode JWT without verification
   logger.warn('WS auth using insecure dev-mode JWT decode — set CLERK_SECRET_KEY for production');
-  const parts = token.split('.');
-  if (parts.length !== 3) throw new Error('Invalid JWT format');
-  const payload = JSON.parse(Buffer.from(parts[1]!, 'base64url').toString());
+  const payload = decodeJwtPayload(token);
   if (!payload.sub) throw new Error('JWT missing sub claim');
   return payload.sub as string;
 }
