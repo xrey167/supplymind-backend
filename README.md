@@ -27,6 +27,8 @@ bun run seed      # seed database
 - [Orchestration Engine](#orchestration-engine)
 - [Memory System](#memory-system)
 - [Context Management](#context-management)
+- [Feature Flags](#feature-flags)
+- [Usage Tracking](#usage-tracking)
 - [Event System](#event-system)
 - [Background Jobs](#background-jobs)
 - [Security](#security)
@@ -503,6 +505,8 @@ curl http://localhost:3001/api/v1/workspaces/ws-123/computer-use/sessions/cu_abc
 
 The agentic loop uses Claude with `computer-use-2025-11-24` beta, running up to 20 iterations (configurable). Each iteration: Claude sees the screenshot, decides an action, executes it via Playwright, takes a new screenshot, and repeats until the task is complete.
 
+**Bash risk classifier:** Before executing any bash command, a lightweight classifier scores it across 6 risk dimensions (destructive, exfiltration, persistence, privilege escalation, lateral movement, obfuscation) using regex + heuristic rules. Commands above a configurable threshold are blocked or require explicit approval. A `COMPUTER_USE_BASH_WARNING` event is emitted for all non-trivial commands regardless of approval status.
+
 ---
 
 ## AI Providers
@@ -680,19 +684,69 @@ const proposal = await memoryService.propose({
 
 Automatic context window management for agent conversations.
 
-```typescript
-const context = await buildContext(messages, agentConfig, workspace);
-// Returns: { systemPrompt, messages, estimatedTokens, wasCompacted }
+**Compaction** kicks in when active message tokens exceed `COMPACTION_THRESHOLD_TOKENS` (120,000 — fits Claude Sonnet 4.6's 200k window with headroom for response + summary). Triggered inside `buildContextMessages` immediately before every AI invocation.
+
+**Compaction flow:**
+
+1. Select messages to summarize — all active except the last 6 turns (preserve immediate coherence)
+2. Call summarizer model (tier-down: opus→sonnet, sonnet→haiku, haiku→haiku) with a structured prompt
+3. DB transaction: mark summarized messages `isCompacted=true`, insert summary as visible `system` message (`isCompacted=false`)
+4. Publish `SESSION_COMPACTED` event with before/after token counts
+5. Re-fetch and return updated context
+
+The AI call happens **before** the DB transaction — if the LLM fails, no rows are mutated (retry-safe). Up to 2 compaction passes run per `buildContextMessages` call before giving up.
+
+**Feature flag:** `sessions.context-compaction` — when disabled, compaction never triggers.
+
+**Summary prompt structure:** `FACTS ESTABLISHED` / `DECISIONS MADE` / `TOOL RESULTS` / `OPEN TASKS` / `CONTEXT` — structured to preserve specific IDs, values, and constraints across long sessions.
+
+---
+
+## Feature Flags
+
+Per-workspace feature flags backed by `workspace_settings` with a `feature-flag:` key namespace and a 60-second in-memory LRU cache (500-entry cap, FIFO eviction).
+
+**Default flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `computer-use.enabled` | `false` | Enable computer use sessions for workspace |
+| `agent.max-iterations` | `50` | Max agent loop iterations per task |
+| `agent.allow-parallel-tool-use` | `true` | Allow parallel tool calls in agent loop |
+| `orchestration.max-parallel-steps` | `10` | Max concurrent orchestration steps |
+| `billing.enforce-quota` | `false` | Block operations when monthly cost limit exceeded |
+| `billing.monthly-cost-limit-usd` | `100` | Monthly spend cap in USD |
+| `memory.vector-search` | `true` | Enable pgvector similarity search |
+| `memory.auto-proposal` | `true` | Auto-propose memories after agent sessions |
+| `sessions.max-active` | `20` | Max concurrent active sessions per workspace |
+| `sessions.context-compaction` | `true` | Enable automatic context compaction |
+| `mcp.allow-external-servers` | `true` | Allow connecting to external MCP servers |
+| `observability.detailed-logging` | `false` | Enable verbose per-request logging |
+
+**API:**
+
+```
+GET  /api/v1/workspaces/:id/feature-flags
+PATCH /api/v1/workspaces/:id/feature-flags
+  { "flag": "computer-use.enabled", "value": true }
 ```
 
-**Pipeline:**
+---
 
-1. **System prompt assembly** — agent prompt + workspace context + relevant memories (up to 2000 tokens)
-2. **Memory injection** — `memoryService.recall()` with last user message as query (top 5)
-3. **Message snipping** — oversized individual messages trimmed
-4. **Compaction** — when messages exceed 70% of token budget, produces a summary + recent messages
+## Usage Tracking
 
-**Token budget:** 200,000 total limit, 70% for messages, 10,000 reserved for system prompt, 8,192 for response.
+Every AI call records a usage entry: model, provider, input/output tokens, computed cost (USD), agentId, sessionId, and task context.
+
+**Cost calculation:** Per-model pricing table (USD per 1M tokens). Includes Anthropic, OpenAI, and Google models. Unknown models fall back to a conservative default.
+
+**API:**
+
+```
+GET /api/v1/workspaces/:id/usage?period=month
+GET /api/v1/workspaces/:id/usage/records
+```
+
+Usage writes are fire-and-forget — DB failures do not propagate to the calling agent.
 
 ---
 
@@ -700,7 +754,7 @@ const context = await buildContext(messages, agentConfig, workspace);
 
 Custom EventBus with wildcard topic matching, dead letter queue, replay, and Redis pub/sub bridge for cross-service communication.
 
-**44 topics** across 12 categories:
+**50 topics** across 14 categories:
 
 | Category | Topics |
 |----------|--------|
@@ -710,12 +764,14 @@ Custom EventBus with wildcard topic matching, dead letter queue, replay, and Red
 | **MCP** | `mcp.connected`, `mcp.disconnected`, `mcp.tools.discovered` |
 | **Collaboration** | `collaboration.started`, `collaboration.completed` |
 | **Workflows** | `workflow.started`, `workflow.step.completed`, `workflow.completed`, `workflow.failed` |
-| **Sessions** | `session.created`, `session.paused`, `session.resumed`, `session.closed` |
+| **Sessions** | `session.created`, `session.paused`, `session.resumed`, `session.closed`, `session.compacted` |
 | **Memory** | `memory.saved`, `memory.proposal`, `memory.approved`, `memory.rejected` |
 | **Orchestration** | `orchestration.started`, `orchestration.step.completed`, `orchestration.gate.waiting`, `orchestration.completed`, `orchestration.failed`, `orchestration.cancelled` |
 | **Task I/O** | `task.input_required`, `task.input_received` |
-| **Tool Approvals** | `tool.approval_requested`, `tool.approval_resolved` |
+| **Tool Approvals** | `tool.approval_requested`, `tool.approval_resolved`, `tool.approval_expired` |
 | **Security** | `security.rbac.denied`, `security.permission_mode.blocked`, `security.sandbox.executed`, `security.sandbox.failed` |
+| **Coordinator** | `coordinator.phase_changed`, `coordinator.phase_completed` |
+| **Verification** | `verification.verdict` |
 
 **Redis pub/sub bridge** — bidirectional for: `task.#`, `collaboration.#`, `session.#`, `memory.#`, `orchestration.#`. Events from Redis are tagged with `redis:` source prefix to prevent infinite re-broadcast.
 
@@ -803,7 +859,7 @@ Pino-based structured JSON logging throughout. All log calls include contextual 
 
 ## Database Schema
 
-PostgreSQL via Drizzle ORM. 17 tables:
+PostgreSQL via Drizzle ORM. 19 tables:
 
 | Table | Purpose |
 |-------|---------|
@@ -813,14 +869,16 @@ PostgreSQL via Drizzle ORM. 17 tables:
 | `a2a_tasks` | Task execution state and artifacts |
 | `task_dependencies` | Task dependency graph |
 | `tool_call_logs` | Tool execution audit trail |
-| `sessions` | Conversation sessions |
-| `session_messages` | Message history with compaction support |
+| `sessions` | Conversation sessions with `tokenCount` for compaction tracking |
+| `session_messages` | Message history; `isCompacted` + `tokenEstimate` for soft-archive compaction |
 | `agent_memories` | Agent knowledge base (with 1536-dim pgvector embeddings) |
 | `memory_proposals` | Pending memory proposals for human review |
 | `orchestrations` | Multi-step orchestration state |
-| `workspaces` | Multi-tenant workspace isolation |
+| `workspaces` | Multi-tenant workspace isolation (soft-delete via `deletedAt`) |
 | `workspace_members` | Workspace membership and roles |
-| `workspace_settings` | Per-workspace key-value configuration |
+| `workspace_settings` | Per-workspace key-value configuration (backing store for feature flags) |
+| `workspace_invitations` | Email-based workspace invites with hashed tokens and expiry |
+| `users` | Clerk-synced user records |
 | `api_keys` | API key management (hashed, with prefix, role, expiry) |
 | `workflow_templates` | Reusable workflow definitions |
 | `registered_agents` | External A2A agent registry |
@@ -839,9 +897,21 @@ All environment variables validated at startup via Zod:
 | `NODE_ENV` | no | `development` | `development` / `production` / `test` |
 | `REDIS_URL` | no | `redis://localhost:6379` | Redis for queues, pub/sub, cache |
 | `CORS_ALLOWED_ORIGINS` | no | `localhost:3000,3001` | Comma-separated allowed origins |
+| `CLERK_WEBHOOK_SECRET` | no | — | Clerk webhook signature verification |
 | `ANTHROPIC_API_KEY` | no | — | Anthropic Claude API |
 | `OPENAI_API_KEY` | no | — | OpenAI API |
 | `GOOGLE_API_KEY` | no | — | Google Gemini API |
+| `AI_DEFAULT_PROVIDER` | no | `anthropic` | Default AI provider (`anthropic` / `openai` / `google`) |
+| `AI_FALLBACK_ENABLED` | no | `true` | Enable automatic fallback to next provider on error |
+| `MODEL_OVERRIDE_FAST` | no | — | Override fast-tier model (e.g. `claude-haiku-4-5-20251001`) |
+| `MODEL_OVERRIDE_BALANCED` | no | — | Override balanced-tier model |
+| `MODEL_OVERRIDE_POWERFUL` | no | — | Override powerful-tier model |
+| `INTENT_GATE_ENABLED` | no | `true` | Enable intent-based model routing |
+| `AI_IDEMPOTENCY_ENABLED` | no | `true` | Enable idempotency keys on AI calls |
+| `COMPACTION_MAX_MESSAGES` | no | `100` | Max messages before compaction triggers |
+| `COMPACTION_TOKEN_BUDGET` | no | `150000` | Token budget for compaction threshold |
+| `SSE_SEQUENCE_ENABLED` | no | `true` | Enable sequence numbers on SSE events for resumption |
+| `MEMORY_AUTO_EXTRACT` | no | `false` | Auto-extract memories from agent sessions |
 | `NOVU_API_KEY` | no | — | Novu notification provider |
 | `RESEND_API_KEY` | no | — | Resend email provider |
 | `STRIPE_SECRET_KEY` | no | — | Stripe payments |
@@ -873,6 +943,15 @@ All require authentication + workspace membership + audit + rate limiting.
 | `/settings` | Workspace settings |
 | `/api-keys` | API key management |
 | `/computer-use/sessions` | Browser automation sessions |
+| `/feature-flags` | Feature flag read + override (`GET` list, `PATCH` set) |
+| `/usage` | AI usage records + cost aggregation by model/agent/period |
+
+### User routes (`/api/v1/users/...`)
+
+| Path | Description |
+|------|-------------|
+| `GET /me` | Current user profile (Clerk-synced) |
+| `PATCH /me` | Update display name / preferences |
 
 ### Public routes
 
