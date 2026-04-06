@@ -30,6 +30,7 @@ const mockInvitationsRepo = {
   listPending: mock(async () => []),
   accept: mock(async () => {}),
   deleteById: mock(async () => {}),
+  deleteByIdAndWorkspace: mock(async () => {}),
   deleteExpired: mock(async () => 0),
   deleteByWorkspace: mock(async () => {}),
 };
@@ -37,9 +38,13 @@ const mockInvitationsRepo = {
 const mockPublish = mock(() => {});
 const mockEventBus = { publish: mockPublish };
 
-// Mock the transaction to just call the callback with a tx that has execute returning []
+// tx.execute is called multiple times per transaction — configure per test
+const executeCalls: (() => Promise<any>)[] = [];
 const mockTx = {
-  execute: mock(async () => [{ user_id: 'owner-1' }]),
+  execute: mock(async (...args: any[]) => {
+    const fn = executeCalls.shift();
+    return fn ? fn() : [];
+  }),
 };
 const mockDb = {
   transaction: mock(async (cb: (tx: any) => Promise<any>) => cb(mockTx)),
@@ -70,6 +75,7 @@ describe('MembersService', () => {
     mockPublish.mockClear();
     mockDb.transaction.mockClear();
     mockTx.execute.mockClear();
+    executeCalls.length = 0;
   });
 
   // ---- invite ----
@@ -88,6 +94,8 @@ describe('MembersService', () => {
       });
       expect(result.token).toBe('tok123');
       expect(result.invitation.id).toBe('inv-1');
+      // tokenHash should be stripped from response
+      expect((result.invitation as any).tokenHash).toBeUndefined();
       expect(mockPublish).toHaveBeenCalledWith(
         'member.invited',
         expect.objectContaining({ workspaceId: 'ws-1', email: 'alice@example.com' }),
@@ -112,6 +120,12 @@ describe('MembersService', () => {
         membersService.invite('ws-1', { email: 'alice@example.com', invitedBy: 'owner-1' }),
       ).rejects.toThrow('Invitation already pending');
     });
+
+    it('throws ValidationError when trying to invite as owner', async () => {
+      await expect(
+        membersService.invite('ws-1', { email: 'alice@example.com', role: 'owner', invitedBy: 'owner-1' }),
+      ).rejects.toThrow('Cannot invite as owner');
+    });
   });
 
   // ---- acceptInvitation ----
@@ -126,16 +140,16 @@ describe('MembersService', () => {
 
     it('adds member and publishes MEMBER_JOINED on valid token', async () => {
       mockInvitationsRepo.findByTokenHashForUpdate.mockResolvedValueOnce(baseInvitation);
-      mockMembersRepo.findMember.mockResolvedValueOnce(null);
-      mockMembersRepo.addMember.mockResolvedValueOnce({
-        id: 'member-1', workspaceId: 'ws-1', userId: 'user-1',
-        role: 'member', invitedBy: 'owner-1', joinedAt: new Date(),
-      });
+      // tx.execute calls: 1) check existing member (empty), 2) insert member, 3) mark accepted
+      executeCalls.push(
+        async () => [], // no existing member
+        async () => [{ id: 'member-1', workspace_id: 'ws-1', user_id: 'user-1', role: 'member', invited_by: 'owner-1', joined_at: new Date().toISOString() }],
+        async () => [], // update accepted_at
+      );
 
       const member = await membersService.acceptInvitation('sometoken', 'user-1', 'alice@example.com');
 
       expect(member.userId).toBe('user-1');
-      expect(mockInvitationsRepo.accept).toHaveBeenCalledWith('inv-1');
       expect(mockPublish).toHaveBeenCalledWith('member.joined', expect.objectContaining({ userId: 'user-1' }));
     });
 
@@ -157,10 +171,7 @@ describe('MembersService', () => {
 
     it('throws ValidationError if user is already a member', async () => {
       mockInvitationsRepo.findByTokenHashForUpdate.mockResolvedValueOnce(baseInvitation);
-      mockMembersRepo.findMember.mockResolvedValueOnce({
-        id: 'member-1', workspaceId: 'ws-1', userId: 'user-1',
-        role: 'member', invitedBy: null, joinedAt: new Date(),
-      });
+      executeCalls.push(async () => [{ id: 'member-1' }]); // existing member found
 
       await expect(
         membersService.acceptInvitation('sometoken', 'user-1', 'alice@example.com'),
@@ -172,25 +183,23 @@ describe('MembersService', () => {
 
   describe('removeMember', () => {
     it('removes a member and publishes MEMBER_REMOVED', async () => {
-      mockMembersRepo.findMember.mockResolvedValueOnce({
-        id: 'member-1', workspaceId: 'ws-1', userId: 'user-2',
-        role: 'member', invitedBy: null, joinedAt: new Date(),
-      });
-      // tx.execute returns 2 owners so removal is safe
-      mockTx.execute.mockResolvedValueOnce([{ user_id: 'owner-1' }, { user_id: 'owner-2' }]);
+      // tx.execute calls: 1) owner rows, 2) find member, 3) delete member
+      executeCalls.push(
+        async () => [{ user_id: 'owner-1' }, { user_id: 'owner-2' }], // 2 owners
+        async () => [{ id: 'member-1', role: 'member' }], // target member
+        async () => [], // delete
+      );
 
       await membersService.removeMember('ws-1', 'user-2', 'owner-1');
 
-      expect(mockMembersRepo.removeMember).toHaveBeenCalledWith('ws-1', 'user-2');
       expect(mockPublish).toHaveBeenCalledWith('member.removed', expect.objectContaining({ userId: 'user-2' }));
     });
 
     it('throws ForbiddenError when removing the last owner', async () => {
-      mockMembersRepo.findMember.mockResolvedValueOnce({
-        id: 'member-1', workspaceId: 'ws-1', userId: 'owner-1',
-        role: 'owner', invitedBy: null, joinedAt: new Date(),
-      });
-      mockTx.execute.mockResolvedValueOnce([{ user_id: 'owner-1' }]); // only 1 owner
+      executeCalls.push(
+        async () => [{ user_id: 'owner-1' }], // only 1 owner
+        async () => [{ id: 'member-1', role: 'owner' }], // target is that owner
+      );
 
       await expect(
         membersService.removeMember('ws-1', 'owner-1', 'owner-1'),
@@ -198,7 +207,10 @@ describe('MembersService', () => {
     });
 
     it('throws NotFoundError when member not found', async () => {
-      mockMembersRepo.findMember.mockResolvedValueOnce(null);
+      executeCalls.push(
+        async () => [{ user_id: 'owner-1' }], // owners
+        async () => [], // member not found
+      );
 
       await expect(
         membersService.removeMember('ws-1', 'ghost', 'owner-1'),
@@ -210,15 +222,11 @@ describe('MembersService', () => {
 
   describe('updateRole', () => {
     it('updates role and publishes MEMBER_ROLE_CHANGED', async () => {
-      mockMembersRepo.findMember.mockResolvedValueOnce({
-        id: 'member-1', workspaceId: 'ws-1', userId: 'user-2',
-        role: 'member', invitedBy: null, joinedAt: new Date(),
-      });
-      mockTx.execute.mockResolvedValueOnce([{ user_id: 'owner-1' }, { user_id: 'owner-2' }]);
-      mockMembersRepo.updateRole.mockResolvedValueOnce({
-        id: 'member-1', workspaceId: 'ws-1', userId: 'user-2',
-        role: 'admin', invitedBy: null, joinedAt: new Date(),
-      });
+      executeCalls.push(
+        async () => [{ user_id: 'owner-1' }, { user_id: 'owner-2' }], // owners
+        async () => [{ id: 'member-1', role: 'member' }], // current member
+        async () => [{ id: 'member-1', workspace_id: 'ws-1', user_id: 'user-2', role: 'admin', invited_by: null, joined_at: new Date().toISOString() }], // updated
+      );
 
       const updated = await membersService.updateRole('ws-1', 'user-2', 'admin', 'owner-1');
 
@@ -229,11 +237,10 @@ describe('MembersService', () => {
     });
 
     it('blocks demotion of the last owner', async () => {
-      mockMembersRepo.findMember.mockResolvedValueOnce({
-        id: 'member-1', workspaceId: 'ws-1', userId: 'owner-1',
-        role: 'owner', invitedBy: null, joinedAt: new Date(),
-      });
-      mockTx.execute.mockResolvedValueOnce([{ user_id: 'owner-1' }]); // only 1 owner
+      executeCalls.push(
+        async () => [{ user_id: 'owner-1' }], // only 1 owner
+        async () => [{ id: 'member-1', role: 'owner' }], // target is that owner
+      );
 
       await expect(
         membersService.updateRole('ws-1', 'owner-1', 'admin', 'owner-1'),
@@ -241,7 +248,10 @@ describe('MembersService', () => {
     });
 
     it('throws NotFoundError when member not found', async () => {
-      mockMembersRepo.findMember.mockResolvedValueOnce(null);
+      executeCalls.push(
+        async () => [{ user_id: 'owner-1' }], // owners
+        async () => [], // member not found
+      );
 
       await expect(
         membersService.updateRole('ws-1', 'ghost', 'admin', 'owner-1'),
@@ -256,7 +266,7 @@ describe('MembersService', () => {
       const fakeMembers = [
         {
           id: 'member-1', workspaceId: 'ws-1', userId: 'user-1',
-          role: 'owner', invitedBy: null, joinedAt: new Date(),
+          role: 'owner' as const, invitedBy: null, joinedAt: new Date(),
           userName: 'Alice', userEmail: 'alice@example.com', userAvatarUrl: null,
         },
       ];

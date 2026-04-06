@@ -107,5 +107,11 @@ class InvitationsRepository {
     await db.delete(workspaceInvitations).where(eq(workspaceInvitations.id, id));
   }
 
+  async deleteByIdAndWorkspace(workspaceId: string, id: string): Promise<void> {
+    await db.delete(workspaceInvitations).where(
+      and(eq(workspaceInvitations.id, id), eq(workspaceInvitations.workspaceId, workspaceId)),
+    );
+  }
+
 }
 export const invitationsRepo = new InvitationsRepository();

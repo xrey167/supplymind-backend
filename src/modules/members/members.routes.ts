@@ -85,8 +85,9 @@ MembersRoutes.openapi(listInvitationsRoute, async (c) => {
 
 MembersRoutes.openapi(revokeInvitationRoute, async (c) => {
   requireAdmin(c);
+  const workspaceId = c.get('workspaceId') as string;
   const { id } = c.req.valid('param');
-  await membersService.revokeInvitation(id);
+  await membersService.revokeInvitation(workspaceId, id);
   return c.json({ success: true }, 204);
 });
 
