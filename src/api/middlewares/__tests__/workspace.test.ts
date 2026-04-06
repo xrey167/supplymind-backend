@@ -18,16 +18,23 @@ mock.module('../../../infra/observability/sentry', () => ({
 }));
 
 // Mock DB — tests don't hit a real database
-let mockMemberRows: { role: string }[] = [];
+let mockMemberRows: { role: string; deletedAt: null | Date }[] = [];
+let mockWorkspaceRows: { id: string }[] = [{ id: 'ws-default' }];
 mock.module('../../../infra/db/client', () => ({
   db: {
-    select: mock(() => ({
-      from: mock(() => ({
-        where: mock(() => ({
-          limit: mock(() => Promise.resolve(mockMemberRows)),
-        })),
-      })),
-    })),
+    select: mock(() => {
+      // Track whether innerJoin was called to distinguish API key path (no join)
+      // from member path (has innerJoin)
+      let hasJoin = false;
+      const chain: Record<string, unknown> = {};
+      chain.from = mock(() => chain);
+      chain.innerJoin = mock(() => { hasJoin = true; return chain; });
+      chain.where = mock(() => chain);
+      chain.limit = mock(() =>
+        Promise.resolve(hasJoin ? mockMemberRows : mockWorkspaceRows),
+      );
+      return chain;
+    }),
   },
 }));
 
@@ -55,7 +62,10 @@ function buildHeaderApp() {
 }
 
 describe('workspaceMiddleware', () => {
-  beforeEach(() => { mockMemberRows = []; });
+  beforeEach(() => {
+    mockMemberRows = [];
+    mockWorkspaceRows = [{ id: 'ws-default' }];
+  });
   describe('when workspaceId is absent from both param and header', () => {
     it('should return 403', async () => {
       const app = buildHeaderApp();
@@ -139,7 +149,7 @@ describe('workspaceMiddleware', () => {
     });
 
     it('should allow access when user is a member', async () => {
-      mockMemberRows = [{ role: 'member' }];
+      mockMemberRows = [{ role: 'member', deletedAt: null }];
       const app = new Hono();
       app.onError(errorHandler);
       app.use('/ws/:workspaceId/*', async (c, next) => {
@@ -153,7 +163,7 @@ describe('workspaceMiddleware', () => {
       const res = await app.request('/ws/ws-789/data');
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.role).toBe('member');
+      expect(body.role).toBe('operator'); // 'member' maps to 'operator' via mapWorkspaceRole
     });
   });
 });
