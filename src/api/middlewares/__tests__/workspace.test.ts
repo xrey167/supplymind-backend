@@ -55,7 +55,9 @@ function buildHeaderApp() {
 }
 
 describe('workspaceMiddleware', () => {
-  beforeEach(() => { mockMemberRows = []; });
+  beforeEach(() => {
+    mockMemberRows = [];
+  });
   describe('when workspaceId is absent from both param and header', () => {
     it('should return 403', async () => {
       const app = buildHeaderApp();
@@ -153,7 +155,7 @@ describe('workspaceMiddleware', () => {
       const res = await app.request('/ws/ws-789/data');
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.role).toBe('member');
+      expect(body.role).toBe('operator'); // 'member' maps to 'operator' via mapWorkspaceRole
     });
   });
 });

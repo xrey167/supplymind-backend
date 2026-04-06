@@ -1,5 +1,5 @@
-import { describe, test, expect } from 'bun:test';
-import { Roles, hasPermission, isValidRole, getRequiredRole, PROVIDER_REQUIRED_ROLE } from '../rbac';
+import { describe, test, it, expect } from 'bun:test';
+import { Roles, hasPermission, isValidRole, getRequiredRole, PROVIDER_REQUIRED_ROLE, mapWorkspaceRole } from '../rbac';
 
 describe('RBAC', () => {
   describe('Roles', () => {
@@ -111,5 +111,45 @@ describe('RBAC', () => {
     test('builtin tools should require viewer', () => {
       expect(PROVIDER_REQUIRED_ROLE.builtin).toBe('viewer');
     });
+  });
+});
+
+describe('mapWorkspaceRole', () => {
+  it('maps owner to admin', () => {
+    expect(mapWorkspaceRole('owner')).toBe('admin');
+  });
+
+  it('maps admin to admin', () => {
+    expect(mapWorkspaceRole('admin')).toBe('admin');
+  });
+
+  it('maps member to operator', () => {
+    expect(mapWorkspaceRole('member')).toBe('operator');
+  });
+
+  it('maps viewer to viewer', () => {
+    expect(mapWorkspaceRole('viewer')).toBe('viewer');
+  });
+
+  it('maps unknown role to viewer (safe default)', () => {
+    expect(mapWorkspaceRole('nonsense')).toBe('viewer');
+  });
+});
+
+describe('hasPermission with mapped workspace roles', () => {
+  it('mapped owner (admin) can access operator-level resources', () => {
+    const mapped = mapWorkspaceRole('owner');
+    expect(hasPermission(mapped, 'operator')).toBe(true);
+  });
+
+  it('mapped member (operator) cannot access admin-level resources', () => {
+    const mapped = mapWorkspaceRole('member');
+    expect(hasPermission(mapped, 'admin')).toBe(false);
+  });
+
+  it('mapped viewer can only access viewer-level resources', () => {
+    const mapped = mapWorkspaceRole('viewer');
+    expect(hasPermission(mapped, 'viewer')).toBe(true);
+    expect(hasPermission(mapped, 'operator')).toBe(false);
   });
 });

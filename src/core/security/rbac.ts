@@ -59,3 +59,20 @@ export function getRequiredRole(providerType: string, explicitRole?: string): Ro
   if (explicitRole && isValidRole(explicitRole)) return explicitRole;
   return PROVIDER_REQUIRED_ROLE[providerType] ?? 'admin'; // unknown provider = require admin
 }
+
+/** Map workspace role to RBAC role at the middleware boundary */
+const WORKSPACE_ROLE_MAP: Record<string, Role> = {
+  owner: 'admin',
+  admin: 'admin',
+  member: 'operator',
+  viewer: 'viewer',
+};
+
+export function mapWorkspaceRole(workspaceRole: string): Role {
+  return WORKSPACE_ROLE_MAP[workspaceRole] ?? 'viewer';
+}
+
+/** Check if a workspace role has a known mapping */
+export function isKnownWorkspaceRole(role: string): boolean {
+  return role in WORKSPACE_ROLE_MAP;
+}
