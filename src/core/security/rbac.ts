@@ -71,3 +71,8 @@ const WORKSPACE_ROLE_MAP: Record<string, Role> = {
 export function mapWorkspaceRole(workspaceRole: string): Role {
   return WORKSPACE_ROLE_MAP[workspaceRole] ?? 'viewer';
 }
+
+/** Check if a workspace role has a known mapping */
+export function isKnownWorkspaceRole(role: string): boolean {
+  return role in WORKSPACE_ROLE_MAP;
+}

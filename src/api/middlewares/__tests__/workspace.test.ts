@@ -18,23 +18,16 @@ mock.module('../../../infra/observability/sentry', () => ({
 }));
 
 // Mock DB — tests don't hit a real database
-let mockMemberRows: { role: string; deletedAt: null | Date }[] = [];
-let mockWorkspaceRows: { id: string }[] = [{ id: 'ws-default' }];
+let mockMemberRows: { role: string }[] = [];
 mock.module('../../../infra/db/client', () => ({
   db: {
-    select: mock(() => {
-      // Track whether innerJoin was called to distinguish API key path (no join)
-      // from member path (has innerJoin)
-      let hasJoin = false;
-      const chain: Record<string, unknown> = {};
-      chain.from = mock(() => chain);
-      chain.innerJoin = mock(() => { hasJoin = true; return chain; });
-      chain.where = mock(() => chain);
-      chain.limit = mock(() =>
-        Promise.resolve(hasJoin ? mockMemberRows : mockWorkspaceRows),
-      );
-      return chain;
-    }),
+    select: mock(() => ({
+      from: mock(() => ({
+        where: mock(() => ({
+          limit: mock(() => Promise.resolve(mockMemberRows)),
+        })),
+      })),
+    })),
   },
 }));
 
@@ -64,7 +57,6 @@ function buildHeaderApp() {
 describe('workspaceMiddleware', () => {
   beforeEach(() => {
     mockMemberRows = [];
-    mockWorkspaceRows = [{ id: 'ws-default' }];
   });
   describe('when workspaceId is absent from both param and header', () => {
     it('should return 403', async () => {
@@ -149,7 +141,7 @@ describe('workspaceMiddleware', () => {
     });
 
     it('should allow access when user is a member', async () => {
-      mockMemberRows = [{ role: 'member', deletedAt: null }];
+      mockMemberRows = [{ role: 'member' }];
       const app = new Hono();
       app.onError(errorHandler);
       app.use('/ws/:workspaceId/*', async (c, next) => {

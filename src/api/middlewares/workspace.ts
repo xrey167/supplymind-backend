@@ -1,11 +1,11 @@
 import { createMiddleware } from 'hono/factory';
 import { ForbiddenError } from '../../core/errors';
-import { mapWorkspaceRole } from '../../core/security/rbac';
+import { mapWorkspaceRole, isKnownWorkspaceRole } from '../../core/security/rbac';
 import { logger } from '../../config/logger';
 import { mcpService } from '../../modules/mcp/mcp.service';
 import { db } from '../../infra/db/client';
-import { workspaceMembers, workspaces } from '../../infra/db/schema';
-import { and, eq, isNull } from 'drizzle-orm';
+import { workspaceMembers } from '../../infra/db/schema';
+import { and, eq } from 'drizzle-orm';
 
 export const workspaceMiddleware = createMiddleware(async (c, next) => {
   const workspaceId = c.req.param('workspaceId') ?? c.req.header('X-Workspace-Id');
@@ -21,34 +21,27 @@ export const workspaceMiddleware = createMiddleware(async (c, next) => {
 
   const callerId = c.get('callerId') as string | undefined;
   if (callerId?.startsWith('apikey:')) {
-    // API keys are workspace-scoped — but must check workspace not soft-deleted
-    const [ws] = await db.select({ id: workspaces.id })
-      .from(workspaces)
-      .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.deletedAt)))
-      .limit(1);
-    if (!ws) {
-      throw new ForbiddenError('Workspace not found or deleted');
-    }
+    // API keys already have callerRole set by auth middleware — bypass membership check
+    // Soft-delete check will be added in Task 3 when deletedAt column exists
     return next();
   }
 
   if (callerId) {
-    const [member] = await db.select({
-      role: workspaceMembers.role,
-      deletedAt: workspaces.deletedAt,
-    })
+    const [member] = await db.select({ role: workspaceMembers.role })
       .from(workspaceMembers)
-      .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
       .where(and(
         eq(workspaceMembers.workspaceId, workspaceId),
         eq(workspaceMembers.userId, callerId),
       ))
       .limit(1);
 
-    if (!member || member.deletedAt !== null) {
-      throw new ForbiddenError(member?.deletedAt ? 'Workspace has been deleted' : 'Not a member of this workspace');
+    if (!member) {
+      throw new ForbiddenError('Not a member of this workspace');
     }
 
+    if (!isKnownWorkspaceRole(member.role)) {
+      logger.warn({ workspaceRole: member.role, workspaceId, callerId }, 'Unknown workspace role, defaulting to viewer');
+    }
     c.set('callerRole', mapWorkspaceRole(member.role));
     c.set('workspaceRole', member.role);
   }
