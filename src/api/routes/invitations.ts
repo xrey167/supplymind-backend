@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { authMiddleware } from '../middlewares/auth';
 import { invitationsRepo } from '../../modules/members/invitations.repo';
 import { membersService } from '../../modules/members/members.service';
+import { workspacesRepo } from '../../modules/workspaces/workspaces.repo';
+import { usersRepo } from '../../modules/users/users.repo';
 import { invitationTokenParamSchema } from '../../modules/members/members.schemas';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
@@ -33,7 +35,6 @@ invitationRoutes.openapi(validateTokenRoute, async (c) => {
   const invitation = await invitationsRepo.findByTokenHash(tokenHash);
   if (!invitation) return c.json({ error: 'Invitation not found or expired' }, 404);
 
-  const { workspacesRepo } = await import('../../modules/workspaces/workspaces.repo');
   const workspace = await workspacesRepo.findById(invitation.workspaceId);
 
   return c.json({
@@ -52,7 +53,6 @@ invitationRoutes.openapi(acceptRoute, async (c) => {
   const { token } = c.req.valid('param');
   const callerId = c.get('callerId') as string;
 
-  const { usersRepo } = await import('../../modules/users/users.repo');
   const user = await usersRepo.findById(callerId);
   const userEmail = user?.email ?? '';
 

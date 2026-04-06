@@ -83,6 +83,9 @@ export async function runCleanup(): Promise<void> {
           await tx.delete(schema.apiKeys).where(eq(schema.apiKeys.workspaceId, ws.id));
           await tx.delete(schema.skillDefinitions).where(eq(schema.skillDefinitions.workspaceId, ws.id));
           await tx.delete(schema.mcpServerConfigs).where(eq(schema.mcpServerConfigs.workspaceId, ws.id));
+          await tx.delete(schema.workspaceInvitations).where(eq(schema.workspaceInvitations.workspaceId, ws.id));
+          await tx.delete(schema.workspaceMembers).where(eq(schema.workspaceMembers.workspaceId, ws.id));
+          await tx.delete(schema.workspaceSettings).where(eq(schema.workspaceSettings.workspaceId, ws.id));
           await tx.delete(schema.workspaces).where(eq(schema.workspaces.id, ws.id));
         });
         eventBus.publish(Topics.WORKSPACE_DELETED, { workspaceId: ws.id });
