@@ -162,6 +162,30 @@ describe('McpClient', () => {
     expect(client.lastUsedAt).toBeGreaterThan(before);
   });
 
+  it('lastUsedAt is updated after readResource', async () => {
+    const client = new McpClient(stdioConfig);
+    const before = client.lastUsedAt;
+    await new Promise((r) => setTimeout(r, 5));
+    await client.readResource('file:///data');
+    expect(client.lastUsedAt).toBeGreaterThan(before);
+  });
+
+  it('lastUsedAt is updated after listPrompts', async () => {
+    const client = new McpClient(stdioConfig);
+    const before = client.lastUsedAt;
+    await new Promise((r) => setTimeout(r, 5));
+    await client.listPrompts();
+    expect(client.lastUsedAt).toBeGreaterThan(before);
+  });
+
+  it('lastUsedAt is updated after getPrompt', async () => {
+    const client = new McpClient(stdioConfig);
+    const before = client.lastUsedAt;
+    await new Promise((r) => setTimeout(r, 5));
+    await client.getPrompt('summarize');
+    expect(client.lastUsedAt).toBeGreaterThan(before);
+  });
+
   it('passes headers to StreamableHTTPClientTransport', async () => {
     const client = new McpClient(httpConfig);
     await client.connect();

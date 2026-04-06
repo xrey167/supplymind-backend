@@ -85,7 +85,7 @@ export class McpClient {
     this.lastUsedAt = Date.now();
     const result = await this.client.readResource({ uri });
     const texts = (result.contents ?? [])
-      .map((c: any) => c.text ?? c.blob ?? '')
+      .map((c) => ('text' in c ? (c as any).text : 'blob' in c ? (c as any).blob : '') ?? '')
       .filter(Boolean);
     return texts.join('\n');
   }
@@ -97,7 +97,7 @@ export class McpClient {
     return (result.prompts ?? []).map((p) => ({
       name: p.name,
       description: p.description ?? undefined,
-      arguments: (p.arguments ?? []).map((a: any) => ({
+      arguments: (p.arguments ?? []).map((a) => ({
         name: a.name,
         description: a.description ?? undefined,
         required: a.required ?? undefined,
@@ -110,9 +110,9 @@ export class McpClient {
     this.lastUsedAt = Date.now();
     const result = await this.client.getPrompt({ name, arguments: args ?? {} });
     const texts = (result.messages ?? [])
-      .flatMap((m: any) => {
-        const c = m.content;
-        if (c?.type === 'text') return [c.text ?? ''];
+      .flatMap((m) => {
+        const c = (m as any).content;
+        if (c && typeof c === 'object' && !Array.isArray(c) && c.type === 'text') return [c.text ?? ''];
         if (Array.isArray(c)) return c.filter((x: any) => x.type === 'text').map((x: any) => x.text ?? '');
         return [];
       })
