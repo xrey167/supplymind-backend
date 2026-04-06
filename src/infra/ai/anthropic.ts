@@ -59,6 +59,11 @@ export class AnthropicRawRuntime implements AgentRuntime {
           disable_parallel_tool_use: input.disableParallelToolUse,
         };
       }
+      if (input.thinkingBudget && input.thinkingBudget > 0) {
+        (params as any).thinking = { type: 'enabled', budget_tokens: input.thinkingBudget };
+        params.temperature = 1;
+        params.max_tokens = Math.max(input.maxTokens ?? 16000, input.thinkingBudget);
+      }
 
       const hasBetaTools = input.tools?.some(t => t.betaType) ?? false;
       const response = hasBetaTools
@@ -74,6 +79,8 @@ export class AnthropicRawRuntime implements AgentRuntime {
       for (const block of response.content) {
         if (block.type === 'text') {
           content += block.text;
+        } else if (block.type === 'thinking') {
+          // Extended thinking block — skip (content is internal reasoning)
         } else if (block.type === 'tool_use') {
           toolCalls.push({ id: block.id, name: block.name, args: block.input });
         }
@@ -146,6 +153,11 @@ export class AnthropicRawRuntime implements AgentRuntime {
           disable_parallel_tool_use: input.disableParallelToolUse,
         };
       }
+      if (input.thinkingBudget && input.thinkingBudget > 0) {
+        (params as any).thinking = { type: 'enabled', budget_tokens: input.thinkingBudget };
+        params.temperature = 1;
+        params.max_tokens = Math.max(input.maxTokens ?? 16000, input.thinkingBudget);
+      }
 
       const hasBetaTools = input.tools?.some(t => t.betaType) ?? false;
       const stream = hasBetaTools
@@ -186,7 +198,9 @@ export class AnthropicRawRuntime implements AgentRuntime {
           }
         } else if (event.type === 'content_block_delta') {
           const delta = (event as any).delta;
-          if (delta?.type === 'text_delta') {
+          if (delta?.type === 'thinking_delta') {
+            yield { type: 'thinking_delta', data: { thinking: delta.thinking } };
+          } else if (delta?.type === 'text_delta') {
             yield { type: 'text_delta', data: { text: delta.text } };
           } else if (delta?.type === 'input_json_delta') {
             const tracked = toolBlocks.get((event as any).index);

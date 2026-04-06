@@ -17,9 +17,6 @@ mock.module('../gateway-stream', () => ({
   bridgeTaskEvents: mock(() => () => {}),
 }));
 
-mock.module('../../hooks/hook-registry', () => ({
-  lifecycleHooks: { register: mock(() => {}), unregister: mock(() => {}) },
-}));
 
 mock.module('../../../modules/skills/skills.registry', () => ({
   skillRegistry: { register: mock(() => {}), unregister: mock(() => {}) },

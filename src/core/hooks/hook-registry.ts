@@ -18,20 +18,39 @@ import { logger } from '../../config/logger';
 // ---------------------------------------------------------------------------
 
 export type HookEvent =
+  // Tool lifecycle
   | 'pre_tool_use'
   | 'post_tool_use'
+  | 'tool_discovery'
+  // Task lifecycle
   | 'task_created'
   | 'task_completed'
   | 'task_failed'
   | 'task_interrupted'
+  // Approval flow
   | 'approval_requested'
   | 'approval_resolved'
+  // Human-in-the-loop input
   | 'input_required'
   | 'input_received'
+  // Agent lifecycle
   | 'agent_start'
   | 'agent_stop'
+  | 'subagent_start'
+  | 'subagent_stop'
+  // Session lifecycle
   | 'session_start'
   | 'session_end'
+  // Compaction
+  | 'pre_compact'
+  | 'post_compact'
+  // Security
+  | 'permission_denied'
+  // Memory
+  | 'memory_extracted'
+  // Workflow
+  | 'workflow_gate'
+  // Domain registration
   | 'domain_registered';
 
 // ---------------------------------------------------------------------------
@@ -39,20 +58,39 @@ export type HookEvent =
 // ---------------------------------------------------------------------------
 
 export interface HookPayloadMap {
-  pre_tool_use: { name: string; args: Record<string, unknown> };
-  post_tool_use: { name: string; args: Record<string, unknown>; result: { ok: boolean; value?: unknown; error?: unknown } };
-  task_created: { taskId: string; agentId: string; message?: string };
-  task_completed: { taskId: string; result?: unknown };
-  task_failed: { taskId: string; error: string };
-  task_interrupted: { taskId: string };
-  approval_requested: { approvalId: string; taskId: string; toolName: string; args: unknown };
-  approval_resolved: { approvalId: string; approved: boolean; updatedInput?: Record<string, unknown> };
-  input_required: { taskId: string; prompt: string };
-  input_received: { taskId: string; input: unknown };
-  agent_start: { agentId: string; taskId?: string };
-  agent_stop: { agentId: string; taskId?: string; reason?: string };
-  session_start: { sessionId: string };
-  session_end: { sessionId: string; reason?: string };
+  // Tool lifecycle
+  pre_tool_use: { toolName: string; args: Record<string, unknown>; workspaceId: string };
+  post_tool_use: { toolName: string; args: Record<string, unknown>; result: { ok: boolean; value?: unknown; error?: unknown }; workspaceId: string };
+  tool_discovery: { toolName: string; deferred: boolean; workspaceId: string };
+  // Task lifecycle
+  task_created: { taskId: string; workspaceId: string; agentId?: string; message?: string };
+  task_completed: { taskId: string; workspaceId: string; result?: unknown };
+  task_failed: { taskId: string; workspaceId: string; error: string };
+  task_interrupted: { taskId: string; workspaceId: string };
+  // Approval flow
+  approval_requested: { approvalId: string; taskId: string; toolName: string; args: unknown; workspaceId: string };
+  approval_resolved: { approvalId: string; approved: boolean; workspaceId: string; updatedInput?: Record<string, unknown> };
+  // Human-in-the-loop input
+  input_required: { taskId: string; prompt: string; workspaceId: string };
+  input_received: { taskId: string; input: unknown; workspaceId: string };
+  // Agent lifecycle
+  agent_start: { agentId: string; workspaceId: string; taskId?: string };
+  agent_stop: { agentId: string; workspaceId: string; taskId?: string; reason?: string };
+  subagent_start: { parentAgentId: string; subagentId: string; workspaceId: string; taskId?: string };
+  subagent_stop: { parentAgentId: string; subagentId: string; workspaceId: string; result?: unknown };
+  // Session lifecycle
+  session_start: { sessionId: string; workspaceId: string };
+  session_end: { sessionId: string; workspaceId: string; reason?: string };
+  // Compaction
+  pre_compact: { sessionId: string; messageCount: number; workspaceId: string };
+  post_compact: { sessionId: string; removedCount: number; workspaceId: string };
+  // Security
+  permission_denied: { userId: string; reason: string; workspaceId: string; toolName?: string };
+  // Memory
+  memory_extracted: { sessionId: string; scope: string; factCount: number; workspaceId: string };
+  // Workflow
+  workflow_gate: { orchestrationId: string; gateId: string; workspaceId: string; question?: string };
+  // Domain registration
   domain_registered: { domainName: string; workspaceId: string };
 }
 
@@ -131,6 +169,8 @@ export class LifecycleHookRegistry {
   private globalHooks: StoredHook[] = [];
   /** Per-workspace hooks */
   private workspaceHooks = new Map<string, StoredHook[]>();
+  /** Maps original handler functions (from on()) to their generated hook IDs */
+  private handlerIds = new Map<Function, string>();
 
   /**
    * Register a hook globally (fires for all workspaces).
@@ -247,6 +287,7 @@ export class LifecycleHookRegistry {
   clear(): void {
     this.globalHooks = [];
     this.workspaceHooks.clear();
+    this.handlerIds.clear();
   }
 
   /**
@@ -256,12 +297,25 @@ export class LifecycleHookRegistry {
    */
   on<E extends HookEvent>(event: E, handler: (payload: HookPayloadMap[E]) => Promise<void>): string {
     const id = `on_${event}_${Math.random().toString(36).slice(2)}`;
+    this.handlerIds.set(handler, id);
     this.registerGlobal({
       id,
       event,
       handler: async (_evt, payload) => { await handler(payload as HookPayloadMap[E]); },
     });
     return id;
+  }
+
+  /**
+   * Remove a handler registered via on().
+   * Pass the same function reference used in the on() call.
+   */
+  off<E extends HookEvent>(event: E, handler: (payload: HookPayloadMap[E]) => Promise<void>): void {
+    const id = this.handlerIds.get(handler);
+    if (id) {
+      this.unregister(id);
+      this.handlerIds.delete(handler);
+    }
   }
 
   /**

@@ -10,6 +10,7 @@ export interface AgentConfig {
   systemPrompt?: string;
   temperature: number;
   maxTokens: number;
+  thinkingBudget?: number;
   toolIds: string[];
   metadata: Record<string, unknown>;
   createdAt: Date;
@@ -25,6 +26,7 @@ export interface CreateAgentInput {
   systemPrompt?: string;
   temperature?: number;
   maxTokens?: number;
+  thinkingBudget?: number;
   toolIds?: string[];
   metadata?: Record<string, unknown>;
 }
@@ -37,6 +39,7 @@ export interface UpdateAgentInput {
   systemPrompt?: string;
   temperature?: number;
   maxTokens?: number;
+  thinkingBudget?: number;
   toolIds?: string[];
   metadata?: Record<string, unknown>;
 }

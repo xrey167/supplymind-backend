@@ -3,8 +3,10 @@ import { Topics } from '../topics';
 import { logger } from '../../config/logger';
 import { taskRepo } from '../../infra/a2a/task-repo';
 import { enqueueAgentRun } from '../../infra/queue/bullmq';
+import { initMemoryExtractionHandler } from './memory-extraction.handler';
 
 export function initEventConsumers() {
+  initMemoryExtractionHandler();
   eventBus.subscribe(Topics.SKILL_INVOKED, (event) => {
     const data = event.data as any;
     logger.info({ skill: data.name, durationMs: data.durationMs, success: data.success }, 'Skill invoked');
