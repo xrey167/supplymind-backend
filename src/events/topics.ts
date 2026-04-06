@@ -73,6 +73,9 @@ export const Topics = {
   COORDINATOR_PHASE_COMPLETED: 'coordinator.phase_completed',
   // Verification
   VERIFICATION_VERDICT: 'verification.verdict',
+  // Budget
+  BUDGET_WARNING: 'billing.budget_warning',
+  BUDGET_EXCEEDED: 'billing.budget_exceeded',
   // System
   HEARTBEAT: 'system.heartbeat',
   // Workspace lifecycle

@@ -36,7 +36,7 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
 
       // Pre-tool hook — can block or modify args
       const hookCtx = { workspaceId: context.workspaceId, callerId: context.callerId, traceId: context.traceId };
-      const preResult = await lifecycleHooks.run('pre_tool_use', { name, args }, hookCtx);
+      const preResult = await lifecycleHooks.run('pre_tool_use', { toolName: name, args, workspaceId: context.workspaceId }, hookCtx);
       if (!preResult.allow) {
         return err(new Error(preResult.reason ?? `Blocked by pre_tool_use hook`));
       }
@@ -47,7 +47,7 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
       const result = await dispatchSkill(name, args, toDispatchCtx(context));
 
       // Post-tool hook — fire-and-forget notification
-      lifecycleHooks.notify('post_tool_use', { name, args, result }, hookCtx);
+      lifecycleHooks.notify('post_tool_use', { toolName: name, args, result, workspaceId: context.workspaceId }, hookCtx);
 
       return result;
     }

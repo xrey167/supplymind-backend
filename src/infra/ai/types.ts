@@ -61,6 +61,7 @@ export interface RunInput {
   temperature?: number;
   maxTokens?: number;
   toolChoice?: ToolChoice;
+  thinkingBudget?: number;
   disableParallelToolUse?: boolean;
   signal?: AbortSignal;
 }

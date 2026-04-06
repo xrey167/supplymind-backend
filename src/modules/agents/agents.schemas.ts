@@ -9,6 +9,7 @@ export const createAgentSchema = z.object({
   systemPrompt: z.string().optional(),
   temperature: z.number().min(0).max(2).optional(),
   maxTokens: z.number().int().positive().optional(),
+  thinkingBudget: z.number().int().min(0).optional(),
   toolIds: z.array(z.string()).optional(),
   metadata: z.record(z.unknown()).optional(),
 });
@@ -21,6 +22,7 @@ export const updateAgentSchema = z.object({
   systemPrompt: z.string().optional(),
   temperature: z.number().min(0).max(2).optional(),
   maxTokens: z.number().int().positive().optional(),
+  thinkingBudget: z.number().int().min(0).optional(),
   toolIds: z.array(z.string()).optional(),
   metadata: z.record(z.unknown()).optional(),
 });
