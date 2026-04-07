@@ -36,6 +36,7 @@ jobs:
         run: bun test src/
         env:
           CREDENTIALS_ENCRYPTION_KEY: ci-test-key-for-unit-tests-32bytes
+          DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
 
   integration-tests:
     runs-on: ubuntu-latest
