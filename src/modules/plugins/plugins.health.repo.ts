@@ -18,6 +18,7 @@ export const pluginHealthRepo = {
       error: data.error,
       metadata: data.metadata ?? {},
     }).returning();
+    if (!row) throw new Error('Health check insert returned no rows');
     return row as unknown as HealthCheckRow;
   },
 

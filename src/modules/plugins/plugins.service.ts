@@ -1,27 +1,40 @@
 import { ok, err } from '../../core/result';
 import type { Result } from '../../core/result';
+import { logger } from '../../config/logger';
 import { pluginCatalogRepo } from './plugins.catalog.repo';
 import { pluginInstallationRepo } from './plugins.installation.repo';
 import { pluginHealthRepo } from './plugins.health.repo';
 import { validatePluginConfig, checkPermissions } from './plugins.manifest-validator';
 import { featureFlagsService } from '../feature-flags/feature-flags.service';
 import type { InstallationRow, PluginEventRow, HealthCheckRow, Actor, PluginManifestV1 } from './plugins.types';
+import { PluginConflictError } from './plugins.types';
 
 const DEFAULT_CALLER_PERMISSIONS = ['workspace:read'];
+
+const BLOCKED_HOSTNAMES = [
+  /^localhost$/,
+  /^127\./,
+  /^::1$/,
+  /^0\.0\.0\.0$/,
+  /^10\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^(fc|fd)/i,    // IPv6 ULA private ranges
+  /^fe80/i,       // IPv6 link-local
+  /^::ffff:/i,    // IPv4-mapped IPv6
+];
 
 function isAllowedHealthUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== 'https:') return false;
-    const hostname = parsed.hostname;
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return false;
-    if (/^10\./.test(hostname)) return false;
-    if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) return false;
-    if (/^192\.168\./.test(hostname)) return false;
-    if (/^169\.254\./.test(hostname)) return false;
+    const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    if (BLOCKED_HOSTNAMES.some(r => r.test(hostname))) return false;
     return true;
-  } catch {
-    return false;
+  } catch (e) {
+    if (e instanceof TypeError) return false;
+    throw e;
   }
 }
 
@@ -57,8 +70,10 @@ export const pluginsService = {
     if (!configCheck.valid) return err(new Error(configCheck.error));
 
     const existing = await pluginInstallationRepo.findByWorkspaceAndPlugin(workspaceId, pluginId);
-    if (existing && existing.status === 'active') {
-      return err(new Error('Plugin already installed and active'));
+    if (existing && existing.status !== 'uninstalled') {
+      if (existing.status === 'active') return err(new Error('Plugin already installed and active'));
+      if (existing.status === 'installing') return err(new Error('Plugin installation is already in progress'));
+      return err(new Error(`Plugin exists with status '${existing.status}' — uninstall it first or re-enable it`));
     }
 
     let installation: InstallationRow;
@@ -72,11 +87,16 @@ export const pluginsService = {
       throw e;
     }
 
-    const { installation: active } = await pluginInstallationRepo.transition(
-      installation.id, workspaceId, 'active', 'installed', actor,
-      { pluginId, config },
-    );
-    return ok(active);
+    try {
+      const { installation: active } = await pluginInstallationRepo.transition(
+        installation.id, workspaceId, 'active', 'installed', actor,
+        { pluginId, config },
+      );
+      return ok(active);
+    } catch (e) {
+      logger.error({ err: e, installationId: installation.id, workspaceId, pluginId }, 'Plugin install transition failed — orphaned installation row may remain');
+      return err(new Error('Plugin install failed during activation'));
+    }
   },
 
   async enable(workspaceId: string, installationId: string, actor: Actor): Promise<Result<InstallationRow>> {
@@ -84,10 +104,15 @@ export const pluginsService = {
     if (!inst || inst.workspaceId !== workspaceId) return err(new Error('Installation not found'));
     if (inst.status !== 'disabled') return err(new Error(`Cannot enable plugin in status: ${inst.status}`));
 
-    const { installation } = await pluginInstallationRepo.transition(
-      installationId, workspaceId, 'active', 'enabled', actor,
-    );
-    return ok(installation);
+    try {
+      const { installation } = await pluginInstallationRepo.transition(
+        installationId, workspaceId, 'active', 'enabled', actor,
+      );
+      return ok(installation);
+    } catch (e) {
+      logger.error({ err: e, installationId, workspaceId }, 'Plugin enable transition failed');
+      return err(new Error('Internal error enabling plugin'));
+    }
   },
 
   async disable(workspaceId: string, installationId: string, actor: Actor): Promise<Result<InstallationRow>> {
@@ -95,10 +120,15 @@ export const pluginsService = {
     if (!inst || inst.workspaceId !== workspaceId) return err(new Error('Installation not found'));
     if (inst.status !== 'active') return err(new Error(`Cannot disable plugin in status: ${inst.status}`));
 
-    const { installation } = await pluginInstallationRepo.transition(
-      installationId, workspaceId, 'disabled', 'disabled', actor,
-    );
-    return ok(installation);
+    try {
+      const { installation } = await pluginInstallationRepo.transition(
+        installationId, workspaceId, 'disabled', 'disabled', actor,
+      );
+      return ok(installation);
+    } catch (e) {
+      logger.error({ err: e, installationId, workspaceId }, 'Plugin disable transition failed');
+      return err(new Error('Internal error disabling plugin'));
+    }
   },
 
   async updateConfig(
@@ -117,12 +147,17 @@ export const pluginsService = {
     const configCheck = validatePluginConfig(config, manifest.configSchema);
     if (!configCheck.valid) return err(new Error(configCheck.error));
 
-    const { installation } = await pluginInstallationRepo.transition(
-      installationId, workspaceId, 'active', 'config_updated', actor,
-      { previousConfig: inst.config, newConfig: config },
-      { config },
-    );
-    return ok(installation);
+    try {
+      const { installation } = await pluginInstallationRepo.transition(
+        installationId, workspaceId, 'active', 'config_updated', actor,
+        { previousConfig: inst.config, newConfig: config },
+        { config },
+      );
+      return ok(installation);
+    } catch (e) {
+      logger.error({ err: e, installationId, workspaceId }, 'Plugin updateConfig transition failed');
+      return err(new Error('Internal error updating plugin config'));
+    }
   },
 
   async pinVersion(
@@ -135,12 +170,17 @@ export const pluginsService = {
     if (!inst || inst.workspaceId !== workspaceId) return err(new Error('Installation not found'));
     if (inst.status !== 'active') return err(new Error(`Cannot pin version in status: ${inst.status}`));
 
-    const { installation } = await pluginInstallationRepo.transition(
-      installationId, workspaceId, 'active', 'version_pinned', actor,
-      { version, config: inst.config },
-      { pinnedVersion: version },
-    );
-    return ok(installation);
+    try {
+      const { installation } = await pluginInstallationRepo.transition(
+        installationId, workspaceId, 'active', 'version_pinned', actor,
+        { version, config: inst.config },
+        { pinnedVersion: version },
+      );
+      return ok(installation);
+    } catch (e) {
+      logger.error({ err: e, installationId, workspaceId }, 'Plugin pinVersion transition failed');
+      return err(new Error('Internal error pinning plugin version'));
+    }
   },
 
   async uninstall(workspaceId: string, installationId: string, actor: Actor): Promise<Result<void>> {
@@ -150,8 +190,13 @@ export const pluginsService = {
       return err(new Error(`Cannot uninstall plugin in status: ${inst.status}`));
     }
 
-    await pluginInstallationRepo.transition(installationId, workspaceId, 'uninstalled', 'uninstalled', actor);
-    return ok(undefined);
+    try {
+      await pluginInstallationRepo.transition(installationId, workspaceId, 'uninstalled', 'uninstalled', actor);
+      return ok(undefined);
+    } catch (e) {
+      logger.error({ err: e, installationId, workspaceId }, 'Plugin uninstall transition failed');
+      return err(new Error('Internal error uninstalling plugin'));
+    }
   },
 
   async rollback(workspaceId: string, installationId: string, actor: Actor): Promise<Result<InstallationRow>> {
@@ -163,54 +208,49 @@ export const pluginsService = {
 
     const lastPin = await pluginInstallationRepo.getLastVersionPinnedEvent(installationId);
     if (!lastPin) {
-      return err(new Error('No pinned version found to rollback to — rollback not possible (409)'));
+      return err(new PluginConflictError('No pinned version found to rollback to'));
     }
 
     const restoredConfig = typeof lastPin.payload.config === 'object' && lastPin.payload.config !== null
       ? lastPin.payload.config as Record<string, unknown>
       : inst.config;
-    const restoredVersion = lastPin.payload.version !== undefined && lastPin.payload.version !== null
+    const restoredVersion = lastPin.payload.version != null
       ? String(lastPin.payload.version)
       : inst.pinnedVersion ?? undefined;
 
-    await pluginInstallationRepo.transition(
-      installationId, workspaceId, 'active', 'rollback_initiated', actor,
-      { restoringTo: lastPin.payload },
-    );
-
-    const { installation } = await pluginInstallationRepo.transition(
-      installationId, workspaceId, 'active', 'rollback_completed', actor,
-      { restoredVersion: lastPin.payload },
-      {
-        config: restoredConfig,
-        pinnedVersion: restoredVersion,
-      },
-    );
-    return ok(installation);
-  },
-
-  async runHealthCheck(
-    workspaceIdOrInstallationId: string,
-    installationId?: string,
-  ): Promise<Result<HealthCheckRow>> {
-    // Support both signatures: runHealthCheck(wsId, instId) and runHealthCheck(instId)
-    let resolvedInstId: string;
-    let resolvedWsId: string | undefined;
-    if (installationId) {
-      resolvedWsId = workspaceIdOrInstallationId;
-      resolvedInstId = installationId;
-    } else {
-      resolvedInstId = workspaceIdOrInstallationId;
-      resolvedWsId = undefined;
+    try {
+      await pluginInstallationRepo.transition(
+        installationId, workspaceId, 'active', 'rollback_initiated', actor,
+        { restoringTo: lastPin.payload },
+      );
+    } catch (e) {
+      logger.error({ err: e, installationId, workspaceId }, 'Rollback initiation failed');
+      return err(new Error('Failed to initiate rollback'));
     }
 
-    const inst = await pluginInstallationRepo.findById(resolvedInstId);
+    try {
+      const { installation } = await pluginInstallationRepo.transition(
+        installationId, workspaceId, 'active', 'rollback_completed', actor,
+        { restoredVersion: lastPin.payload },
+        { config: restoredConfig, pinnedVersion: restoredVersion },
+      );
+      return ok(installation);
+    } catch (e) {
+      logger.error({ err: e, installationId, workspaceId }, 'Rollback completion failed — installation may be in inconsistent state');
+      return err(new Error('Rollback initiated but failed to apply restored config'));
+    }
+  },
+
+  async runHealthCheck(workspaceId: string, installationId: string): Promise<Result<HealthCheckRow>> {
+    const inst = await pluginInstallationRepo.findById(installationId);
     if (!inst) return err(new Error('Installation not found'));
-    if (resolvedWsId && inst.workspaceId !== resolvedWsId) return err(new Error('Installation not found'));
+    if (inst.workspaceId !== workspaceId) return err(new Error('Installation not found'));
 
     const catalog = await pluginCatalogRepo.findById(inst.pluginId);
-    const manifest = catalog?.manifest as unknown as PluginManifestV1 | undefined;
-    const healthUrl = manifest?.healthCheckUrl;
+    if (!catalog) return err(new Error('Plugin catalog entry not found'));
+
+    const manifest = catalog.manifest as unknown as PluginManifestV1;
+    const healthUrl = manifest.healthCheckUrl;
 
     let status: 'healthy' | 'degraded' | 'unreachable' = 'unreachable';
     let latencyMs: number | undefined;
@@ -229,19 +269,28 @@ export const pluginsService = {
         status = 'unreachable';
       }
     } else if (healthUrl) {
-      status = 'unreachable';
       error = 'Health check URL blocked by security policy';
     } else {
       status = inst.status === 'active' ? 'healthy' : 'degraded';
     }
 
-    const row = await pluginHealthRepo.create({ installationId: resolvedInstId, status, latencyMs, error });
+    let row: HealthCheckRow;
+    try {
+      row = await pluginHealthRepo.create({ installationId, status, latencyMs, error });
+    } catch (e) {
+      logger.error({ err: e, installationId, status }, 'Failed to persist health check result');
+      return err(new Error('Failed to persist health check result'));
+    }
 
-    await pluginInstallationRepo.transition(
-      resolvedInstId, inst.workspaceId, inst.status, 'health_checked',
-      { id: 'system', type: 'system' },
-      { status, latencyMs, error },
-    );
+    try {
+      await pluginInstallationRepo.transition(
+        installationId, inst.workspaceId, inst.status, 'health_checked',
+        { id: 'system', type: 'system' },
+        { status, latencyMs, error },
+      );
+    } catch (e) {
+      logger.error({ err: e, installationId }, 'Health check recorded but status update failed');
+    }
 
     return ok(row);
   },

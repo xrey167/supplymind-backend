@@ -54,6 +54,15 @@ describe('Plugin Platform', () => {
     expect(body.some((p: any) => p.id === catalogPluginId)).toBe(true);
   });
 
+  it('unauthenticated request returns 401', async () => {
+    const res = await app.request(`${base()}/install`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pluginId: catalogPluginId, config: {} }),
+    });
+    expect(res.status).toBe(401);
+  });
+
   it('POST /plugins/install creates installation (status: active)', async () => {
     const res = await app.request(`${base()}/install`, {
       method: 'POST',
@@ -91,6 +100,20 @@ describe('Plugin Platform', () => {
     expect(body.status).toBe('disabled');
   });
 
+  it('cross-workspace: disable from other workspace returns 400/404', async () => {
+    const other = await seedWorkspace({ name: 'Other WS Disable' });
+    await app.request(`/api/v1/workspaces/${other.workspaceId}/feature-flags`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeader(other.userId, 'admin') },
+      body: JSON.stringify({ flag: 'plugins.platform.enabled', value: true }),
+    });
+    const res = await app.request(`/api/v1/workspaces/${other.workspaceId}/plugins/${installationId}/disable`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader(other.userId, 'admin') },
+    });
+    expect([400, 404]).toContain(res.status);
+  });
+
   it('POST /plugins/:id/enable → active', async () => {
     const res = await app.request(`${base()}/${installationId}/enable`, {
       method: 'POST', headers: hdrs(),
@@ -98,6 +121,20 @@ describe('Plugin Platform', () => {
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(body.status).toBe('active');
+  });
+
+  it('cross-workspace: uninstall from other workspace returns 400/404', async () => {
+    const other = await seedWorkspace({ name: 'Other WS Uninstall' });
+    await app.request(`/api/v1/workspaces/${other.workspaceId}/feature-flags`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeader(other.userId, 'admin') },
+      body: JSON.stringify({ flag: 'plugins.platform.enabled', value: true }),
+    });
+    const res = await app.request(`/api/v1/workspaces/${other.workspaceId}/plugins/${installationId}/uninstall`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader(other.userId, 'admin') },
+    });
+    expect([400, 404]).toContain(res.status);
   });
 
   it('POST /plugins/:id/pin → version pinned', async () => {
@@ -128,6 +165,37 @@ describe('Plugin Platform', () => {
     expect(body.status).toBe('active');
   });
 
+  it('POST /plugins/:id/rollback returns 409 when no pinned version exists', async () => {
+    // Fresh install with no version pinned, then disable it to allow rollback attempt
+    const [freshRow] = await testDb.insert(pluginCatalog).values({
+      name: 'rollback-test-plugin',
+      version: '1.0.0',
+      kind: 'remote_mcp',
+      capabilities: [],
+      requiredPermissions: ['workspace:read'],
+      manifest: {
+        id: 'rollback-test-plugin', name: 'Rollback Test', version: '1.0.0',
+        kind: 'remote_mcp', description: 'Rollback test plugin',
+        capabilities: [], requiredPermissions: ['workspace:read'],
+      },
+    }).returning({ id: pluginCatalog.id });
+    const freshPluginId = freshRow!.id;
+
+    const installRes = await app.request(`${base()}/install`, {
+      method: 'POST', headers: hdrs(),
+      body: JSON.stringify({ pluginId: freshPluginId, config: {} }),
+    });
+    expect(installRes.status).toBe(201);
+    const freshInstId = (await installRes.json() as any).id;
+
+    await app.request(`${base()}/${freshInstId}/disable`, { method: 'POST', headers: hdrs() });
+
+    const rollbackRes = await app.request(`${base()}/${freshInstId}/rollback`, {
+      method: 'POST', headers: hdrs(),
+    });
+    expect(rollbackRes.status).toBe(409);
+  });
+
   it('POST /plugins/:id/uninstall → 204', async () => {
     const res = await app.request(`${base()}/${installationId}/uninstall`, {
       method: 'POST', headers: hdrs(),
@@ -135,7 +203,7 @@ describe('Plugin Platform', () => {
     expect(res.status).toBe(204);
   });
 
-  it('cross-workspace access rejected', async () => {
+  it('cross-workspace GET access rejected', async () => {
     const other = await seedWorkspace({ name: 'Other WS' });
     const res = await app.request(`/api/v1/workspaces/${other.workspaceId}/plugins/${installationId}`, {
       headers: { ...authHeader(other.userId, 'admin') },

@@ -2,6 +2,7 @@ import { db } from '../../infra/db/client';
 import { pluginInstallations, pluginEvents, auditLogs } from '../../infra/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import type { InstallationRow, PluginEventRow, PluginStatus, PluginEventType, Actor } from './plugins.types';
+import { VALID_TRANSITIONS } from './plugins.types';
 
 export const pluginInstallationRepo = {
   async findByWorkspace(workspaceId: string): Promise<InstallationRow[]> {
@@ -47,6 +48,18 @@ export const pluginInstallationRepo = {
     }> = {},
   ): Promise<{ installation: InstallationRow; event: PluginEventRow }> {
     return db.transaction(async (tx) => {
+      // Enforce valid state transition before writing
+      const [current] = await tx.select({ status: pluginInstallations.status })
+        .from(pluginInstallations)
+        .where(eq(pluginInstallations.id, installationId))
+        .limit(1);
+      if (current) {
+        const allowed = VALID_TRANSITIONS[current.status as PluginStatus] ?? [];
+        if (!allowed.includes(newStatus)) {
+          throw new Error(`Invalid plugin status transition: ${current.status} → ${newStatus}`);
+        }
+      }
+
       const [event] = await tx.insert(pluginEvents).values({
         installationId,
         workspaceId,
@@ -55,6 +68,7 @@ export const pluginInstallationRepo = {
         actorType: actor.type,
         payload,
       }).returning();
+      if (!event) throw new Error('Plugin event insert returned no rows');
 
       const [installation] = await tx.update(pluginInstallations)
         .set({
@@ -66,6 +80,7 @@ export const pluginInstallationRepo = {
         })
         .where(eq(pluginInstallations.id, installationId))
         .returning();
+      if (!installation) throw new Error('Plugin installation update returned no rows');
 
       await tx.insert(auditLogs).values({
         workspaceId,
@@ -95,6 +110,7 @@ export const pluginInstallationRepo = {
       status: 'installing',
       config: data.config ?? {},
     }).returning();
+    if (!row) throw new Error('Plugin installation insert returned no rows');
     return row as unknown as InstallationRow;
   },
 

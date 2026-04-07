@@ -7,10 +7,31 @@ export type PluginEventType =
   | 'installed' | 'enabled' | 'disabled' | 'config_updated' | 'version_pinned'
   | 'health_checked' | 'uninstalled' | 'rollback_initiated' | 'rollback_completed';
 
-export type PluginPermission =
+export type CorePluginPermission =
   | 'workspace:read' | 'workspace:write'
   | 'credentials:bind' | 'agent:invoke' | 'hitl:request'
-  | 'erp:read' | 'erp:write' | 'local_sandboxed:run';
+  | 'local_sandboxed:run';
+
+export type ErpPluginPermission = 'erp:read' | 'erp:write';
+
+export type PluginPermission = CorePluginPermission | ErpPluginPermission;
+
+export const VALID_TRANSITIONS: Record<PluginStatus, PluginStatus[]> = {
+  installing:   ['active', 'failed'],
+  active:       ['disabled', 'uninstalling', 'failed'],
+  disabled:     ['active', 'uninstalling'],
+  failed:       ['installing', 'uninstalling'],
+  uninstalling: ['uninstalled', 'failed'],
+  uninstalled:  [],
+};
+
+export class PluginConflictError extends Error {
+  readonly code = 'PLUGIN_CONFLICT';
+  constructor(message: string) {
+    super(message);
+    this.name = 'PluginConflictError';
+  }
+}
 
 export interface PluginCapability {
   id: string;

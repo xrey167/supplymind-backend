@@ -59,6 +59,8 @@ mock.module('../../../config/logger', () => ({
 }));
 
 const { pluginsService } = await import('../plugins.service');
+const { featureFlagsService } = await import('../../feature-flags/feature-flags.service');
+const { PluginConflictError } = await import('../plugins.types');
 
 const actor = { id: 'user-1', type: 'user' as const };
 const wsId = 'ws-test';
@@ -156,5 +158,148 @@ describe('pluginsService', () => {
     const rollback = await pluginsService.rollback(wsId, install.value.id, actor);
     expect(rollback.ok).toBe(true);
     if (rollback.ok) expect(rollback.value.status).toBe('active');
+  });
+
+  it('install fails when platform flag is disabled', async () => {
+    const orig = (featureFlagsService as any).isEnabled;
+    (featureFlagsService as any).isEnabled = async (_wsId: string, flag: string) =>
+      flag === 'plugins.platform.enabled' ? false : true;
+    const result = await pluginsService.install(wsId, 'plugin-1', {}, actor);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain('not enabled');
+    (featureFlagsService as any).isEnabled = orig;
+  });
+
+  it('install returns helpful error for disabled existing installation', async () => {
+    const install = await pluginsService.install(wsId, 'plugin-1', {}, actor);
+    expect(install.ok).toBe(true);
+    if (!install.ok) return;
+    installStore.get(install.value.id).status = 'disabled';
+    const result = await pluginsService.install(wsId, 'plugin-1', {}, actor);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain('uninstall it first');
+  });
+
+  it('enable fails when plugin is already active', async () => {
+    const install = await pluginsService.install(wsId, 'plugin-1', {}, actor);
+    expect(install.ok).toBe(true);
+    if (!install.ok) return;
+    const result = await pluginsService.enable(wsId, install.value.id, actor);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain('Cannot enable plugin in status: active');
+  });
+
+  it('disable fails when plugin is already disabled', async () => {
+    const install = await pluginsService.install(wsId, 'plugin-1', {}, actor);
+    expect(install.ok).toBe(true);
+    if (!install.ok) return;
+    await pluginsService.disable(wsId, install.value.id, actor);
+    const result = await pluginsService.disable(wsId, install.value.id, actor);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain('Cannot disable plugin in status: disabled');
+  });
+
+  it('rollback returns PluginConflictError when no pinned version', async () => {
+    const install = await pluginsService.install(wsId, 'plugin-1', {}, actor);
+    expect(install.ok).toBe(true);
+    if (!install.ok) return;
+    installStore.get(install.value.id).status = 'disabled';
+    const rollback = await pluginsService.rollback(wsId, install.value.id, actor);
+    expect(rollback.ok).toBe(false);
+    if (!rollback.ok) expect(rollback.error).toBeInstanceOf(PluginConflictError);
+  });
+
+  it('rollback fails when plugin is in active status', async () => {
+    const install = await pluginsService.install(wsId, 'plugin-1', {}, actor);
+    expect(install.ok).toBe(true);
+    if (!install.ok) return;
+    const result = await pluginsService.rollback(wsId, install.value.id, actor);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain('Cannot rollback plugin in status: active');
+  });
+
+  it('runHealthCheck with no healthCheckUrl returns healthy for active install', async () => {
+    const install = await pluginsService.install(wsId, 'plugin-1', {}, actor);
+    expect(install.ok).toBe(true);
+    if (!install.ok) return;
+    const result = await pluginsService.runHealthCheck(wsId, install.value.id);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.status).toBe('healthy');
+  });
+
+  it('runHealthCheck returns degraded when installation is disabled', async () => {
+    const install = await pluginsService.install(wsId, 'plugin-1', {}, actor);
+    expect(install.ok).toBe(true);
+    if (!install.ok) return;
+    installStore.get(install.value.id).status = 'disabled';
+    const result = await pluginsService.runHealthCheck(wsId, install.value.id);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.status).toBe('degraded');
+  });
+
+  it('runHealthCheck returns err when catalog is missing', async () => {
+    const install = await pluginsService.install(wsId, 'plugin-1', {}, actor);
+    expect(install.ok).toBe(true);
+    if (!install.ok) return;
+    catalogStore.delete('plugin-1');
+    const result = await pluginsService.runHealthCheck(wsId, install.value.id);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain('catalog entry not found');
+  });
+
+  it('runHealthCheck with http:// URL blocks (not https)', async () => {
+    catalogStore.set('plugin-http', {
+      id: 'plugin-http', name: 'HTTP Plugin', version: '1.0.0', kind: 'remote_mcp',
+      capabilities: [], requiredPermissions: ['workspace:read'],
+      manifest: { ...mockManifest, id: 'plugin-http', healthCheckUrl: 'http://api.example.com/health' },
+    });
+    const install = await pluginsService.install(wsId, 'plugin-http', {}, actor);
+    expect(install.ok).toBe(true);
+    if (!install.ok) return;
+    const result = await pluginsService.runHealthCheck(wsId, install.value.id);
+    expect(result.ok).toBe(true);
+    if (result.ok) { expect(result.value.status).toBe('unreachable'); expect(result.value.error).toContain('blocked'); }
+  });
+
+  it('runHealthCheck blocks 127.0.0.1 (loopback)', async () => {
+    catalogStore.set('plugin-loop', {
+      id: 'plugin-loop', name: 'Loop Plugin', version: '1.0.0', kind: 'remote_mcp',
+      capabilities: [], requiredPermissions: ['workspace:read'],
+      manifest: { ...mockManifest, id: 'plugin-loop', healthCheckUrl: 'https://127.0.0.1/health' },
+    });
+    const install = await pluginsService.install(wsId, 'plugin-loop', {}, actor);
+    expect(install.ok).toBe(true);
+    if (!install.ok) return;
+    const result = await pluginsService.runHealthCheck(wsId, install.value.id);
+    expect(result.ok).toBe(true);
+    if (result.ok) { expect(result.value.status).toBe('unreachable'); expect(result.value.error).toContain('blocked'); }
+  });
+
+  it('runHealthCheck blocks 10.x private range', async () => {
+    catalogStore.set('plugin-priv', {
+      id: 'plugin-priv', name: 'Priv Plugin', version: '1.0.0', kind: 'remote_mcp',
+      capabilities: [], requiredPermissions: ['workspace:read'],
+      manifest: { ...mockManifest, id: 'plugin-priv', healthCheckUrl: 'https://10.0.0.1/health' },
+    });
+    const install = await pluginsService.install(wsId, 'plugin-priv', {}, actor);
+    expect(install.ok).toBe(true);
+    if (!install.ok) return;
+    const result = await pluginsService.runHealthCheck(wsId, install.value.id);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.error).toContain('blocked');
+  });
+
+  it('runHealthCheck blocks fc00:: IPv6 ULA', async () => {
+    catalogStore.set('plugin-ula', {
+      id: 'plugin-ula', name: 'ULA Plugin', version: '1.0.0', kind: 'remote_mcp',
+      capabilities: [], requiredPermissions: ['workspace:read'],
+      manifest: { ...mockManifest, id: 'plugin-ula', healthCheckUrl: 'https://[fc00::1]/health' },
+    });
+    const install = await pluginsService.install(wsId, 'plugin-ula', {}, actor);
+    expect(install.ok).toBe(true);
+    if (!install.ok) return;
+    const result = await pluginsService.runHealthCheck(wsId, install.value.id);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.error).toContain('blocked');
   });
 });

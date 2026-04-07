@@ -1,8 +1,10 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { pluginsService } from './plugins.service';
+import { pluginHealthRepo } from './plugins.health.repo';
 import { installPluginSchema, updateConfigSchema, pinVersionSchema, installationIdParamSchema } from './plugins.schemas';
 import type { Actor } from './plugins.types';
+import { PluginConflictError } from './plugins.types';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
 const idParam = { request: { params: installationIdParamSchema } };
@@ -23,7 +25,9 @@ const healthRunRoute = createRoute({ method: 'post', path: '/{id}/health/run', .
 export const pluginRoutes = new OpenAPIHono();
 
 function getActor(c: any): Actor {
-  return { id: c.get('userId') as string ?? 'system', type: 'user' };
+  const callerId = c.get('callerId') as string | undefined;
+  if (!callerId) throw new Error('Authenticated user ID not found in request context');
+  return { id: callerId, type: 'user' };
 }
 
 pluginRoutes.openapi(installRoute, async (c) => {
@@ -94,7 +98,7 @@ pluginRoutes.openapi(rollbackRoute, async (c) => {
   const { id } = c.req.valid('param');
   const result = await pluginsService.rollback(workspaceId, id, getActor(c));
   if (!result.ok) {
-    const status = result.error.message.includes('409') ? 409 : 400;
+    const status = result.error instanceof PluginConflictError ? 409 : 400;
     return c.json({ error: result.error.message }, status);
   }
   return c.json(result.value);
@@ -113,7 +117,6 @@ pluginRoutes.openapi(healthRoute, async (c) => {
   const { id } = c.req.valid('param');
   const inst = await pluginsService.get(workspaceId, id);
   if (!inst) return c.json({ error: 'Not found' }, 404);
-  const { pluginHealthRepo } = await import('./plugins.health.repo');
   const health = await pluginHealthRepo.getLatest(id);
   return c.json(health ?? { status: 'unknown' });
 });
