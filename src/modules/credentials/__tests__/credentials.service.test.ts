@@ -15,6 +15,8 @@ const publishedEvents: { topic: string; data: any }[] = [];
 mock.module('../../../events/bus', () => ({
   eventBus: {
     publish: (topic: string, data: any) => { publishedEvents.push({ topic, data }); return Promise.resolve({ id: 'evt-1', topic, data, source: '', timestamp: '' }); },
+    subscribe: () => 'sub-mock',
+    unsubscribe: () => {},
   },
 }));
 

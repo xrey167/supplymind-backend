@@ -27,7 +27,7 @@ mock.module('../../../events/bus', () => ({
 }));
 
 mock.module('../../../config/logger', () => ({
-  logger: { warn: mock(() => {}), debug: mock(() => {}) },
+  logger: { warn: mock(() => {}), debug: mock(() => {}), error: mock(() => {}), info: mock(() => {}) },
 }));
 
 // ---- Import after mocks ---------------------------------------------------
