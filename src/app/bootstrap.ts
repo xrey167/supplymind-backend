@@ -42,6 +42,15 @@ export async function initSubsystems(): Promise<void> {
   registerMemorySkills();
   logger.info('Memory skills registered');
 
+  // Register execution skills (A2A)
+  try {
+    const { registerExecutionSkills } = await import('../modules/execution/execution.skills');
+    registerExecutionSkills();
+    logger.info('Execution skills registered');
+  } catch (err) {
+    logger.warn({ err }, 'Failed to register execution skills — non-critical');
+  }
+
   // StateStore + CacheProvider
   const stateStore = getStateStore();
   logger.info({ backend: stateStore.backend }, 'StateStore initialized');

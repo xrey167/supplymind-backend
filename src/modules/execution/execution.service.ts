@@ -10,15 +10,32 @@ import type {
 } from './execution.types';
 
 // In-process cache fallback — no Redis required in test environment
+const MAX_CACHE_SIZE = 500;
 const _memCache = new Map<string, { value: string; expiresAt: number }>();
-const memGet = async (key: string): Promise<string | null> => {
-  const e = _memCache.get(key);
-  if (!e || Date.now() > e.expiresAt) return null;
-  return e.value;
-};
-const memSet = async (key: string, val: string, ttlMs: number): Promise<void> => {
-  _memCache.set(key, { value: val, expiresAt: Date.now() + ttlMs });
-};
+
+function cacheGet(key: string): string | null {
+  const entry = _memCache.get(key);
+  if (!entry || Date.now() > entry.expiresAt) {
+    _memCache.delete(key);
+    return null;
+  }
+  // Move to end (LRU)
+  _memCache.delete(key);
+  _memCache.set(key, entry);
+  return entry.value;
+}
+
+function cacheSet(key: string, value: string, ttlMs: number): void {
+  if (_memCache.size >= MAX_CACHE_SIZE) {
+    // Evict oldest entry (first key)
+    const firstKey = _memCache.keys().next().value;
+    if (firstKey !== undefined) _memCache.delete(firstKey);
+  }
+  _memCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+}
+
+const memGet = async (key: string): Promise<string | null> => cacheGet(key);
+const memSet = async (key: string, val: string, ttlMs: number): Promise<void> => { cacheSet(key, val, ttlMs); };
 
 async function loadGateConfig(workspaceId: string): Promise<IntentGateConfig> {
   try {
@@ -134,13 +151,35 @@ export const executionService = {
     workspaceId: string,
     planId: string,
     callerId: string,
-  ): Promise<Result<{ planId: string; runId: string; status: string }>> {
+  ): Promise<Result<{ planId: string; runId: string; orchestrationId?: string; status: string }>> {
     const plan = await executionRepo.getPlan(planId);
     if (!plan || plan.workspaceId !== workspaceId) return err(new Error('Plan not found'));
     if (plan.status !== 'pending_approval') return err(new Error('Plan not awaiting approval: ' + plan.status));
-    await executionRepo.updatePlanStatus(planId, 'running');
-    const run = await executionRepo.createRun({ planId, workspaceId, status: 'running', intent: plan.intent ?? undefined });
-    return ok({ planId, runId: run.id, status: 'running' });
+
+    const intent = plan.intent ?? { category: 'ops' as const, confidence: 1.0, method: 'rules' as const, cached: false };
+
+    // Compile + enqueue (same path as run() after gate passes)
+    const definition = compileToOrchestration(plan.steps, (plan.policy as any)?.maxConcurrency);
+    const { orchestrationService } = await import('../orchestration/orchestration.service');
+    const orch = await orchestrationService.create({
+      workspaceId,
+      name: plan.name ?? undefined,
+      definition,
+      input: { ...plan.input, _planId: plan.id },
+    });
+    const run = await executionRepo.createRun({ planId: plan.id, workspaceId, status: 'running', intent });
+    await executionRepo.updatePlanStatus(plan.id, 'running');
+
+    try {
+      const { enqueueOrchestration } = await import('../../infra/queue/bullmq');
+      await enqueueOrchestration({ orchestrationId: orch.id, workspaceId, definition, input: { ...plan.input, _planId: plan.id } });
+    } catch (queueErr) {
+      logger.warn({ err: queueErr, planId: plan.id }, 'Failed to enqueue — marking failed');
+      await executionRepo.updatePlanStatus(plan.id, 'failed');
+      return err(new Error('Failed to schedule execution'));
+    }
+
+    return ok({ planId: plan.id, runId: run.id, orchestrationId: orch.id, status: 'running' });
   },
 
   async get(workspaceId: string, planId: string): Promise<ExecutionPlanRow | undefined> {

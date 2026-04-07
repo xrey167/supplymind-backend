@@ -9,9 +9,6 @@ export function classifyByRules(steps: ExecutionStep[]): IntentClassification | 
   if (steps.some(s => s.type === 'gate' || s.approvalMode === 'required')) {
     return { category: 'ops', confidence: 0.95, method: 'rules', cached: false };
   }
-  if (steps.some(s => (s as any).type === 'webhook')) {
-    return { category: 'ops', confidence: 0.9, method: 'rules', cached: false };
-  }
   if (steps.some(s => s.type === 'agent')) {
     return { category: 'deep', confidence: 0.85, method: 'rules', cached: false };
   }
@@ -63,11 +60,14 @@ Respond with JSON only: {"category": "quick"|"deep"|"visual"|"ops", "confidence"
     let reasoning = '';
 
     try {
-      const msg = await client.messages.create({
-        model: config.model,
-        max_tokens: 100,
-        messages: [{ role: 'user', content: prompt }],
-      });
+      const msg = await client.messages.create(
+        {
+          model: config.model,
+          max_tokens: 100,
+          messages: [{ role: 'user', content: prompt }],
+        },
+        { signal: controller.signal },
+      );
       clearTimeout(timeout);
       const text = msg.content[0]?.type === 'text' ? msg.content[0].text.trim() : '{}';
       const parsed = JSON.parse(text);
