@@ -9,6 +9,31 @@ const baseTool: ToolDefinition = {
 };
 
 describe('toAnthropicTools', () => {
+  test('maps beta tool (computer_20251124)', () => {
+    const tool: ToolDefinition = {
+      name: 'computer',
+      description: '',
+      inputSchema: {},
+      betaType: 'computer_20251124',
+      displayWidth: 1920,
+      displayHeight: 1080,
+    };
+    const result = toAnthropicTools([tool]);
+    expect(result[0]).toEqual({ type: 'computer_20251124', name: 'computer', display_width_px: 1920, display_height_px: 1080 });
+  });
+
+  test('maps beta tool with cache_control', () => {
+    const tool: ToolDefinition = {
+      name: 'bash',
+      description: '',
+      inputSchema: {},
+      betaType: 'bash_20250124',
+      cacheControl: { type: 'ephemeral' },
+    };
+    const result = toAnthropicTools([tool]);
+    expect(result[0].cache_control).toEqual({ type: 'ephemeral' });
+  });
+
   test('maps basic tool definition', () => {
     const result = toAnthropicTools([baseTool]);
     expect(result).toEqual([{
