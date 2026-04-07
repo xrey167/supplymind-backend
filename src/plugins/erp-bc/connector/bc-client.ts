@@ -9,7 +9,11 @@ export class BcClient {
   constructor(
     private config: BcConnectionConfig,
     private tokenCache: TokenCache,
-  ) {}
+  ) {
+    if (!/^https:\/\//.test(config.baseUrl)) {
+      throw new PermanentError(`Invalid baseUrl — must use HTTPS: ${config.baseUrl}`);
+    }
+  }
 
   private baseEntityUrl(entitySet: BcEntityType): string {
     return `${this.config.baseUrl}/companies(${this.config.companyId})/${entitySet}`;
@@ -82,6 +86,7 @@ export class BcClient {
     etag: string,
     body: Partial<BcEntityMap[K]>,
   ): Promise<BcEntityMap[K]> {
+    if (!/^[\w\-]+$/.test(id)) throw new PermanentError(`Invalid entity id: ${id}`);
     return this.request<BcEntityMap[K]>(
       `${this.baseEntityUrl(entitySet)}(${id})`,
       { method: 'PATCH', body: JSON.stringify(body), headers: { 'If-Match': etag } },

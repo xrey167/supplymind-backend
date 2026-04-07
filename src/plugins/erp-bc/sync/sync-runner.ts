@@ -100,22 +100,25 @@ export async function runSync(
       .where(eq(syncJobs.id, jobId));
 
     if (err instanceof PermanentError) {
-      // Dead-letter: write failed record + notify
+      // Dead-letter: write failed record + notify. Use page-scoped entityId to avoid
+      // unique index collision on (jobId, entityId, action) across multiple page failures.
       await db.insert(syncRecords).values({
         jobId,
         workspaceId: job.workspaceId,
         entityType: job.entityType,
-        entityId: 'unknown',
+        entityId: `page-${page}`,
         action: 'failed',
         error: errMsg,
-      });
+      }).onConflictDoNothing();
       result.deadLettered++;
       await notify(
         job.workspaceId,
         `Sync job failed permanently: ${job.entityType}`,
         errMsg,
         jobId,
-      ).catch(() => {});
+      ).catch((notifyErr) => {
+        logger.warn({ err: notifyErr, jobId, workspaceId: job.workspaceId }, 'ERP sync: failed to send permanent-failure inbox notification');
+      });
     } else {
       throw err; // re-throw transient errors for BullMQ retry
     }

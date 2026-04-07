@@ -58,7 +58,7 @@ export function createErpSyncWorker(connection: Redis) {
   );
 
   worker.on('failed', (job, err) => {
-    logger.error({ jobId: job?.data?.jobId, err: err.message }, 'ERP sync worker job failed');
+    logger.error({ jobId: job?.data?.jobId, bullJobId: job?.id, attemptsMade: job?.attemptsMade, err }, 'ERP sync worker job failed');
   });
 
   return worker;

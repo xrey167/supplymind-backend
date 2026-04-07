@@ -34,8 +34,8 @@ function cacheSet(key: string, value: string, ttlMs: number): void {
   _memCache.set(key, { value, expiresAt: Date.now() + ttlMs });
 }
 
-const memGet = async (key: string): Promise<string | null> => cacheGet(key);
-const memSet = async (key: string, val: string, ttlMs: number): Promise<void> => { cacheSet(key, val, ttlMs); };
+async function memGet(key: string): Promise<string | null> { return cacheGet(key); }
+async function memSet(key: string, val: string, ttlMs: number): Promise<void> { cacheSet(key, val, ttlMs); }
 
 async function loadGateConfig(workspaceId: string): Promise<IntentGateConfig> {
   try {
@@ -47,7 +47,8 @@ async function loadGateConfig(workspaceId: string): Promise<IntentGateConfig> {
       ...(enabled != null ? { enabled: Boolean(enabled) } : {}),
       ...(llmFallback != null ? { llmFallback: Boolean(llmFallback) } : {}),
     };
-  } catch {
+  } catch (flagErr) {
+    logger.warn({ err: flagErr, workspaceId }, 'Intent gate: failed to load feature flags — using defaults');
     return DEFAULT_INTENT_GATE_CONFIG;
   }
 }
@@ -58,15 +59,20 @@ export const executionService = {
     createdBy: string,
     data: { name?: string; steps?: ExecutionStep[]; input?: Record<string, unknown>; policy?: ExecutionPolicy },
   ): Promise<Result<ExecutionPlanRow>> {
-    const plan = await executionRepo.createPlan({
-      workspaceId,
-      name: data.name,
-      steps: data.steps ?? [],
-      input: data.input,
-      policy: data.policy,
-      createdBy,
-    });
-    return ok(plan);
+    try {
+      const plan = await executionRepo.createPlan({
+        workspaceId,
+        name: data.name,
+        steps: data.steps ?? [],
+        input: data.input,
+        policy: data.policy,
+        createdBy,
+      });
+      return ok(plan);
+    } catch (e) {
+      logger.warn({ err: e, workspaceId }, 'Failed to create execution plan');
+      return err(e instanceof Error ? e : new Error(String(e)));
+    }
   },
 
   async run(
@@ -83,12 +89,8 @@ export const executionService = {
     try {
       gateResult = await runIntentGate(plan.steps, plan.input, gateConfig, memGet, memSet);
     } catch (gateErr) {
-      logger.warn({ err: gateErr }, 'Intent gate error — defaulting to allow');
-      gateResult = {
-        classification: { category: 'quick', confidence: 0.5, method: 'rules', cached: false },
-        decision: 'allow',
-        reason: 'Gate error fallback',
-      };
+      logger.error({ err: gateErr, planId }, 'Intent gate error — blocking execution for safety');
+      return err(new Error('Intent gate is unavailable — plan execution blocked. Please retry.'));
     }
 
     if (gateResult.decision === 'block') {
@@ -142,8 +144,9 @@ export const executionService = {
       await enqueueOrchestration({ orchestrationId: orch.id, workspaceId, definition, input: { ...plan.input, _planId: plan.id } });
       return ok({ planId, runId: run.id, orchestrationId: orch.id, status: 'running' });
     } catch (queueErr) {
-      logger.warn({ err: queueErr, planId }, 'Failed to enqueue orchestration — run created without queue');
-      return ok({ planId, runId: run.id, status: 'running' });
+      logger.warn({ err: queueErr, planId }, 'Failed to enqueue orchestration — marking plan failed');
+      await executionRepo.updatePlanStatus(planId, 'failed');
+      return err(new Error('Failed to schedule execution'));
     }
   },
 

@@ -9,10 +9,7 @@ export function classifyByRules(steps: ExecutionStep[]): IntentClassification | 
   if (steps.some(s => s.type === 'gate' || s.approvalMode === 'required')) {
     return { category: 'ops', confidence: 0.95, method: 'rules', cached: false };
   }
-  if (steps.some(s => s.type === 'agent')) {
-    return { category: 'deep', confidence: 0.85, method: 'rules', cached: false };
-  }
-  if (steps.some(s => s.type === 'collaboration')) {
+  if (steps.some(s => s.type === 'agent' || s.type === 'collaboration')) {
     return { category: 'deep', confidence: 0.85, method: 'rules', cached: false };
   }
   if (steps.every(s => s.type === 'skill') && !steps.some(s => s.riskClass === 'high')) {
@@ -39,7 +36,9 @@ async function classifyByLlm(
     try {
       const parsed = JSON.parse(cached) as IntentClassification;
       return { ...parsed, cached: true };
-    } catch { /* ignore */ }
+    } catch (parseErr) {
+      logger.warn({ err: parseErr, cacheKey, preview: cached.slice(0, 200) }, 'Intent-Gate: malformed cache entry — re-classifying');
+    }
   }
 
   const prompt = `Classify this execution plan into one category: quick (fast skill-only tasks), deep (multi-agent reasoning), visual (UI/screenshot tasks), ops (write actions, approvals, external integrations).
@@ -58,6 +57,7 @@ Respond with JSON only: {"category": "quick"|"deep"|"visual"|"ops", "confidence"
     let category: string = 'quick';
     let confidence = 0.7;
     let reasoning = '';
+    let classifiedSuccessfully = false;
 
     try {
       const msg = await client.messages.create(
@@ -74,13 +74,20 @@ Respond with JSON only: {"category": "quick"|"deep"|"visual"|"ops", "confidence"
       category = ['quick', 'deep', 'visual', 'ops'].includes(parsed.category) ? parsed.category : 'quick';
       confidence = typeof parsed.confidence === 'number' ? parsed.confidence : 0.7;
       reasoning = typeof parsed.reasoning === 'string' ? parsed.reasoning : '';
+      classifiedSuccessfully = true;
     } catch (llmErr) {
       clearTimeout(timeout);
-      logger.warn({ err: llmErr }, 'Intent-Gate LLM classification failed — defaulting to quick');
+      if (llmErr instanceof Error && llmErr.name === 'AbortError') {
+        logger.warn({ timeoutMs: config.timeoutMs }, 'Intent-Gate LLM timed out — not caching fallback');
+      } else {
+        logger.warn({ err: llmErr }, 'Intent-Gate LLM classification failed — not caching fallback');
+      }
     }
 
     const result: IntentClassification = { category: category as any, confidence, method: 'llm', reasoning, cached: false };
-    await setCache(cacheKey, JSON.stringify(result), 5 * 60 * 1000);
+    if (classifiedSuccessfully) {
+      await setCache(cacheKey, JSON.stringify(result), 5 * 60 * 1000);
+    }
     return result;
   } catch (err) {
     logger.warn({ err }, 'Intent-Gate LLM stage error — defaulting to quick');

@@ -1,4 +1,5 @@
 import { AuthError } from '../sync/sync-errors';
+import { logger } from '../../../config/logger';
 
 export interface TokenCache {
   get(key: string): Promise<string | null>;
@@ -56,7 +57,9 @@ export async function getToken(
       try {
         const token = JSON.parse(cached) as BcToken;
         if (token.expiresAt > Date.now()) return token.accessToken;
-      } catch { /* ignore malformed cache */ }
+      } catch (parseErr) {
+        logger.warn({ err: parseErr, cacheKey }, 'BC auth: malformed cached token — fetching fresh token');
+      }
     }
   }
 
