@@ -1,6 +1,6 @@
 import { db } from '../../infra/db/client';
 import { pluginCatalog } from '../../infra/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { CatalogRow, PluginManifestV1 } from './plugins.types';
 
 export const pluginCatalogRepo = {
@@ -15,7 +15,7 @@ export const pluginCatalogRepo = {
 
   async findByNameVersion(name: string, version: string): Promise<CatalogRow | undefined> {
     const [row] = await db.select().from(pluginCatalog)
-      .where(eq(pluginCatalog.name, name))
+      .where(and(eq(pluginCatalog.name, name), eq(pluginCatalog.version, version)))
       .limit(1);
     return row as unknown as CatalogRow | undefined;
   },
