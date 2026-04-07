@@ -15,9 +15,9 @@ describe('Audit Logs', () => {
 
     // Seed some audit log entries
     await testDb.insert(auditLogs).values([
-      { workspaceId, actorId: userId, action: 'agent.created', resource: 'agent', resourceId: 'agent-1', metadata: {} },
-      { workspaceId, actorId: userId, action: 'settings.updated', resource: 'settings', resourceId: workspaceId, metadata: {} },
-      { workspaceId, actorId: userId, action: 'credential.created', resource: 'credential', resourceId: 'cred-1', metadata: {} },
+      { workspaceId, actorId: userId, actorType: 'user', action: 'agent.created', resourceType: 'agent', resourceId: 'agent-1', metadata: {} },
+      { workspaceId, actorId: userId, actorType: 'user', action: 'settings.updated', resourceType: 'settings', resourceId: workspaceId, metadata: {} },
+      { workspaceId, actorId: userId, actorType: 'user', action: 'credential.created', resourceType: 'credential', resourceId: 'cred-1', metadata: {} },
     ]);
   });
 

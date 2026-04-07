@@ -24,7 +24,7 @@ let idleCleanupTimer: ReturnType<typeof setInterval> | null = null;
  * Skills loading is critical — if it fails, startup crashes.
  * Redis and MCP are non-critical — if they fail, we warn and continue.
  */
-export async function initSubsystems(): Promise<void> {
+export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHono): Promise<void> {
   // Step 0: Initialize OTel tracing
   const { initOtel } = await import('../infra/observability/otel');
   await initOtel();
@@ -203,12 +203,14 @@ export async function initSubsystems(): Promise<void> {
   }
 
   // Step 14: Register computer use routes (non-critical — requires playwright)
-  try {
-    const { computerUseRoutes } = await import('../modules/computer-use/computer-use.routes');
-    app.route('/workspaces/:workspaceId/computer-use', computerUseRoutes);
-    logger.info('Computer use routes registered');
-  } catch (err) {
-    logger.warn({ err }, 'Computer use routes failed to register — continuing without computer use');
+  if (app) {
+    try {
+      const { computerUseRoutes } = await import('../modules/computer-use/computer-use.routes');
+      app.route('/workspaces/:workspaceId/computer-use', computerUseRoutes);
+      logger.info('Computer use routes registered');
+    } catch (err) {
+      logger.warn({ err }, 'Computer use routes failed to register — continuing without computer use');
+    }
   }
 
   // Start idle MCP connection cleanup — runs every 2 minutes

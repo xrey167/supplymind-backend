@@ -20,8 +20,9 @@ const fakeProvider = {
   set: async (key: string, val: any) => { store.set(key, val); },
   delete: async (key: string) => { store.delete(key); },
   clear: async (prefix: string) => {
+    const p = prefix.endsWith('*') ? prefix.slice(0, -1) : prefix;
     for (const k of [...store.keys()]) {
-      if (k.startsWith(prefix)) store.delete(k);
+      if (k.startsWith(p)) store.delete(k);
     }
   },
 };

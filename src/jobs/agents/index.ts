@@ -3,12 +3,13 @@ import Redis from 'ioredis';
 import type { AgentJobData } from '../../infra/queue/bullmq';
 import { taskManager } from '../../infra/a2a/task-manager';
 import { taskRepo } from '../../infra/a2a/task-repo';
-import { agentsService } from '../../modules/agents/agents.service';
+import { agentsService as defaultAgentsService } from '../../modules/agents/agents.service';
+import type { AgentsService } from '../../modules/agents/agents.service';
 import { logger } from '../../config/logger';
 
 const REDIS_URL = Bun.env.REDIS_URL ?? 'redis://localhost:6379';
 
-export function startAgentWorkers(concurrency = 3): { worker: Worker<AgentJobData>; connection: Redis } {
+export function startAgentWorkers(concurrency = 3, agentsService: Pick<AgentsService, 'getById'> = defaultAgentsService): { worker: Worker<AgentJobData>; connection: Redis } {
   const workerRedis = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
 
   const worker = new Worker<AgentJobData>(

@@ -1,35 +1,23 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { AgentsService } from '../agents.service';
+import { Topics } from '../../../events/topics';
 
-// Mock the repo module before importing the service
 const mockFindByWorkspace = mock(() => Promise.resolve([]));
 const mockFindById = mock(() => Promise.resolve(null));
 const mockCreate = mock(() => Promise.resolve(null));
 const mockUpdate = mock(() => Promise.resolve(null));
 const mockRemove = mock(() => Promise.resolve(undefined));
 
-mock.module('../agents.repo', () => ({
-  agentsRepo: {
-    findByWorkspace: mockFindByWorkspace,
-    findById: mockFindById,
-    create: mockCreate,
-    update: mockUpdate,
-    remove: mockRemove,
-  },
-  AgentsRepository: class {},
-}));
+const mockRepo = {
+  findByWorkspace: mockFindByWorkspace,
+  findById: mockFindById,
+  create: mockCreate,
+  update: mockUpdate,
+  remove: mockRemove,
+} as any;
 
-// Mock the event bus
 const mockPublish = mock(() => Promise.resolve());
-
-mock.module('../../../events/bus', () => ({
-  eventBus: {
-    publish: mockPublish,
-  },
-}));
-
-// Import after mocking
-import { AgentsService } from '../agents.service';
-import { Topics } from '../../../events/topics';
+const mockBus = { publish: mockPublish } as any;
 
 // Minimal DB row shape matching agentConfigs.$inferSelect
 function makeRow(overrides: Record<string, unknown> = {}) {
@@ -65,7 +53,7 @@ describe('AgentsService', () => {
   let service: AgentsService;
 
   beforeEach(() => {
-    service = new AgentsService();
+    service = new AgentsService(mockRepo, mockBus);
     mockFindByWorkspace.mockReset();
     mockFindById.mockReset();
     mockCreate.mockReset();

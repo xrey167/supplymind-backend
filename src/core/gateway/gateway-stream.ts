@@ -25,12 +25,12 @@ const WATCHED_TOPICS = Object.keys(TOPIC_TO_EVENT);
  * Automatically unsubscribes when the task reaches a terminal state
  * (completed, failed, canceled).
  */
-export function bridgeTaskEvents(taskId: string, onEvent: OnGatewayEvent): () => void {
+export function bridgeTaskEvents(taskId: string, onEvent: OnGatewayEvent, bus = eventBus): () => void {
   const subIds: string[] = [];
 
   for (const topic of WATCHED_TOPICS) {
     const eventType = TOPIC_TO_EVENT[topic];
-    const subId = eventBus.subscribe(topic, (busEvent) => {
+    const subId = bus.subscribe(topic, (busEvent) => {
       const data = busEvent.data as Record<string, unknown>;
       if (data.taskId !== taskId) return;
 
@@ -47,7 +47,7 @@ export function bridgeTaskEvents(taskId: string, onEvent: OnGatewayEvent): () =>
   }
 
   // Also catch cancellation
-  const cancelSubId = eventBus.subscribe(Topics.TASK_CANCELED, (busEvent) => {
+  const cancelSubId = bus.subscribe(Topics.TASK_CANCELED, (busEvent) => {
     const data = busEvent.data as Record<string, unknown>;
     if (data.taskId !== taskId) return;
     onEvent({ type: 'status', data: { taskId, status: 'canceled' } });
@@ -60,7 +60,7 @@ export function bridgeTaskEvents(taskId: string, onEvent: OnGatewayEvent): () =>
     if (cleaned) return;
     cleaned = true;
     for (const id of subIds) {
-      eventBus.unsubscribe(id);
+      bus.unsubscribe(id);
     }
   }
 

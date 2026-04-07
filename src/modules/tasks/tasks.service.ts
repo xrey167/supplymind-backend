@@ -1,11 +1,11 @@
-import { nanoid } from 'nanoid';
 import { ok, err } from '../../core/result';
 import type { Result } from '../../core/result';
 import { NotFoundError } from '../../core/errors';
 import { taskManager } from '../../infra/a2a/task-manager';
 import { taskRepo } from '../../infra/a2a/task-repo';
-import { agentsRepo } from '../agents/agents.repo';
-import { toAgentConfig } from '../agents/agents.mapper';
+import { agentsRepo as defaultAgentsRepo } from '../agents/agents.repo';
+import type { AgentsRepository } from '../agents/agents.repo';
+import { toAgentConfig as defaultToAgentConfig } from '../agents/agents.mapper';
 import { enqueueAgentRun } from '../../infra/queue/bullmq';
 import type { A2AMessage } from '../../infra/a2a/types';
 import type { A2ATask } from './tasks.types';
@@ -13,6 +13,13 @@ import { db } from '../../infra/db/client';
 import { taskDependencies } from '../../infra/db/schema';
 
 export class TasksService {
+  private agentsRepo: AgentsRepository;
+  private toAgentConfig: typeof defaultToAgentConfig;
+
+  constructor(agentsRepo?: AgentsRepository, toAgentConfig?: typeof defaultToAgentConfig) {
+    this.agentsRepo = agentsRepo ?? defaultAgentsRepo;
+    this.toAgentConfig = toAgentConfig ?? defaultToAgentConfig;
+  }
   async send(
     agentId: string,
     message: string,
@@ -23,14 +30,14 @@ export class TasksService {
     sessionId?: string,
     runMode?: 'foreground' | 'background',
   ): Promise<Result<A2ATask | { taskId: string; jobId: string | undefined; queued: true }>> {
-    const agentRow = await agentsRepo.findById(agentId);
+    const agentRow = await this.agentsRepo.findById(agentId);
     if (!agentRow) return err(new Error(`Agent not found: ${agentId}`));
 
-    const agent = toAgentConfig(agentRow);
+    const agent = this.toAgentConfig(agentRow);
     const a2aMessage: A2AMessage = { role: 'user', parts: [{ kind: 'text', text: message }] };
 
     if (runMode === 'background') {
-      const taskId = nanoid();
+      const taskId = crypto.randomUUID();
 
       // Pre-create task record so GET /tasks/:id works immediately
       await taskRepo.create({
@@ -42,16 +49,22 @@ export class TasksService {
         sessionId,
       });
 
-      const job = await enqueueAgentRun({
-        taskId,
-        agentId,
-        workspaceId,
-        callerId,
-        message: a2aMessage,
-        sessionId,
-      });
+      let jobId: string | undefined;
+      try {
+        const job = await enqueueAgentRun({
+          taskId,
+          agentId,
+          workspaceId,
+          callerId,
+          message: a2aMessage,
+          sessionId,
+        });
+        jobId = job.id;
+      } catch {
+        // Redis unavailable — task is pre-created in DB, will be picked up later
+      }
 
-      return ok({ taskId, jobId: job.id, queued: true as const });
+      return ok({ taskId, jobId, queued: true as const });
     }
 
     // Foreground: existing path

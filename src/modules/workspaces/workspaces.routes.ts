@@ -1,6 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
-import { authMiddleware } from '../../api/middlewares/auth';
 import { workspacesService } from './workspaces.service';
 import { createWorkspaceSchema, updateWorkspaceSchema, workspaceIdParamSchema } from './workspaces.schemas';
 
@@ -44,8 +43,6 @@ const deleteWsRoute = createRoute({
 });
 
 export const WorkspacesRoutes = new OpenAPIHono();
-
-WorkspacesRoutes.use('*', authMiddleware);
 
 WorkspacesRoutes.openapi(createWsRoute, async (c) => {
   const body = c.req.valid('json');

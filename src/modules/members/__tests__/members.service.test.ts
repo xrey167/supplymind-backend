@@ -36,7 +36,7 @@ const mockInvitationsRepo = {
 };
 
 const mockPublish = mock(() => {});
-const mockEventBus = { publish: mockPublish };
+const mockEventBus = { publish: mockPublish, subscribe: mock(() => 'sub-mock'), unsubscribe: mock(() => {}) };
 
 // tx.execute is called multiple times per transaction — configure per test
 const executeCalls: (() => Promise<any>)[] = [];

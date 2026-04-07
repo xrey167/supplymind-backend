@@ -3,7 +3,7 @@ import { z } from 'zod';
 const workflowStepSchema = z.object({
   id: z.string().min(1),
   skillId: z.string().min(1),
-  args: z.record(z.unknown()).optional(),
+  args: z.record(z.string(), z.unknown()).optional(),
   message: z.string().optional(),
   dependsOn: z.array(z.string()).optional(),
   onError: z.enum(['fail', 'skip', 'retry']).optional(),
@@ -36,5 +36,5 @@ export const workflowTemplateIdParamSchema = z.object({ id: z.string().uuid() })
 
 export const runWorkflowTemplateSchema = z.object({
   sessionId: z.string().uuid().optional(),
-  input: z.record(z.unknown()).optional(),
+  input: z.record(z.string(), z.unknown()).optional(),
 });

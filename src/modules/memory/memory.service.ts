@@ -1,4 +1,4 @@
-import { memoryRepo } from './memory.repo';
+import { memoryRepo as defaultMemoryRepo } from './memory.repo';
 import { logger } from '../../config/logger';
 import { emitMemorySaved, emitMemoryProposal, emitMemoryApproved, emitMemoryRejected } from './memory.events';
 import type { AgentMemory, MemoryProposal, RecallResult, SaveMemoryInput, ProposeMemoryInput, RecallInput } from './memory.types';
@@ -24,9 +24,17 @@ function toRecallResult(m: AgentMemory): RecallResult {
   };
 }
 
-export const memoryService = {
+export type MemoryRepo = typeof defaultMemoryRepo;
+
+export class MemoryService {
+  private readonly repo: MemoryRepo;
+
+  constructor(repo: MemoryRepo = defaultMemoryRepo) {
+    this.repo = repo;
+  }
+
   async save(input: SaveMemoryInput): Promise<AgentMemory> {
-    const memory = await memoryRepo.save(input);
+    const memory = await this.repo.save(input);
     // Generate embedding async (best-effort)
     try {
       const { getEmbeddingProvider } = await import('./memory.embedding');
@@ -40,47 +48,49 @@ export const memoryService = {
     }
     emitMemorySaved(memory.id, memory.workspaceId);
     return memory;
-  },
+  }
 
   async recall(input: RecallInput): Promise<RecallResult[]> {
     try {
       const { hybridSearch } = await import('./memory.search');
       const results = await hybridSearch(input.query, input.workspaceId, input.agentId, input.limit ?? 5);
       if (results.length > 0) {
-        const memories = await Promise.all(results.map((r) => memoryRepo.get(r.id)));
+        const memories = await Promise.all(results.map((r) => this.repo.get(r.id)));
         return memories.filter((m): m is AgentMemory => m !== undefined).map(toRecallResult);
       }
     } catch (err) {
       logger.warn({ query: input.query, workspaceId: input.workspaceId, error: err instanceof Error ? err.message : String(err) }, 'Hybrid search failed, falling back to text-only');
     }
-    const memories = await memoryRepo.search(input.query, input.workspaceId, input.agentId, input.limit ?? 5);
+    const memories = await this.repo.search(input.query, input.workspaceId, input.agentId, input.limit ?? 5);
     return memories.map(toRecallResult);
-  },
+  }
 
   async list(workspaceId: string, agentId?: string): Promise<AgentMemory[]> {
-    return memoryRepo.list(workspaceId, agentId);
-  },
+    return this.repo.list(workspaceId, agentId);
+  }
 
   async forget(memoryId: string): Promise<boolean> {
-    return memoryRepo.delete(memoryId);
-  },
+    return this.repo.delete(memoryId);
+  }
 
   async propose(input: ProposeMemoryInput): Promise<MemoryProposal> {
-    const proposal = await memoryRepo.createProposal(input);
+    const proposal = await this.repo.createProposal(input);
     emitMemoryProposal({ id: proposal.id, workspaceId: proposal.workspaceId, agentId: proposal.agentId, title: proposal.title });
     return proposal;
-  },
+  }
 
   async approveProposal(proposalId: string): Promise<AgentMemory> {
-    const memory = await memoryRepo.approveProposal(proposalId);
+    const memory = await this.repo.approveProposal(proposalId);
     emitMemoryApproved(memory.id, proposalId, memory.workspaceId);
     return memory;
-  },
+  }
 
   async rejectProposal(proposalId: string, reason?: string): Promise<void> {
-    const proposal = await memoryRepo.getProposal(proposalId);
+    const proposal = await this.repo.getProposal(proposalId);
     if (!proposal) throw new Error(`Proposal not found: ${proposalId}`);
-    await memoryRepo.rejectProposal(proposalId, reason);
+    await this.repo.rejectProposal(proposalId, reason);
     emitMemoryRejected(proposalId, proposal.workspaceId, reason);
-  },
-};
+  }
+}
+
+export const memoryService = new MemoryService();

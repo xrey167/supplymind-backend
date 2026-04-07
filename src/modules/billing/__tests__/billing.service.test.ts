@@ -34,20 +34,17 @@ const mockUpsertSubscription = mock(() => Promise.resolve({ id: 'sub-1' }));
 const mockGetCustomerByStripeId = mock(() => Promise.resolve({ id: 'bc-1', workspaceId: 'ws-1', stripeCustomerId: 'cus_test123' }));
 const mockGetActivePlan = mock(() => Promise.resolve('free' as PlanTier));
 
-mock.module('../billing.repo', () => ({
-  billingRepo: {
-    getCustomer: mockGetCustomer,
-    upsertCustomer: mockUpsertCustomer,
-    getSubscription: mockGetSubscription,
-    upsertSubscription: mockUpsertSubscription,
-    getCustomerByStripeId: mockGetCustomerByStripeId,
-    getActivePlan: mockGetActivePlan,
-    insertInvoice: mock(() => Promise.resolve({ id: 'inv-1' })),
-    listInvoices: mock(() => Promise.resolve([])),
-    getPastDueSubscriptions: mock(() => Promise.resolve([])),
-  },
-  BillingRepository: class {},
-}));
+const mockRepo = {
+  getCustomer: mockGetCustomer,
+  upsertCustomer: mockUpsertCustomer,
+  getSubscription: mockGetSubscription,
+  upsertSubscription: mockUpsertSubscription,
+  getCustomerByStripeId: mockGetCustomerByStripeId,
+  getActivePlan: mockGetActivePlan,
+  insertInvoice: mock(() => Promise.resolve({ id: 'inv-1' })),
+  listInvoices: mock(() => Promise.resolve([])),
+  getPastDueSubscriptions: mock(() => Promise.resolve([])),
+};
 
 // Mock events
 mock.module('../billing.events', () => ({
@@ -78,7 +75,7 @@ describe('BillingService', () => {
   let service: BillingService;
 
   beforeEach(() => {
-    service = new BillingService();
+    service = new BillingService(mockRepo as any);
     mockGetCustomer.mockClear();
     mockUpsertCustomer.mockClear();
     mockCustomerCreate.mockClear();

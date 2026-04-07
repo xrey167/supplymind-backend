@@ -55,15 +55,11 @@ mock.module('../../../infra/a2a/task-repo', () => ({
   },
 }));
 
-mock.module('../../agents/agents.repo', () => ({
-  agentsRepo: {
-    findById: async (id: string) => id === 'agent-1' ? fakeAgent : null,
-  },
-}));
+const mockAgentsRepo = {
+  findById: async (id: string) => id === 'agent-1' ? fakeAgent : null,
+} as any;
 
-mock.module('../../agents/agents.mapper', () => ({
-  toAgentConfig: (row: any) => row,
-}));
+const mockToAgentConfig = (row: any) => row;
 
 mock.module('../../../infra/queue/bullmq', () => ({
   enqueueAgentRun: async (data: any) => { lastEnqueued = data; return { id: 'job-1' }; },
@@ -82,7 +78,7 @@ mock.module('../../../config/logger', () => ({
 }));
 
 const { TasksService } = await import('../tasks.service');
-const service = new TasksService();
+const service = new TasksService(mockAgentsRepo, mockToAgentConfig);
 
 describe('TasksService', () => {
   beforeEach(() => {

@@ -19,15 +19,15 @@ mock.module('../../../infra/db/schema', () => ({ users: {} }));
 mock.module('drizzle-orm', () => ({ eq: mock(() => {}) }));
 
 mock.module('../users.repo', () => ({
-  usersRepo: { upsert: mockUpsert, delete: mockDelete },
+  usersRepo: { upsert: mockUpsert, delete: mockDelete, updateLastSeen: mock(async () => {}) },
 }));
 
 mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mockPublish },
+  eventBus: { publish: mockPublish, subscribe: () => 'sub-mock', unsubscribe: () => {} },
 }));
 
 mock.module('../../../config/logger', () => ({
-  logger: { warn: mock(() => {}), debug: mock(() => {}) },
+  logger: { warn: mock(() => {}), debug: mock(() => {}), error: mock(() => {}), info: mock(() => {}) },
 }));
 
 // ---- Import after mocks ---------------------------------------------------

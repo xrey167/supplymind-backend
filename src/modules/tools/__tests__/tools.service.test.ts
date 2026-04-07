@@ -44,10 +44,6 @@ mock.module('../../../infra/queue/bullmq', () => ({
 
 const mockRunInSandbox = mock(async (_input: any) => ({ ok: true, value: { value: 'sandbox-result', durationMs: 10 } } as any));
 
-mock.module('../../../core/security/sandbox', () => ({
-  runInSandbox: mockRunInSandbox,
-}));
-
 const mockGetSandboxPolicy = mock(async (_wsId?: string) => ({
   maxTimeoutMs: 30000, allowNetwork: false, allowedPaths: [], deniedPaths: [], maxMemoryMb: 128, lockedByOrg: false,
 }));
@@ -69,6 +65,7 @@ mock.module('../../../config/logger', () => ({
 
 // --- import after mocks ---
 import { ToolsService } from '../tools.service';
+// Note: mockRunInSandbox is passed via constructor to avoid polluting sandbox.test.ts
 
 // Helpers
 const makeRow = (overrides?: Partial<any>) => ({
@@ -90,7 +87,7 @@ describe('ToolsService', () => {
   let service: ToolsService;
 
   beforeEach(() => {
-    service = new ToolsService();
+    service = new ToolsService(mockRunInSandbox as any);
     mockFindById.mockClear();
     mockFindByWorkspace.mockClear();
     mockCreate.mockClear();

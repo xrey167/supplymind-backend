@@ -52,7 +52,7 @@ const updatePreferencesRoute = createRoute({
 export const NotificationsRoutes = new OpenAPIHono();
 
 NotificationsRoutes.openapi(listRoute, async (c) => {
-  const userId = c.get('userId') as string;
+  const userId = c.get('callerId') as string;
   const workspaceId = c.get('workspaceId') as string;
   const query = c.req.valid('query');
   const items = await notificationsService.list(userId, workspaceId, {
@@ -71,28 +71,28 @@ NotificationsRoutes.openapi(markReadRoute, async (c) => {
 });
 
 NotificationsRoutes.openapi(markAllReadRoute, async (c) => {
-  const userId = c.get('userId') as string;
+  const userId = c.get('callerId') as string;
   const workspaceId = c.get('workspaceId') as string;
   await notificationsService.markAllRead(userId, workspaceId);
   return c.json({ success: true });
 });
 
 NotificationsRoutes.openapi(unreadCountRoute, async (c) => {
-  const userId = c.get('userId') as string;
+  const userId = c.get('callerId') as string;
   const workspaceId = c.get('workspaceId') as string;
   const count = await notificationsService.getUnreadCount(userId, workspaceId);
-  return c.json({ count });
+  return c.json({ data: { count } });
 });
 
 NotificationsRoutes.openapi(listPreferencesRoute, async (c) => {
-  const userId = c.get('userId') as string;
+  const userId = c.get('callerId') as string;
   const workspaceId = c.get('workspaceId') as string;
   const prefs = await notificationPreferencesRepo.list(userId, workspaceId);
   return c.json({ data: prefs });
 });
 
 NotificationsRoutes.openapi(updatePreferencesRoute, async (c) => {
-  const userId = c.get('userId') as string;
+  const userId = c.get('callerId') as string;
   const workspaceId = c.get('workspaceId') as string;
   const body = c.req.valid('json');
   const result = await notificationPreferencesRepo.upsert({

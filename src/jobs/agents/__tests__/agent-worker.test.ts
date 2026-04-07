@@ -39,8 +39,8 @@ mock.module('../../../infra/a2a/task-repo', () => ({
   taskRepo: { updateStatus: mockUpdateStatus },
 }));
 
-// ---- agentsRepo mock (mock the dependency, not the service, to avoid polluting agents.service.test.ts) ----
-const mockFindById = mock(async (_id: string) => ({
+// ---- mockAgentsService (passed directly to startAgentWorkers to avoid module mock contamination) ----
+const fakeAgentRow = {
   id: 'agent-1',
   workspaceId: 'ws-1',
   name: 'Test Agent',
@@ -54,22 +54,14 @@ const mockFindById = mock(async (_id: string) => ({
   metadata: {},
   createdAt: new Date(),
   updatedAt: new Date(),
-}));
-mock.module('../../../modules/agents/agents.repo', () => ({
-  agentsRepo: {
-    findById: mockFindById,
-    findByWorkspace: mock(async () => []),
-    create: mock(async () => ({})),
-    update: mock(async () => ({})),
-    remove: mock(async () => {}),
-  },
-  AgentsRepository: class {},
-}));
+};
 
-// Mock event bus (agents.service publishes events)
-mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mock(() => {}), subscribe: mock(() => {}), unsubscribe: mock(() => {}) },
-}));
+const mockGetById = mock(async (id: string) => {
+  if (id === 'agent-1') return { ok: true as const, value: fakeAgentRow };
+  return { ok: false as const, error: new Error(`Agent not found: ${id}`) };
+});
+
+const mockAgentsService = { getById: mockGetById };
 
 // ---- taskManager mock ----
 const mockSend = mock(async () => {});
@@ -84,7 +76,7 @@ mock.module('../../../config/logger', () => ({
 
 // Import AFTER mocks and call startAgentWorkers to capture processor + handlers
 const { startAgentWorkers } = await import('../index');
-startAgentWorkers(1);
+startAgentWorkers(1, mockAgentsService as any);
 
 // ---- Fixtures ----
 const makeJobData = (overrides: Record<string, unknown> = {}) => ({
@@ -98,7 +90,7 @@ const makeJobData = (overrides: Record<string, unknown> = {}) => ({
 });
 
 function resetMocks() {
-  mockFindById.mockClear();
+  mockGetById.mockClear();
   mockSend.mockClear();
   mockUpdateStatus.mockClear();
 }
@@ -108,12 +100,12 @@ describe('agent worker', () => {
   beforeEach(resetMocks);
 
   describe('processor', () => {
-    it('calls agentsRepo.findById with agentId from job data', async () => {
+    it('calls agentsService.getById with agentId from job data', async () => {
       const data = makeJobData();
       await capturedProcessor!({ data });
 
-      expect(mockFindById).toHaveBeenCalledTimes(1);
-      expect(mockFindById).toHaveBeenCalledWith('agent-1');
+      expect(mockGetById).toHaveBeenCalledTimes(1);
+      expect(mockGetById).toHaveBeenCalledWith('agent-1');
     });
 
     it('calls taskManager.send with correct params', async () => {
@@ -131,7 +123,7 @@ describe('agent worker', () => {
     });
 
     it('throws when agent is not found', async () => {
-      mockFindById.mockImplementationOnce(async () => null);
+      mockGetById.mockImplementationOnce(async (id: string) => ({ ok: false as const, error: new Error(`Agent not found: ${id}`) }));
 
       const data = makeJobData({ agentId: 'missing-agent' });
       await expect(capturedProcessor!({ data })).rejects.toThrow('Agent not found: missing-agent');

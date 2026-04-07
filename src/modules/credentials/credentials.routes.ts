@@ -32,7 +32,7 @@ const updateRoute = createRoute({
 const deleteRoute = createRoute({
   method: 'delete', path: '/{id}',
   request: { params: credentialIdParamSchema },
-  responses: { 204: { description: 'Credential deleted' } },
+  responses: { 200: { description: 'Credential deleted', ...jsonRes } },
 });
 
 export const CredentialsRoutes = new OpenAPIHono();
@@ -53,7 +53,8 @@ CredentialsRoutes.openapi(getByIdRoute, async (c) => {
 
 CredentialsRoutes.openapi(createRoute_, async (c) => {
   const body = c.req.valid('json');
-  const result = await credentialsService.create(body);
+  const workspaceId = c.get('workspaceId') as string;
+  const result = await credentialsService.create({ ...body, workspaceId });
   if (!result.ok) return c.json({ error: result.error.message }, 400);
   return c.json({ data: result.value }, 201);
 });
@@ -69,5 +70,5 @@ CredentialsRoutes.openapi(updateRoute, async (c) => {
 CredentialsRoutes.openapi(deleteRoute, async (c) => {
   const { id } = c.req.valid('param');
   await credentialsService.delete(id);
-  return c.json({ success: true }, 204);
+  return c.json({ success: true }, 200);
 });

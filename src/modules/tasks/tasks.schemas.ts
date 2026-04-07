@@ -4,9 +4,9 @@ export const taskSendSchema = z.object({
   agentId: z.string().uuid(),
   message: z.string().min(1),
   skillId: z.string().optional(),
-  args: z.record(z.unknown()).optional(),
+  args: z.record(z.string(), z.unknown()).optional(),
   sessionId: z.string().optional(),
-  runMode: z.enum(['foreground', 'background']).optional().default('foreground'),
+  runMode: z.enum(['foreground', 'background']).optional().default('background'),
 });
 
 export const taskIdParamSchema = z.object({

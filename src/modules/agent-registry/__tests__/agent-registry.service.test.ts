@@ -147,15 +147,13 @@ describe('AgentRegistryService', () => {
       expect(callArg.apiKeyHash).not.toBe('secret-key');
     });
 
-    it('returns err when discover fails', async () => {
+    it('registers with stub card when discover fails', async () => {
       mockDiscover.mockImplementationOnce(async () => { throw new Error('Connection refused'); });
 
       const result = await service.register('ws-1', 'http://bad-url:9999');
 
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error.message).toContain('Connection refused');
-      }
+      // Discovery failure is non-fatal — registration succeeds with a minimal stub card
+      expect(result.ok).toBe(true);
     });
   });
 

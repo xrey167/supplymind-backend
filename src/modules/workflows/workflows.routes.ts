@@ -14,7 +14,7 @@ import {
 const workflowStepSchema = z.object({
   id: z.string().min(1),
   skillId: z.string().min(1),
-  args: z.record(z.unknown()).optional(),
+  args: z.record(z.string(), z.unknown()).optional(),
   message: z.string().optional(),
   dependsOn: z.array(z.string()).optional(),
   onError: z.enum(['fail', 'skip', 'retry']).optional(),
@@ -24,12 +24,16 @@ const workflowStepSchema = z.object({
 });
 
 const runWorkflowSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().optional(),
   name: z.string().optional(),
   description: z.string().optional(),
-  steps: z.array(workflowStepSchema).min(1),
+  steps: z.array(workflowStepSchema).optional(),
+  definition: z.object({
+    steps: z.array(workflowStepSchema).min(1),
+    maxConcurrency: z.number().int().min(1).max(50).optional(),
+  }).optional(),
   maxConcurrency: z.number().int().min(1).max(50).optional(),
-  input: z.record(z.unknown()).optional(),
+  input: z.record(z.string(), z.unknown()).optional(),
 });
 
 const runWorkflowRoute = createRoute({
@@ -92,7 +96,16 @@ WorkflowRoutes.openapi(runWorkflowRoute, async (c) => {
     return typeof result.value === 'string' ? result.value : JSON.stringify(result.value);
   };
 
-  const result = await executeWorkflow(body, dispatch, body.input);
+  // Support both flat shape {id, steps} and nested {definition: {steps}}
+  const steps = body.steps ?? body.definition?.steps ?? [];
+  const workflowDef = {
+    id: body.id ?? 'adhoc',
+    name: body.name,
+    description: body.description,
+    steps,
+    maxConcurrency: body.maxConcurrency ?? body.definition?.maxConcurrency,
+  };
+  const result = await executeWorkflow(workflowDef as any, dispatch, body.input);
   return c.json(result);
 });
 

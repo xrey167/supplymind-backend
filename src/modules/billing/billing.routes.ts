@@ -89,5 +89,5 @@ BillingRoutes.openapi(limitsRoute, async (c) => {
   const { billingRepo } = await import('./billing.repo');
   const plan = await billingRepo.getActivePlan(workspaceId);
   const limits = billingService.getPlanLimits(plan);
-  return c.json({ data: { plan, limits } });
+  return c.json({ data: { plan, ...limits } });
 });

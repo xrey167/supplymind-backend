@@ -17,15 +17,15 @@ export const createAuditLogSchema = z.object({
   action: auditActionEnum,
   resourceType: resourceTypeEnum,
   resourceId: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   ipAddress: z.string().optional(),
 });
 
 export const listAuditLogsQuerySchema = z.object({
-  workspaceId: z.string().uuid(),
+  workspaceId: z.string().uuid().optional(),
   actorId: z.string().optional(),
-  action: auditActionEnum.optional(),
-  resourceType: resourceTypeEnum.optional(),
+  action: z.string().optional(),
+  resourceType: z.string().optional(),
   resourceId: z.string().optional(),
   since: z.coerce.date().optional(),
   until: z.coerce.date().optional(),
