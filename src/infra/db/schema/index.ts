@@ -495,3 +495,75 @@ export const inboxItems = pgTable('inbox_items', {
   index('inbox_items_user_workspace_idx').on(t.userId, t.workspaceId),
   index('inbox_items_workspace_created_idx').on(t.workspaceId, t.createdAt),
 ]);
+
+// ── Plugin Platform ──────────────────────────────────────────────────────────
+
+export const pluginKindEnum = pgEnum('plugin_kind', [
+  'remote_mcp', 'remote_a2a', 'webhook', 'local_sandboxed',
+]);
+
+export const pluginStatusEnum = pgEnum('plugin_status', [
+  'installing', 'active', 'disabled', 'failed', 'uninstalling', 'uninstalled',
+]);
+
+export const pluginEventTypeEnum = pgEnum('plugin_event_type', [
+  'installed', 'enabled', 'disabled', 'config_updated', 'version_pinned',
+  'health_checked', 'uninstalled', 'rollback_initiated', 'rollback_completed',
+]);
+
+export const pluginCatalog = pgTable('plugin_catalog', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  version: text('version').notNull(),
+  kind: pluginKindEnum('kind').notNull(),
+  capabilities: jsonb('capabilities').notNull().default([]),
+  requiredPermissions: jsonb('required_permissions').notNull().default([]),
+  manifest: jsonb('manifest').notNull().default({}),
+  publisher: text('publisher'),
+  verified: boolean('verified').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('pc_name_version_idx').on(t.name, t.version),
+]);
+
+export const pluginInstallations = pgTable('plugin_installations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  pluginId: uuid('plugin_id').notNull().references(() => pluginCatalog.id),
+  status: pluginStatusEnum('status').notNull().default('installing'),
+  pinnedVersion: text('pinned_version'),
+  config: jsonb('config').notNull().default({}),
+  secretBindingIds: jsonb('secret_binding_ids').notNull().default([]),
+  policyBinding: jsonb('policy_binding').notNull().default({}),
+  installedAt: timestamp('installed_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('pi_workspace_plugin_idx').on(t.workspaceId, t.pluginId),
+  index('pi_workspace_idx').on(t.workspaceId),
+]);
+
+export const pluginEvents = pgTable('plugin_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  installationId: uuid('installation_id').notNull().references(() => pluginInstallations.id, { onDelete: 'cascade' }),
+  workspaceId: uuid('workspace_id').notNull(),
+  eventType: pluginEventTypeEnum('event_type').notNull(),
+  actorId: text('actor_id').notNull(),
+  actorType: text('actor_type').notNull(),
+  payload: jsonb('payload').notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('pe_installation_created_idx').on(t.installationId, t.createdAt),
+  index('pe_workspace_created_idx').on(t.workspaceId, t.createdAt),
+]);
+
+export const pluginHealthChecks = pgTable('plugin_health_checks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  installationId: uuid('installation_id').notNull().references(() => pluginInstallations.id, { onDelete: 'cascade' }),
+  checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
+  status: text('status').notNull(),
+  latencyMs: integer('latency_ms'),
+  error: text('error'),
+  metadata: jsonb('metadata').notNull().default({}),
+}, (t) => [
+  index('phc_installation_checked_idx').on(t.installationId, t.checkedAt),
+]);

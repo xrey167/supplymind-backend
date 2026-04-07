@@ -36,6 +36,20 @@
       "when": 1775414374497,
       "tag": "0004_unknown_owl",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1775530841001,
+      "tag": "0005_normal_shinko_yamashiro",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775548280906,
+      "tag": "0006_keen_lady_vermin",
+      "breakpoints": true
     }
   ]
 }
