@@ -2,7 +2,7 @@ import type { Message } from '../../infra/ai/types';
 import { estimateTokens, totalMessageTokens, getBudget, messageBudget } from './context.tracker';
 import { snipMessages } from './context.snip';
 import { compactMessages } from './context.compact';
-import { memoryService } from '../memory/memory.service';
+import { memoryService as defaultMemoryService } from '../memory/memory.service';
 
 interface AgentConfig {
   model: string;
@@ -24,10 +24,13 @@ interface PreparedContext {
   wasCompacted: boolean;
 }
 
+type MemoryServiceLike = Pick<typeof defaultMemoryService, 'recall'>;
+
 export async function buildContext(
   messages: Message[],
   agentConfig: AgentConfig,
   workspace?: WorkspaceContext,
+  memoryService: MemoryServiceLike = defaultMemoryService,
 ): Promise<PreparedContext> {
   const budget = getBudget(agentConfig.model);
   const maxMessageTokens = messageBudget(budget);

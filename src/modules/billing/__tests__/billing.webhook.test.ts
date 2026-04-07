@@ -29,20 +29,17 @@ const mockGetCustomerByStripeId = mock(() =>
 const mockUpsertSubscription = mock(() => Promise.resolve({ id: 'sub-1' }));
 const mockInsertInvoice = mock(() => Promise.resolve({ id: 'inv-1' }));
 
-mock.module('../billing.repo', () => ({
-  billingRepo: {
-    getCustomer: mock(() => Promise.resolve(null)),
-    upsertCustomer: mockUpsertCustomer,
-    getSubscription: mock(() => Promise.resolve(null)),
-    upsertSubscription: mockUpsertSubscription,
-    getCustomerByStripeId: mockGetCustomerByStripeId,
-    getActivePlan: mock(() => Promise.resolve('free')),
-    insertInvoice: mockInsertInvoice,
-    listInvoices: mock(() => Promise.resolve([])),
-    getPastDueSubscriptions: mock(() => Promise.resolve([])),
-  },
-  BillingRepository: class {},
-}));
+const mockRepo = {
+  getCustomer: mock(() => Promise.resolve(null)),
+  upsertCustomer: mockUpsertCustomer,
+  getSubscription: mock(() => Promise.resolve(null)),
+  upsertSubscription: mockUpsertSubscription,
+  getCustomerByStripeId: mockGetCustomerByStripeId,
+  getActivePlan: mock(() => Promise.resolve('free')),
+  insertInvoice: mockInsertInvoice,
+  listInvoices: mock(() => Promise.resolve([])),
+  getPastDueSubscriptions: mock(() => Promise.resolve([])),
+};
 
 const mockEmitCreated = mock(() => Promise.resolve());
 const mockEmitUpdated = mock(() => Promise.resolve());
@@ -89,7 +86,7 @@ describe('BillingService.syncFromWebhook', () => {
   let service: BillingService;
 
   beforeEach(() => {
-    service = new BillingService();
+    service = new BillingService(mockRepo as any);
     mockUpsertCustomer.mockClear();
     mockGetCustomerByStripeId.mockClear();
     mockUpsertSubscription.mockClear();

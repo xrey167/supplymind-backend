@@ -1,5 +1,6 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import type { SkillMcpServerEntry } from '../types';
+import { SkillEmbeddedMcpManager } from '../embedded-manager';
 
 const mockConnect = mock(async () => {});
 const mockListTools = mock(async () => [
@@ -13,31 +14,30 @@ const mockGetPrompt = mock(async (_name: string, _args?: any) => 'prompt result'
 const mockDisconnect = mock(async () => {});
 const mockIsConnected = mock(() => false);
 
-mock.module('../client', () => ({
-  McpClient: class {
-    lastUsedAt = Date.now();
-    connect = mockConnect;
-    listTools = mockListTools;
-    callTool = mockCallTool;
-    listResources = mockListResources;
-    readResource = mockReadResource;
-    listPrompts = mockListPrompts;
-    getPrompt = mockGetPrompt;
-    disconnect = mockDisconnect;
-    isConnected = mockIsConnected;
-  },
-}));
+function makeClient() {
+  return {
+    lastUsedAt: Date.now(),
+    connect: mockConnect,
+    listTools: mockListTools,
+    callTool: mockCallTool,
+    listResources: mockListResources,
+    readResource: mockReadResource,
+    listPrompts: mockListPrompts,
+    getPrompt: mockGetPrompt,
+    disconnect: mockDisconnect,
+    isConnected: mockIsConnected,
+  } as any;
+}
 
-const { SkillEmbeddedMcpManager } = await import('../embedded-manager');
 
 const httpEntry: SkillMcpServerEntry = { type: 'streamable-http', url: 'http://localhost:4000' };
 const stdioEntry: SkillMcpServerEntry = { type: 'stdio', command: 'node', args: ['server.js'] };
 
 describe('SkillEmbeddedMcpManager', () => {
-  let manager: InstanceType<typeof SkillEmbeddedMcpManager>;
+  let manager: SkillEmbeddedMcpManager;
 
   beforeEach(() => {
-    manager = new SkillEmbeddedMcpManager();
+    manager = new SkillEmbeddedMcpManager(makeClient);
     mockConnect.mockClear();
     mockCallTool.mockClear();
     mockListTools.mockClear();
@@ -152,10 +152,7 @@ describe('SkillEmbeddedMcpManager', () => {
 
       // Simulate time passing: set mockLastUsedAt for the McpClient instance
       // Since we can't directly manipulate, set the threshold very low
-      pool_wait: {
-        // Wait a tick and cleanup with threshold 0ms (everything is idle)
-        manager.cleanupIdle(0);
-      }
+      manager.cleanupIdle(0);
       expect(manager.activeCount()).toBe(0);
       expect(mockDisconnect.mock.calls.length).toBe(1);
     });

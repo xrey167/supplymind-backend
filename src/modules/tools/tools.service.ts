@@ -8,10 +8,17 @@ import type { DispatchContext } from '../skills/skills.types';
 import { mcpClientPool } from '../../infra/mcp/client-pool';
 import { enqueueSkill } from '../../infra/queue/bullmq';
 import { logger } from '../../config/logger';
-import { runInSandbox } from '../../core/security/sandbox';
+import { runInSandbox as defaultRunInSandbox } from '../../core/security/sandbox';
+import type { runInSandbox as RunInSandboxFn } from '../../core/security/sandbox';
 import { workspaceSettingsService } from '../settings/workspace-settings/workspace-settings.service';
 
 export class ToolsService {
+  private runInSandbox: typeof RunInSandboxFn;
+
+  constructor(sandboxFn?: typeof RunInSandboxFn) {
+    this.runInSandbox = sandboxFn ?? defaultRunInSandbox;
+  }
+
   private createHandler(tool: ToolDef): (args: Record<string, unknown>, ctx?: DispatchContext) => Promise<Result<unknown>> {
     switch (tool.providerType) {
       case 'builtin':
@@ -52,7 +59,7 @@ export class ToolsService {
         return async (args, ctx) => {
           const workspaceId = ctx?.workspaceId;
           const policy = await workspaceSettingsService.getSandboxPolicy(workspaceId ?? 'default');
-          const result = await runInSandbox({
+          const result = await this.runInSandbox({
             code: (tool.handlerConfig as Extract<import('./tools.types').HandlerConfig, { type: 'inline' }>).code,
             args,
             policy,
