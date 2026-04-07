@@ -5,7 +5,7 @@ import type { Result } from '../../../core/result';
 import { BcClient } from '../connector/bc-client';
 import type { BcEntityType } from '../connector/bc-types';
 
-const HITL_REQUIRED_ACTIONS = new Set(['postInvoice', 'deleteVendor', 'cancelOrder', 'modifyGLEntry']);
+export const HITL_REQUIRED_ACTIONS = new Set(['postInvoice', 'deleteVendor', 'cancelOrder', 'modifyGLEntry']);
 
 /**
  * Execute a BC write action.
