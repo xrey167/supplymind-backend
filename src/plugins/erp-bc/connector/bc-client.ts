@@ -1,6 +1,6 @@
 // src/plugins/erp-bc/connector/bc-client.ts
 
-import { classifyHttpError } from '../sync/sync-errors';
+import { classifyHttpError, PermanentError } from '../sync/sync-errors';
 import { getToken } from './bc-auth';
 import type { TokenCache } from './bc-auth';
 import type { BcConnectionConfig, ODataResponse, BcEntityType, BcEntityMap } from './bc-types';
@@ -28,7 +28,9 @@ export class BcClient {
 
   private async request<T>(url: string, init: RequestInit, attempt = 0): Promise<T> {
     const headers = await this.authHeaders(attempt > 0);
-    const res = await fetch(url, { ...init, headers: { ...headers, ...(init.headers as any) } });
+    // Strip Authorization from caller headers so refreshed token is never overwritten
+    const { Authorization: _, ...callerHeaders } = ((init.headers ?? {}) as Record<string, string>);
+    const res = await fetch(url, { ...init, headers: { ...headers, ...callerHeaders } });
 
     if (res.status === 401 && attempt === 0) {
       // One auto-retry with forced token refresh
@@ -59,6 +61,7 @@ export class BcClient {
     entitySet: K,
     id: string,
   ): Promise<BcEntityMap[K]> {
+    if (!/^[\w\-]+$/.test(id)) throw new PermanentError(`Invalid entity id: ${id}`);
     const url = `${this.baseEntityUrl(entitySet)}(${id})`;
     return this.request<BcEntityMap[K]>(url, { method: 'GET' });
   }
@@ -86,6 +89,8 @@ export class BcClient {
   }
 
   async action(entitySet: BcEntityType, id: string, actionName: string, payload?: unknown): Promise<void> {
+    if (!/^[\w\-]+$/.test(id)) throw new PermanentError(`Invalid entity id: ${id}`);
+    if (!/^[\w]+$/.test(actionName)) throw new PermanentError(`Invalid action name: ${actionName}`);
     const url = `${this.baseEntityUrl(entitySet)}(${id})/Microsoft.NAV.${actionName}`;
     await this.request<void>(url, { method: 'POST', body: JSON.stringify(payload ?? {}) });
   }
