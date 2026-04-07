@@ -69,7 +69,7 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - name: Run migrations
-        run: bun run db:migrate
+        run: bunx drizzle-kit migrate
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/supplymind_test
       - name: Run integration tests
