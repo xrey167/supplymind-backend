@@ -4,8 +4,11 @@ import { skillRegistry } from '../../skills/skills.registry';
 import { lifecycleHooks } from '../../../core/hooks/hook-registry';
 
 // Mock only the modules with external dependencies (DB)
-mock.module('../../../core/config/scoped-config', () => ({
-  scopedConfig: { set: mock(() => {}), delete: mock(() => {}) },
+mock.module("../../../core/config/scoped-config", () => ({
+  scopedConfig: { set: mock(() => {}), delete: mock(() => {}), get: mock(() => undefined), getAll: mock(() => ({})) },
+  ScopedConfigStore: class ScopedConfigStore {
+    set() {} delete() {} get() {} getAll() { return {}; }
+  },
 }));
 
 mock.module('../../../config/logger', () => ({
