@@ -495,3 +495,38 @@ export const inboxItems = pgTable('inbox_items', {
   index('inbox_items_user_workspace_idx').on(t.userId, t.workspaceId),
   index('inbox_items_workspace_created_idx').on(t.workspaceId, t.createdAt),
 ]);
+
+// ── Execution Layer ───────────────────────────────────────────────────────────
+
+export const executionPlanStatusEnum = pgEnum('execution_plan_status', [
+  'draft', 'pending_approval', 'running', 'completed', 'failed', 'cancelled',
+]);
+
+export const executionPlans = pgTable('execution_plans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  name: text('name'),
+  intent: jsonb('intent'),
+  steps: jsonb('steps').notNull().default([]),
+  input: jsonb('input').notNull().default({}),
+  policy: jsonb('policy').notNull().default({}),
+  status: executionPlanStatusEnum('status').notNull().default('draft'),
+  createdBy: text('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('ep_workspace_created_idx').on(t.workspaceId, t.createdAt),
+]);
+
+export const executionRuns = pgTable('execution_runs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  planId: uuid('plan_id').notNull().references(() => executionPlans.id),
+  orchestrationId: uuid('orchestration_id').references(() => orchestrations.id),
+  workspaceId: uuid('workspace_id').notNull(),
+  status: text('status').notNull().default('running'),
+  intent: jsonb('intent'),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+}, (t) => [
+  index('er_plan_started_idx').on(t.planId, t.startedAt),
+]);
