@@ -41,7 +41,7 @@ export const executionRoutes = new OpenAPIHono();
 
 executionRoutes.openapi(createRoute_, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
-  const userId = (c.get('userId') as string) ?? 'unknown';
+  const userId = (c.get('callerId') as string) ?? 'unknown';
   const body = c.req.valid('json');
   const result = await executionService.create(workspaceId, userId, body);
   if (!result.ok) return c.json({ error: result.error.message }, 400);
@@ -65,7 +65,7 @@ executionRoutes.openapi(getRoute, async (c) => {
 executionRoutes.openapi(runRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const { id } = c.req.valid('param');
-  const userId = (c.get('userId') as string) ?? 'unknown';
+  const userId = (c.get('callerId') as string) ?? 'unknown';
   const result = await executionService.run(workspaceId, id, userId);
   if (!result.ok) return c.json({ error: result.error.message }, 400);
   return c.json(result.value);
@@ -74,7 +74,7 @@ executionRoutes.openapi(runRoute, async (c) => {
 executionRoutes.openapi(approveRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const { id } = c.req.valid('param');
-  const userId = (c.get('userId') as string) ?? 'unknown';
+  const userId = (c.get('callerId') as string) ?? 'unknown';
   const result = await executionService.approve(workspaceId, id, userId);
   if (!result.ok) return c.json({ error: result.error.message }, 400);
   return c.json(result.value);

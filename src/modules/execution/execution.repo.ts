@@ -60,15 +60,16 @@ export const executionRepo = {
   async createRun(data: {
     planId: string;
     workspaceId: string;
-    intent: IntentClassification;
+    intent?: IntentClassification;
     orchestrationId?: string;
+    status?: string;
   }): Promise<ExecutionRunRow> {
     const [row] = await db.insert(executionRuns).values({
       planId: data.planId,
       workspaceId: data.workspaceId,
-      intent: data.intent,
-      orchestrationId: data.orchestrationId,
-      status: 'running',
+      intent: data.intent as any ?? null,
+      orchestrationId: data.orchestrationId ?? null,
+      status: data.status ?? 'running',
     }).returning();
     return row as unknown as ExecutionRunRow;
   },

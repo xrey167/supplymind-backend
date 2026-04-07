@@ -4,7 +4,7 @@ const stepSchema = z.object({
   id: z.string(),
   type: z.enum(['skill', 'agent', 'collaboration', 'gate', 'decision']),
   skillId: z.string().optional(),
-  args: z.record(z.string(), z.unknown()).optional(),
+  args: z.object({}).passthrough().optional(),
   agentId: z.string().optional(),
   message: z.string().optional(),
   strategy: z.enum(['fan_out', 'consensus', 'debate', 'map_reduce']).optional(),
@@ -23,8 +23,8 @@ const stepSchema = z.object({
 
 export const createPlanSchema = z.object({
   name: z.string().optional(),
-  steps: z.array(stepSchema).min(1),
-  input: z.record(z.string(), z.unknown()).optional(),
+  steps: z.array(stepSchema.passthrough()).optional(),
+  input: z.object({}).passthrough().optional(),
   policy: z.object({
     maxRetries: z.number().optional(),
     timeoutMs: z.number().optional(),
