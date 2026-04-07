@@ -68,6 +68,8 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
+      - name: Enable pgvector extension
+        run: psql postgresql://test:test@localhost:5432/supplymind_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
       - name: Run migrations
         run: bunx drizzle-kit migrate
         env:
