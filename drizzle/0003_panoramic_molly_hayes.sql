@@ -119,4 +119,5 @@ CREATE INDEX "notifications_workspace_created_idx" ON "notifications" USING btre
 CREATE UNIQUE INDEX "np_user_workspace_type_idx" ON "notification_preferences" USING btree ("user_id","workspace_id","type");--> statement-breakpoint
 CREATE UNIQUE INDEX "us_user_key_idx" ON "user_settings" USING btree ("user_id","key");--> statement-breakpoint
 CREATE INDEX "audit_logs_workspace_created_idx" ON "audit_logs" USING btree ("workspace_id","created_at");--> statement-breakpoint
-CREATE INDEX "audit_logs_actor_idx" ON "audit_logs" USING btree ("actor_id");
+CREATE INDEX "audit_logs_actor_idx" ON "audit_logs" USING btree ("actor_id");--> statement-breakpoint
+ALTER TABLE "skill_definitions" ADD COLUMN "mcp_config" jsonb DEFAULT '{}'::jsonb;
