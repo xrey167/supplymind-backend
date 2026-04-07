@@ -28,11 +28,9 @@ export async function syncNow(args: Record<string, unknown>): Promise<Result<unk
   }
 
   const { Queue } = await import('bullmq');
-  const { default: Redis } = await import('ioredis');
-  const connection = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
-  const queue = new Queue('erp-sync', { connection });
+  const { redis } = await import('../../../infra/queue/bullmq');
+  const queue = new Queue('erp-sync', { connection: redis });
   const bullJob = await queue.add('sync', { jobId: job.id }, { attempts: 3 });
-  await connection.quit();
 
   return ok({ jobId: job.id, bullJobId: bullJob.id, entityType, status: 'queued' });
 }

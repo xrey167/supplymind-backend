@@ -9,7 +9,14 @@ export const HITL_REQUIRED_ACTIONS = new Set(['postInvoice', 'deleteVendor', 'ca
 
 /**
  * Execute a BC write action.
- * HITL-eligible actions must come from inside an approved ExecutionPlan (gate step must have passed).
+ *
+ * The `_calledFromPlan` flag is a developer ergonomic safeguard that surfaces
+ * a clear error message when this skill is invoked directly without going through
+ * the HITL approval flow. It is NOT a security boundary — the real enforcement is:
+ * 1. Authentication: callers must be authenticated workspace members.
+ * 2. Execution gate: `createApprovalGateForWriteAction` compiles to an ExecutionPlan
+ *    with `riskClass: 'critical'`, which the Intent-Gate classifies as 'ops' and
+ *    requires manager approval before the plan runs.
  */
 export async function postAction(args: Record<string, unknown>): Promise<Result<unknown>> {
   const actionName = args.actionName as string;

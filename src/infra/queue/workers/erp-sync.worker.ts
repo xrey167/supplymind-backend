@@ -4,7 +4,7 @@ import { Worker } from 'bullmq';
 import type Redis from 'ioredis';
 import { logger } from '../../../config/logger';
 import { db } from '../../db/client';
-import { syncJobs } from '../../db/schema';
+import { syncJobs, pluginInstallations } from '../../db/schema';
 import { eq } from 'drizzle-orm';
 
 /**
@@ -24,9 +24,12 @@ export function createErpSyncWorker(connection: Redis) {
         return;
       }
 
-      const bcConfig = (syncJob as any).config as any;
+      // BC credentials live on the pluginInstallations row, not on syncJobs
+      const [installation] = await db.select().from(pluginInstallations)
+        .where(eq(pluginInstallations.id, syncJob.installationId)).limit(1);
+      const bcConfig = installation?.config as any;
       if (!bcConfig?.tenantId) {
-        logger.warn({ jobId }, 'No BC config on sync job — skipping');
+        logger.warn({ jobId, installationId: syncJob.installationId }, 'No BC config on installation — skipping');
         return;
       }
 

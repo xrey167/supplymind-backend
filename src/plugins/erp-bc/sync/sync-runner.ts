@@ -68,7 +68,7 @@ export async function runSync(
           result.created++;
         } catch (insertErr: any) {
           if (insertErr?.code === '23505') {
-            // Unique constraint → already synced with same hash → skipped
+            // Unique constraint → already synced — insert skipped record idempotently
             await db.insert(syncRecords).values({
               jobId,
               workspaceId: job.workspaceId,
@@ -76,7 +76,7 @@ export async function runSync(
               entityId: entity.id,
               action: 'skipped',
               payloadHash: hash,
-            });
+            }).onConflictDoNothing();
             result.skipped++;
           } else {
             throw insertErr;
