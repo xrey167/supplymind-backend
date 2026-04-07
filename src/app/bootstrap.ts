@@ -193,7 +193,7 @@ export async function initSubsystems(): Promise<void> {
 
   // Step 13: Start ERP sync worker (non-critical)
   try {
-    const syncRedis = new (await import('ioredis')).default(Bun.env.REDIS_URL ?? 'redis://localhost:6379');
+    const syncRedis = new (await import('ioredis')).default(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null } as any);
     const { createErpSyncWorker } = await import('../infra/queue/workers/erp-sync.worker');
     const erpSyncWorker = createErpSyncWorker(syncRedis);
     logger.info('ERP sync worker started');
