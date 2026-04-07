@@ -11,7 +11,7 @@ export async function syncNow(args: Record<string, unknown>): Promise<Result<unk
   const entityType = args.entityType as string;
   const installationId = args.installationId as string;
 
-  if (!workspaceId || !entityType) return err(new Error('workspaceId and entityType are required'));
+  if (!workspaceId || !entityType || !installationId) return err(new Error('workspaceId, entityType, and installationId are required'));
 
   let [job] = await db.select().from(syncJobs)
     .where(and(eq(syncJobs.workspaceId, workspaceId), eq(syncJobs.entityType, entityType)))
