@@ -13,4 +13,10 @@ export const DEFAULT_FLAGS: Record<string, FlagValue> = {
   'sessions.context-compaction': true,
   'mcp.allow-external-servers': true,
   'observability.detailed-logging': false,
+  'plugins.platform.enabled': false,
+  'plugins.local_sandboxed.enabled': false,
+  'intent_gate.enabled': false,
+  'intent_gate.llm_fallback': false,
+  'erp_bc.enabled': false,
+  'erp_bc.write_actions.enabled': false,
 };
