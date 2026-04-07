@@ -23,10 +23,11 @@ mock.module('../../../infra/db/client', () => ({
   },
 }));
 
-import { BillingRepository } from '../billing.repo';
+// Use dynamic import so mock.module is registered before the module is evaluated
+const { BillingRepository } = await import('../billing.repo');
 
 describe('BillingRepository', () => {
-  let repo: BillingRepository;
+  let repo: InstanceType<typeof BillingRepository>;
 
   beforeEach(() => {
     repo = new BillingRepository();
