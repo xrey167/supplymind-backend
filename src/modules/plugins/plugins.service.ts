@@ -1,6 +1,5 @@
 import { ok, err } from '../../core/result';
 import type { Result } from '../../core/result';
-import { logger } from '../../config/logger';
 import { pluginCatalogRepo } from './plugins.catalog.repo';
 import { pluginInstallationRepo } from './plugins.installation.repo';
 import { pluginHealthRepo } from './plugins.health.repo';
@@ -9,6 +8,22 @@ import { featureFlagsService } from '../feature-flags/feature-flags.service';
 import type { InstallationRow, PluginEventRow, HealthCheckRow, Actor, PluginManifestV1 } from './plugins.types';
 
 const DEFAULT_CALLER_PERMISSIONS = ['workspace:read'];
+
+function isAllowedHealthUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') return false;
+    const hostname = parsed.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return false;
+    if (/^10\./.test(hostname)) return false;
+    if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) return false;
+    if (/^192\.168\./.test(hostname)) return false;
+    if (/^169\.254\./.test(hostname)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export const pluginsService = {
   async install(
@@ -46,17 +61,15 @@ export const pluginsService = {
       return err(new Error('Plugin already installed and active'));
     }
 
-    const installation = await pluginInstallationRepo.create({ workspaceId, pluginId, config });
-
+    let installation: InstallationRow;
     try {
-      if (manifest.onInstall) await manifest.onInstall(workspaceId, config);
-    } catch (hookErr) {
-      logger.warn({ pluginId, workspaceId, err: hookErr }, 'Plugin onInstall hook failed — marking failed');
-      await pluginInstallationRepo.transition(
-        installation.id, workspaceId, 'failed', 'installed', actor,
-        { error: hookErr instanceof Error ? hookErr.message : String(hookErr) },
-      );
-      return err(new Error(`Plugin install hook failed: ${hookErr instanceof Error ? hookErr.message : String(hookErr)}`));
+      installation = await pluginInstallationRepo.create({ workspaceId, pluginId, config });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('unique') || msg.includes('duplicate')) {
+        return err(new Error('Plugin already being installed for this workspace'));
+      }
+      throw e;
     }
 
     const { installation: active } = await pluginInstallationRepo.transition(
@@ -137,18 +150,6 @@ export const pluginsService = {
       return err(new Error(`Cannot uninstall plugin in status: ${inst.status}`));
     }
 
-    await pluginInstallationRepo.transition(installationId, workspaceId, 'uninstalling', 'uninstalled', actor);
-
-    const catalog = await pluginCatalogRepo.findById(inst.pluginId);
-    if (catalog) {
-      const manifest = catalog.manifest as unknown as PluginManifestV1;
-      try {
-        if (manifest.onUninstall) await manifest.onUninstall(workspaceId);
-      } catch (hookErr) {
-        logger.warn({ installationId, workspaceId, err: hookErr }, 'Plugin onUninstall hook failed — continuing');
-      }
-    }
-
     await pluginInstallationRepo.transition(installationId, workspaceId, 'uninstalled', 'uninstalled', actor);
     return ok(undefined);
   },
@@ -165,6 +166,13 @@ export const pluginsService = {
       return err(new Error('No pinned version found to rollback to — rollback not possible (409)'));
     }
 
+    const restoredConfig = typeof lastPin.payload.config === 'object' && lastPin.payload.config !== null
+      ? lastPin.payload.config as Record<string, unknown>
+      : inst.config;
+    const restoredVersion = lastPin.payload.version !== undefined && lastPin.payload.version !== null
+      ? String(lastPin.payload.version)
+      : inst.pinnedVersion ?? undefined;
+
     await pluginInstallationRepo.transition(
       installationId, workspaceId, 'active', 'rollback_initiated', actor,
       { restoringTo: lastPin.payload },
@@ -174,8 +182,8 @@ export const pluginsService = {
       installationId, workspaceId, 'active', 'rollback_completed', actor,
       { restoredVersion: lastPin.payload },
       {
-        config: (lastPin.payload.config as Record<string, unknown>) ?? inst.config,
-        pinnedVersion: lastPin.payload.version as string ?? inst.pinnedVersion ?? undefined,
+        config: restoredConfig,
+        pinnedVersion: restoredVersion,
       },
     );
     return ok(installation);
@@ -208,7 +216,7 @@ export const pluginsService = {
     let latencyMs: number | undefined;
     let error: string | undefined;
 
-    if (healthUrl) {
+    if (healthUrl && isAllowedHealthUrl(healthUrl)) {
       const start = performance.now();
       try {
         const res = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) });
@@ -220,6 +228,9 @@ export const pluginsService = {
         error = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
         status = 'unreachable';
       }
+    } else if (healthUrl) {
+      status = 'unreachable';
+      error = 'Health check URL blocked by security policy';
     } else {
       status = inst.status === 'active' ? 'healthy' : 'degraded';
     }

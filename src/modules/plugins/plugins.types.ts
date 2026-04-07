@@ -29,8 +29,6 @@ export interface PluginManifestV1 {
   configSchema?: Record<string, unknown>;
   hitlActions?: string[];
   healthCheckUrl?: string;
-  onInstall?: (workspaceId: string, config: Record<string, unknown>) => Promise<void>;
-  onUninstall?: (workspaceId: string) => Promise<void>;
 }
 
 export interface CatalogRow {

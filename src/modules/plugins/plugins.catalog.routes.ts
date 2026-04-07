@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { pluginCatalogRepo } from './plugins.catalog.repo';
 import { pluginIdParamSchema } from './plugins.schemas';
+import { authMiddleware } from '../../api/middlewares/auth';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
 
@@ -17,6 +18,8 @@ const getRoute = createRoute({
 });
 
 export const pluginCatalogRoutes = new OpenAPIHono();
+
+pluginCatalogRoutes.use('*', authMiddleware);
 
 pluginCatalogRoutes.openapi(listRoute, async (c) => {
   const plugins = await pluginCatalogRepo.findAll();
