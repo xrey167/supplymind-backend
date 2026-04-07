@@ -1,0 +1,38 @@
+// src/plugins/erp-bc/skills/sync-now.ts
+
+import { ok, err } from '../../../core/result';
+import type { Result } from '../../../core/result';
+import { db } from '../../../infra/db/client';
+import { syncJobs } from '../../../infra/db/schema';
+import { and, eq } from 'drizzle-orm';
+
+export async function syncNow(args: Record<string, unknown>): Promise<Result<unknown>> {
+  const workspaceId = args.workspaceId as string;
+  const entityType = args.entityType as string;
+  const installationId = args.installationId as string;
+
+  if (!workspaceId || !entityType) return err(new Error('workspaceId and entityType are required'));
+
+  let [job] = await db.select().from(syncJobs)
+    .where(and(eq(syncJobs.workspaceId, workspaceId), eq(syncJobs.entityType, entityType)))
+    .limit(1);
+
+  if (!job) {
+    const [created] = await db.insert(syncJobs).values({
+      installationId,
+      workspaceId,
+      entityType,
+      status: 'idle',
+    }).returning();
+    job = created!;
+  }
+
+  const { Queue } = await import('bullmq');
+  const { default: Redis } = await import('ioredis');
+  const connection = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
+  const queue = new Queue('erp-sync', { connection });
+  const bullJob = await queue.add('sync', { jobId: job.id }, { attempts: 3 });
+  await connection.quit();
+
+  return ok({ jobId: job.id, bullJobId: bullJob.id, entityType, status: 'queued' });
+}
