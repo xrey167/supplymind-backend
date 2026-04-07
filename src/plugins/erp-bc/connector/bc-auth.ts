@@ -61,6 +61,6 @@ export async function getToken(
   }
 
   const token = await fetchToken(tenantId, clientId, clientSecret);
-  await cache.set(cacheKey, JSON.stringify(token), token.expiresAt - Date.now());
+  await cache.set(cacheKey, JSON.stringify(token), Math.max(token.expiresAt - Date.now(), 1000));
   return token.accessToken;
 }

@@ -580,4 +580,5 @@ export const syncRecords = pgTable('sync_records', {
 }, (t) => [
   index('sr_job_created_idx').on(t.jobId, t.createdAt),
   index('sr_workspace_entity_created_idx').on(t.workspaceId, t.entityType, t.createdAt),
+  uniqueIndex('sr_job_entity_action_idx').on(t.jobId, t.entityId, t.action),
 ]);

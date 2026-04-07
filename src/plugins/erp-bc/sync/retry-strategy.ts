@@ -46,7 +46,10 @@ export async function withRetry<T>(
     try {
       return await fn();
     } catch (rawErr) {
-      const error = rawErr as BcError;
+      if (!(rawErr instanceof TransientError) && !(rawErr instanceof AuthError) &&
+          !(rawErr instanceof ConflictError) && !(rawErr instanceof PermanentError) &&
+          !(rawErr instanceof RateLimitError)) throw rawErr;
+      const error = rawErr;
       if (!shouldRetry(error, attempt, policy)) throw error;
       const delayMs = getDelayMs(error, attempt, policy);
       onRetry?.(error, attempt, delayMs);
