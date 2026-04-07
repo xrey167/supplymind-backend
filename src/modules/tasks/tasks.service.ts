@@ -1,4 +1,3 @@
-import { nanoid } from 'nanoid';
 import { ok, err } from '../../core/result';
 import type { Result } from '../../core/result';
 import { NotFoundError } from '../../core/errors';
@@ -30,7 +29,7 @@ export class TasksService {
     const a2aMessage: A2AMessage = { role: 'user', parts: [{ kind: 'text', text: message }] };
 
     if (runMode === 'background') {
-      const taskId = nanoid();
+      const taskId = crypto.randomUUID();
 
       // Pre-create task record so GET /tasks/:id works immediately
       await taskRepo.create({
@@ -42,16 +41,22 @@ export class TasksService {
         sessionId,
       });
 
-      const job = await enqueueAgentRun({
-        taskId,
-        agentId,
-        workspaceId,
-        callerId,
-        message: a2aMessage,
-        sessionId,
-      });
+      let jobId: string | undefined;
+      try {
+        const job = await enqueueAgentRun({
+          taskId,
+          agentId,
+          workspaceId,
+          callerId,
+          message: a2aMessage,
+          sessionId,
+        });
+        jobId = job.id;
+      } catch {
+        // Redis unavailable — task is pre-created in DB, will be picked up later
+      }
 
-      return ok({ taskId, jobId: job.id, queued: true as const });
+      return ok({ taskId, jobId, queued: true as const });
     }
 
     // Foreground: existing path

@@ -4,6 +4,7 @@ import { logger as honoLogger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { wsServer } from '../infra/realtime/ws-server';
 import { errorHandler } from '../api/middlewares/error-handler';
+import { authMiddleware } from '../api/middlewares/auth';
 import { publicRoutes } from '../api/routes/public';
 import { workspaceRoutes } from '../api/routes/workspace';
 import { handleMcpRequest } from '../infra/mcp/server';
@@ -71,6 +72,9 @@ export async function createApp() {
 
   app.route('/webhooks/clerk', clerkWebhookRoutes);
   app.route('/webhooks/stripe', stripeWebhookRoutes);
+  // Auth guard for workspace-management routes (top-level, not workspace-scoped)
+  app.use('/api/v1/workspace-management', authMiddleware);
+  app.use('/api/v1/workspace-management/*', authMiddleware);
   app.route('/api/v1/workspace-management', WorkspacesRoutes);
   app.route('/api/v1/invitations', invitationRoutes);
 
@@ -90,7 +94,7 @@ export async function createApp() {
   });
 
   // Initialize all subsystems (skills, WS, event consumers, Redis, MCP)
-  await initSubsystems();
+  await initSubsystems(app);
 
   return app;
 }

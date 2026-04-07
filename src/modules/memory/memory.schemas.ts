@@ -5,7 +5,7 @@ export const saveMemorySchema = z.object({
   title: z.string().min(1),
   content: z.string().min(1),
   agentId: z.string().uuid().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const recallSchema = z.object({

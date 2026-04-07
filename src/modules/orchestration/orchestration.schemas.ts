@@ -4,7 +4,7 @@ const stepSchema = z.object({
   id: z.string(),
   type: z.enum(['skill', 'agent', 'collaboration', 'gate', 'decision']),
   skillId: z.string().optional(),
-  args: z.record(z.unknown()).optional(),
+  args: z.record(z.string(), z.unknown()).optional(),
   agentId: z.string().optional(),
   message: z.string().optional(),
   strategy: z.enum(['fan_out', 'consensus', 'debate', 'map_reduce']).optional(),
@@ -29,6 +29,6 @@ export const createOrchestrationSchema = z.object({
     steps: z.array(stepSchema),
     maxConcurrency: z.number().optional(),
   }),
-  input: z.record(z.unknown()).optional(),
+  input: z.record(z.string(), z.unknown()).optional(),
   sessionId: z.string().uuid().optional(),
 });

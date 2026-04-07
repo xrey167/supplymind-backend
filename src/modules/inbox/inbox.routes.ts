@@ -41,7 +41,7 @@ const unreadCountRoute = createRoute({
 export const InboxRoutes = new OpenAPIHono();
 
 InboxRoutes.openapi(listRoute, async (c) => {
-  const userId = c.get('userId') as string;
+  const userId = c.get('callerId') as string;
   const workspaceId = c.get('workspaceId') as string;
   const query = c.req.valid('query');
   const items = await inboxService.list(userId, workspaceId, {
@@ -61,7 +61,7 @@ InboxRoutes.openapi(markReadRoute, async (c) => {
 });
 
 InboxRoutes.openapi(markAllReadRoute, async (c) => {
-  const userId = c.get('userId') as string;
+  const userId = c.get('callerId') as string;
   const workspaceId = c.get('workspaceId') as string;
   await inboxService.markAllRead(userId, workspaceId);
   return c.json({ success: true });
@@ -74,8 +74,8 @@ InboxRoutes.openapi(togglePinRoute, async (c) => {
 });
 
 InboxRoutes.openapi(unreadCountRoute, async (c) => {
-  const userId = c.get('userId') as string;
+  const userId = c.get('callerId') as string;
   const workspaceId = c.get('workspaceId') as string;
   const count = await inboxService.getUnreadCount(userId, workspaceId);
-  return c.json({ count });
+  return c.json({ data: { count } });
 });

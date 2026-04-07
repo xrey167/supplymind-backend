@@ -46,7 +46,10 @@
       "Bash(DATABASE_URL=postgresql://supplymind:supplymind@localhost:5432/supplymind_dev bun run:*)",
       "Bash(docker-compose up:*)",
       "Bash(Start-Process \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\")",
-      "Bash(bun add:*)"
+      "Bash(bun add:*)",
+      "Bash(node:*)",
+      "Bash(sed -i '161s/^/  }\\);\\\\n\\\\n/' src/modules/plugins/__tests__/plugins.service.test.ts)",
+      "Bash(sed -n '158,168p' src/modules/plugins/__tests__/plugins.service.test.ts)"
     ]
   }
 }

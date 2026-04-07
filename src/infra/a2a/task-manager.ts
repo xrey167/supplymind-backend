@@ -41,7 +41,7 @@ class TaskManager {
   }
 
   async send(params: TaskSendParams & { agentConfig: AgentConfig; callerId: string }): Promise<A2ATask> {
-    const taskId = params.id ?? nanoid();
+    const taskId = params.id ?? crypto.randomUUID();
     const config = params.agentConfig;
 
     // Guard: when a pre-created taskId is supplied (e.g. BullMQ retry), check if the task

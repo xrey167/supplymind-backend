@@ -50,5 +50,5 @@ AuditLogsRoutes.openapi(countRoute, async (c) => {
     since: query.since,
     until: query.until,
   });
-  return c.json({ count });
+  return c.json({ data: { count } });
 });

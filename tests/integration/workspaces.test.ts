@@ -18,7 +18,7 @@ describe('Workspace management', () => {
   });
 
   it('POST / creates a workspace and returns 201', async () => {
-    const res = await app.request(`${BASE}/`, {
+    const res = await app.request(`${BASE}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader(userId) },
       body: JSON.stringify({ name: 'Integration WS' }),
@@ -30,7 +30,7 @@ describe('Workspace management', () => {
   });
 
   it('GET / lists workspaces for the user', async () => {
-    const res = await app.request(`${BASE}/`, {
+    const res = await app.request(`${BASE}`, {
       headers: authHeader(userId),
     });
     expect(res.status).toBe(200);
@@ -40,7 +40,7 @@ describe('Workspace management', () => {
   });
 
   it('GET /:workspaceId returns workspace details', async () => {
-    const createRes = await app.request(`${BASE}/`, {
+    const createRes = await app.request(`${BASE}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader(userId) },
       body: JSON.stringify({ name: 'WS Detail Test' }),
@@ -56,7 +56,7 @@ describe('Workspace management', () => {
   });
 
   it('PATCH /:workspaceId updates workspace name', async () => {
-    const createRes = await app.request(`${BASE}/`, {
+    const createRes = await app.request(`${BASE}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader(userId) },
       body: JSON.stringify({ name: 'WS Rename Me' }),
@@ -74,7 +74,7 @@ describe('Workspace management', () => {
   });
 
   it('DELETE /:workspaceId soft-deletes the workspace', async () => {
-    const createRes = await app.request(`${BASE}/`, {
+    const createRes = await app.request(`${BASE}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader(userId) },
       body: JSON.stringify({ name: 'WS Delete Me' }),
@@ -89,7 +89,7 @@ describe('Workspace management', () => {
   });
 
   it('POST / returns 401 without auth', async () => {
-    const res = await app.request(`${BASE}/`, {
+    const res = await app.request(`${BASE}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'No Auth WS' }),

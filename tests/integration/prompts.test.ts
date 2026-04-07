@@ -15,7 +15,7 @@ describe('Prompts', () => {
   });
 
   afterAll(async () => {
-    await truncateTables('prompt_templates', 'workspace_members', 'workspaces', 'users');
+    await truncateTables('prompts', 'workspace_members', 'workspaces', 'users');
     await closeTestDb();
   });
 
@@ -35,7 +35,7 @@ describe('Prompts', () => {
     expect(res.status).toBe(201);
     const body = await res.json() as any;
     expect(body.data.name).toBe('Summarize');
-    expect(body.data.variables).toContain('text');
+    expect(body.data.variables.map((v: any) => v.name ?? v)).toContain('text');
     promptId = body.data.id;
   });
 

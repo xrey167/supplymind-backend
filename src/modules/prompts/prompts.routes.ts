@@ -38,7 +38,7 @@ const updateRoute = createRoute({
 const deleteRoute = createRoute({
   method: 'delete', path: '/{id}',
   request: { params: promptIdParamSchema },
-  responses: { 204: { description: 'Prompt deleted' } },
+  responses: { 200: { description: 'Prompt deleted', ...jsonRes }, 404: { description: 'Not found', ...jsonRes } },
 });
 
 const renderRoute = createRoute({
@@ -51,7 +51,8 @@ export const PromptsRoutes = new OpenAPIHono();
 
 PromptsRoutes.openapi(listRoute, async (c) => {
   const query = c.req.valid('query');
-  const prompts = await promptsService.list(query.workspaceId, {
+  const workspaceId = (c.get('workspaceId') as string) ?? query.workspaceId;
+  const prompts = await promptsService.list(workspaceId, {
     tag: query.tag,
     isActive: query.isActive,
     limit: query.limit,
@@ -69,7 +70,8 @@ PromptsRoutes.openapi(getByIdRoute, async (c) => {
 
 PromptsRoutes.openapi(createRoute_, async (c) => {
   const body = c.req.valid('json');
-  const result = await promptsService.create(body);
+  const workspaceId = (c.get('workspaceId') as string) ?? body.workspaceId;
+  const result = await promptsService.create({ ...body, workspaceId });
   if (!result.ok) return c.json({ error: result.error.message }, 400);
   return c.json({ data: result.value }, 201);
 });
@@ -86,7 +88,7 @@ PromptsRoutes.openapi(deleteRoute, async (c) => {
   const { id } = c.req.valid('param');
   const result = await promptsService.delete(id);
   if (!result.ok) return c.json({ error: result.error.message }, 404);
-  return c.json({ success: true }, 204);
+  return c.json({ success: true });
 });
 
 PromptsRoutes.openapi(renderRoute, async (c) => {
@@ -94,5 +96,5 @@ PromptsRoutes.openapi(renderRoute, async (c) => {
   const body = c.req.valid('json');
   const result = await promptsService.render(id, body.variables);
   if (!result.ok) return c.json({ error: result.error.message }, 404);
-  return c.json({ data: result.value });
+  return c.json({ data: { rendered: result.value } });
 });
