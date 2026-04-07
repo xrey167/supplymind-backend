@@ -15,11 +15,11 @@ export function _resetMemoryExtractionHandler() {
   registered = false;
 }
 
-export function initMemoryExtractionHandler() {
+export function initMemoryExtractionHandler(bus = eventBus) {
   if (registered) return;
   registered = true;
 
-  eventBus.subscribe(Topics.TASK_COMPLETED, async (event) => {
+  bus.subscribe(Topics.TASK_COMPLETED, async (event) => {
     const { taskId } = event.data as { taskId: string };
 
     try {

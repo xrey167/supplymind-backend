@@ -57,7 +57,7 @@ const mockPublish = mock(() =>
   Promise.resolve({ id: 'evt-1', topic: '', data: null, source: '', timestamp: '' }),
 );
 mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mockPublish },
+  eventBus: { publish: mockPublish, subscribe: () => 'sub-mock', unsubscribe: () => {} },
 }));
 
 mock.module('../../../config/logger', () => ({

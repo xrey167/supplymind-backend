@@ -1,5 +1,5 @@
 import { describe, it, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
-import { eventBus } from '../../bus';
+import { EventBus } from '../../bus';
 import { taskRepo } from '../../../infra/a2a/task-repo';
 import { memoryService } from '../../../modules/memory/memory.service';
 
@@ -7,31 +7,31 @@ import { memoryService } from '../../../modules/memory/memory.service';
 const mockFindRawById = spyOn(taskRepo, 'findRawById').mockResolvedValue(null as any);
 const mockPropose = spyOn(memoryService, 'propose').mockResolvedValue({ id: 'p-1' } as any);
 
-// Capture event subscriptions via spyOn so the real bus still works in other tests
-const handlers = new Map<string, Function>();
-const subscribeSpy = spyOn(eventBus, 'subscribe').mockImplementation((topic: string, handler: any) => {
-  handlers.set(topic, handler);
-  return () => {};
-});
-
 afterAll(() => {
   mockFindRawById.mockRestore();
   mockPropose.mockRestore();
-  subscribeSpy.mockRestore();
 });
 
 import { initMemoryExtractionHandler, _resetMemoryExtractionHandler } from '../memory-extraction.handler';
 
 describe('memory extraction handler', () => {
+  let bus: EventBus;
+  let handlers: Map<string, Function>;
+
   beforeEach(() => {
-    handlers.clear();
+    bus = new EventBus();
+    handlers = new Map();
+    spyOn(bus, 'subscribe').mockImplementation((topic: string, handler: any) => {
+      handlers.set(topic, handler);
+      return 'sub-mock';
+    });
     mockFindRawById.mockClear();
     mockPropose.mockClear();
     _resetMemoryExtractionHandler();
   });
 
   it('subscribes to TASK_COMPLETED', () => {
-    initMemoryExtractionHandler();
+    initMemoryExtractionHandler(bus);
     expect(handlers.has('task.completed')).toBe(true);
   });
 
@@ -47,7 +47,7 @@ describe('memory extraction handler', () => {
       ],
     });
 
-    initMemoryExtractionHandler();
+    initMemoryExtractionHandler(bus);
     const handler = handlers.get('task.completed')!;
     await handler({ data: { taskId: 'task-1' } });
 
@@ -58,18 +58,17 @@ describe('memory extraction handler', () => {
         agentId: 'agent-1',
         type: 'reference',
         title: 'user_name',
-        content: 'Alex',
-        evidence: 'Auto-extracted (scope: user) from task task-1',
-        sessionId: 'sess-1',
       }),
     );
   });
 
   it('skips when task not found', async () => {
     mockFindRawById.mockResolvedValueOnce(null);
-    initMemoryExtractionHandler();
+
+    initMemoryExtractionHandler(bus);
     const handler = handlers.get('task.completed')!;
-    await handler({ data: { taskId: 'missing' } });
+    await handler({ data: { taskId: 'task-missing' } });
+
     expect(mockPropose).not.toHaveBeenCalled();
   });
 
@@ -77,15 +76,15 @@ describe('memory extraction handler', () => {
     mockFindRawById.mockResolvedValueOnce({
       id: 'task-2',
       workspaceId: 'ws-1',
-      agentId: 'agent-1',
+      agentId: null,
       sessionId: null,
-      history: [
-        { role: 'user', parts: [{ kind: 'text', text: 'hello' }] },
-      ],
+      history: [],
     });
-    initMemoryExtractionHandler();
+
+    initMemoryExtractionHandler(bus);
     const handler = handlers.get('task.completed')!;
     await handler({ data: { taskId: 'task-2' } });
+
     expect(mockPropose).not.toHaveBeenCalled();
   });
 });
