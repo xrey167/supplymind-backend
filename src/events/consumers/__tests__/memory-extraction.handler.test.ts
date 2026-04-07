@@ -1,22 +1,13 @@
 import { describe, it, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
 import { EventBus } from '../../bus';
-import { taskRepo } from '../../../infra/a2a/task-repo';
-import { memoryService } from '../../../modules/memory/memory.service';
-
-// Mock taskRepo and memoryService via spyOn to avoid polluting other test files
-const mockFindRawById = spyOn(taskRepo, 'findRawById').mockResolvedValue(null as any);
-const mockPropose = spyOn(memoryService, 'propose').mockResolvedValue({ id: 'p-1' } as any);
-
-afterAll(() => {
-  mockFindRawById.mockRestore();
-  mockPropose.mockRestore();
-});
 
 import { initMemoryExtractionHandler, _resetMemoryExtractionHandler } from '../memory-extraction.handler';
 
 describe('memory extraction handler', () => {
   let bus: EventBus;
   let handlers: Map<string, Function>;
+  let mockFindRawById: ReturnType<typeof mock>;
+  let mockPropose: ReturnType<typeof mock>;
 
   beforeEach(() => {
     bus = new EventBus();
@@ -25,13 +16,15 @@ describe('memory extraction handler', () => {
       handlers.set(topic, handler);
       return 'sub-mock';
     });
-    mockFindRawById.mockClear();
-    mockPropose.mockClear();
+
+    mockFindRawById = mock(async () => null);
+    mockPropose = mock(async () => ({ id: 'p-1' }));
+
     _resetMemoryExtractionHandler();
   });
 
   it('subscribes to TASK_COMPLETED', () => {
-    initMemoryExtractionHandler(bus);
+    initMemoryExtractionHandler(bus, { findRawById: mockFindRawById } as any, { propose: mockPropose } as any);
     expect(handlers.has('task.completed')).toBe(true);
   });
 
@@ -47,7 +40,7 @@ describe('memory extraction handler', () => {
       ],
     });
 
-    initMemoryExtractionHandler(bus);
+    initMemoryExtractionHandler(bus, { findRawById: mockFindRawById } as any, { propose: mockPropose } as any);
     const handler = handlers.get('task.completed')!;
     await handler({ data: { taskId: 'task-1' } });
 
@@ -63,9 +56,7 @@ describe('memory extraction handler', () => {
   });
 
   it('skips when task not found', async () => {
-    mockFindRawById.mockResolvedValueOnce(null);
-
-    initMemoryExtractionHandler(bus);
+    initMemoryExtractionHandler(bus, { findRawById: mockFindRawById } as any, { propose: mockPropose } as any);
     const handler = handlers.get('task.completed')!;
     await handler({ data: { taskId: 'task-missing' } });
 
@@ -81,7 +72,7 @@ describe('memory extraction handler', () => {
       history: [],
     });
 
-    initMemoryExtractionHandler(bus);
+    initMemoryExtractionHandler(bus, { findRawById: mockFindRawById } as any, { propose: mockPropose } as any);
     const handler = handlers.get('task.completed')!;
     await handler({ data: { taskId: 'task-2' } });
 

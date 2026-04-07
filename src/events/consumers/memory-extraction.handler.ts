@@ -15,7 +15,11 @@ export function _resetMemoryExtractionHandler() {
   registered = false;
 }
 
-export function initMemoryExtractionHandler(bus = eventBus) {
+export function initMemoryExtractionHandler(
+  bus = eventBus,
+  repo: Pick<typeof taskRepo, 'findRawById'> = taskRepo,
+  svc: Pick<typeof memoryService, 'propose'> = memoryService,
+) {
   if (registered) return;
   registered = true;
 
@@ -24,7 +28,7 @@ export function initMemoryExtractionHandler(bus = eventBus) {
 
     try {
       // Use findRawById to get workspaceId, agentId, sessionId alongside history
-      const row = await taskRepo.findRawById(taskId);
+      const row = await repo.findRawById(taskId);
       if (!row) return;
 
       const history = (row.history as Array<{ role: string; parts: Array<{ kind: string; text?: string }> }>) ?? [];
@@ -46,7 +50,7 @@ export function initMemoryExtractionHandler(bus = eventBus) {
 
       let proposed = 0;
       for (const fact of qualifying) {
-        await memoryService.propose({
+        await svc.propose({
           workspaceId: row.workspaceId,
           agentId: row.agentId,
           type: fact.scope === 'user' ? 'reference' : 'domain',
