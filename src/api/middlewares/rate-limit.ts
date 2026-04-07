@@ -74,6 +74,22 @@ export function rateLimit(maxRequests = DEFAULT_MAX_TOKENS) {
 /** Default rate limiter (200 req/min per workspace). */
 export const rateLimitMiddleware = rateLimit();
 
+export interface PluginRateLimitConfig {
+  windowMs: number;
+  max: number;
+}
+
+export const PLUGIN_RATE_LIMITS: Record<string, PluginRateLimitConfig> = {
+  default: { windowMs: 60_000, max: 200 },
+  'erp-bc': { windowMs: 60_000, max: 60 },
+  'execution-layer': { windowMs: 60_000, max: 100 },
+};
+
+/** Returns the rate limit config for a plugin, falling back to default. */
+export function pluginRateLimit(pluginId: string): PluginRateLimitConfig {
+  return PLUGIN_RATE_LIMITS[pluginId] ?? PLUGIN_RATE_LIMITS.default;
+}
+
 // Cleanup stale buckets every 5 minutes
 setInterval(() => {
   const cutoff = Date.now() - 5 * DEFAULT_REFILL_INTERVAL_MS;
