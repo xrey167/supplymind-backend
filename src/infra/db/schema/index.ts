@@ -495,3 +495,90 @@ export const inboxItems = pgTable('inbox_items', {
   index('inbox_items_user_workspace_idx').on(t.userId, t.workspaceId),
   index('inbox_items_workspace_created_idx').on(t.workspaceId, t.createdAt),
 ]);
+
+// ── Plugin Marketplace ────────────────────────────────────────────────────────
+
+export const pluginInstallations = pgTable('plugin_installations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  pluginId: text('plugin_id').notNull(),
+  config: jsonb('config').default({}),
+  enabled: boolean('enabled').notNull().default(true),
+  installedBy: text('installed_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('pi_workspace_plugin_idx').on(t.workspaceId, t.pluginId),
+]);
+
+// ── Execution Layer ───────────────────────────────────────────────────────────
+
+export const executionPlanStatusEnum = pgEnum('execution_plan_status', [
+  'draft', 'pending_approval', 'running', 'completed', 'failed', 'cancelled',
+]);
+
+export const executionPlans = pgTable('execution_plans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  name: text('name'),
+  intent: jsonb('intent'),
+  steps: jsonb('steps').notNull().default([]),
+  input: jsonb('input').notNull().default({}),
+  policy: jsonb('policy').notNull().default({}),
+  status: executionPlanStatusEnum('status').notNull().default('draft'),
+  createdBy: text('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('ep_workspace_created_idx').on(t.workspaceId, t.createdAt),
+]);
+
+export const executionRuns = pgTable('execution_runs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  planId: uuid('plan_id').notNull().references(() => executionPlans.id),
+  orchestrationId: uuid('orchestration_id').references(() => orchestrations.id),
+  workspaceId: uuid('workspace_id').notNull(),
+  status: text('status').notNull().default('running'),
+  intent: jsonb('intent'),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+}, (t) => [
+  index('er_plan_started_idx').on(t.planId, t.startedAt),
+]);
+
+// ── ERP Sync Plugin ───────────────────────────────────────────────────────────
+
+export const syncJobs = pgTable('sync_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  installationId: uuid('installation_id').notNull().references(() => pluginInstallations.id),
+  workspaceId: uuid('workspace_id').notNull(),
+  entityType: text('entity_type').notNull(),
+  filter: jsonb('filter'),
+  cursor: text('cursor'),
+  batchSize: integer('batch_size').notNull().default(100),
+  schedule: text('schedule'),
+  status: text('status').notNull().default('idle'),
+  lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+  lastError: text('last_error'),
+  retryCount: integer('retry_count').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('sj_workspace_entity_idx').on(t.workspaceId, t.entityType),
+  index('sj_installation_idx').on(t.installationId),
+]);
+
+export const syncRecords = pgTable('sync_records', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  jobId: uuid('job_id').notNull().references(() => syncJobs.id),
+  workspaceId: uuid('workspace_id').notNull(),
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id').notNull(),
+  action: text('action').notNull(),
+  payloadHash: text('payload_hash'),
+  error: text('error'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('sr_job_created_idx').on(t.jobId, t.createdAt),
+  index('sr_workspace_entity_created_idx').on(t.workspaceId, t.entityType, t.createdAt),
+  uniqueIndex('sr_job_entity_action_idx').on(t.jobId, t.entityId, t.action),
+]);

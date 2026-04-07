@@ -53,14 +53,25 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
+      - name: Enable pgvector extension
+        run: psql postgresql://test:test@localhost:5432/supplymind_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
       - name: Run migrations
-        run: bun run db:migrate
+        run: bunx drizzle-kit migrate
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/supplymind_test
       - name: Run integration tests

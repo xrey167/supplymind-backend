@@ -278,6 +278,35 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
       return ok(result);
     }
 
+
+    case 'plan.create': {
+      const { executionService } = await import('../../modules/execution/execution.service');
+      return executionService.create(
+        context.workspaceId,
+        context.callerId,
+        { name: params.name as string | undefined, steps: params.steps as any[], input: params.input as Record<string,unknown> | undefined, policy: params.policy as any },
+      );
+    }
+    case 'plan.run': {
+      const { executionService } = await import('../../modules/execution/execution.service');
+      const id = params.id as string;
+      if (!id) return err(new Error('id is required'));
+      return executionService.run(context.workspaceId, id, context.callerId);
+    }
+    case 'plan.approve': {
+      const { executionService } = await import('../../modules/execution/execution.service');
+      const id = params.id as string;
+      if (!id) return err(new Error('id is required'));
+      return executionService.approve(context.workspaceId, id, context.callerId);
+    }
+    case 'plan.get': {
+      const { executionService } = await import('../../modules/execution/execution.service');
+      const id = params.id as string;
+      if (!id) return err(new Error('id is required'));
+      const plan = await executionService.get(context.workspaceId, id);
+      return plan ? ok(plan) : err(new NotFoundError('Plan not found: ' + id));
+    }
+
     default:
       return err(new Error(`Unknown gateway op: ${op}`));
   }

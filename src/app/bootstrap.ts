@@ -42,6 +42,15 @@ export async function initSubsystems(): Promise<void> {
   registerMemorySkills();
   logger.info('Memory skills registered');
 
+  // Register execution skills (A2A)
+  try {
+    const { registerExecutionSkills } = await import('../modules/execution/execution.skills');
+    registerExecutionSkills();
+    logger.info('Execution skills registered');
+  } catch (err) {
+    logger.warn({ err }, 'Failed to register execution skills — non-critical');
+  }
+
   // StateStore + CacheProvider
   const stateStore = getStateStore();
   logger.info({ backend: stateStore.backend }, 'StateStore initialized');
@@ -182,7 +191,18 @@ export async function initSubsystems(): Promise<void> {
     logger.warn({ err }, 'Step 12: Job schedulers failed to register');
   }
 
-  // Step 13: Register computer use routes (non-critical — requires playwright)
+  // Step 13: Start ERP sync worker (non-critical)
+  try {
+    const syncRedis = new (await import('ioredis')).default(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null } as any);
+    const { createErpSyncWorker } = await import('../infra/queue/workers/erp-sync.worker');
+    const erpSyncWorker = createErpSyncWorker(syncRedis);
+    logger.info('ERP sync worker started');
+    (globalThis as any).__erpSyncWorker = { worker: erpSyncWorker, connection: syncRedis };
+  } catch (err) {
+    logger.warn({ err }, 'Failed to start ERP sync worker — non-critical');
+  }
+
+  // Step 14: Register computer use routes (non-critical — requires playwright)
   try {
     const { computerUseRoutes } = await import('../modules/computer-use/computer-use.routes');
     app.route('/workspaces/:workspaceId/computer-use', computerUseRoutes);
@@ -239,6 +259,12 @@ export async function destroySubsystems(): Promise<void> {
     await jobWorkerHandles.cleanupWorker.close();
     await jobWorkerHandles.syncWorker.close();
     await jobWorkerHandles.connection.quit();
+  }
+
+  const erpHandles = (globalThis as any).__erpSyncWorker;
+  if (erpHandles) {
+    await erpHandles.worker.close();
+    await erpHandles.connection.quit();
   }
 
   // Destroy all computer use sessions (close browsers)
