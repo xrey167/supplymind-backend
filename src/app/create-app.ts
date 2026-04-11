@@ -14,8 +14,9 @@ import { WorkspacesRoutes } from '../modules/workspaces';
 import { invitationRoutes } from '../api/routes/invitations';
 import { initSubsystems, destroySubsystems } from './bootstrap';
 import { healthService } from '../modules/health/health.service';
+import { pluginCatalogRoutes } from '../modules/plugins/plugins.catalog.routes';
 
-export async function createApp() {
+export async function createApp(opts?: { skipSubsystems?: boolean }) {
   const app = new OpenAPIHono({
     defaultHook: (result, c) => {
       if (!result.success) {
@@ -77,6 +78,7 @@ export async function createApp() {
   app.use('/api/v1/workspace-management/*', authMiddleware);
   app.route('/api/v1/workspace-management', WorkspacesRoutes);
   app.route('/api/v1/invitations', invitationRoutes);
+  app.route('/api/v1/plugin-catalog', pluginCatalogRoutes);
 
   // Workspace-scoped routes (auth required): /api/v1/workspaces/:workspaceId/*
   app.route('/api/v1/workspaces/:workspaceId', workspaceRoutes);
@@ -94,7 +96,9 @@ export async function createApp() {
   });
 
   // Initialize all subsystems (skills, WS, event consumers, Redis, MCP)
-  await initSubsystems(app);
+  if (!opts?.skipSubsystems) {
+    await initSubsystems(app);
+  }
 
   return app;
 }

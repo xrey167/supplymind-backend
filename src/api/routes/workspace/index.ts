@@ -25,6 +25,7 @@ import { CredentialsRoutes } from '../../../modules/credentials/credentials.rout
 import { AuditLogsRoutes } from '../../../modules/audit-logs/audit-logs.routes';
 import { InboxRoutes } from '../../../modules/inbox/inbox.routes';
 import { PromptsRoutes } from '../../../modules/prompts/prompts.routes';
+import { pluginRoutes } from '../../../modules/plugins/plugins.routes';
 import { executionRoutes } from '../../../modules/execution/execution.routes';
 
 const workspaceRoutes = new OpenAPIHono();
@@ -58,6 +59,7 @@ workspaceRoutes.route('/credentials', CredentialsRoutes);
 workspaceRoutes.route('/audit-logs', AuditLogsRoutes);
 workspaceRoutes.route('/inbox', InboxRoutes);
 workspaceRoutes.route('/prompts', PromptsRoutes);
+workspaceRoutes.route('/plugins', pluginRoutes);
 workspaceRoutes.route('/plans', executionRoutes);
 
 export { workspaceRoutes };

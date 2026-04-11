@@ -64,6 +64,13 @@
       "when": 1775565600000,
       "tag": "0008_orchestration_cancelled_status",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1775590000000,
+      "tag": "0009_plugin_platform_core",
+      "breakpoints": true
     }
   ]
 }
