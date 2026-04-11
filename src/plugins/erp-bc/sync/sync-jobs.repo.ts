@@ -21,37 +21,29 @@ export interface CreateSyncJobInput {
   schedule?: string;
 }
 
+const syncJobColumns = {
+  id: syncJobs.id,
+  installationId: syncJobs.installationId,
+  workspaceId: syncJobs.workspaceId,
+  entityType: syncJobs.entityType,
+  schedule: syncJobs.schedule,
+  status: syncJobs.status,
+  lastRunAt: syncJobs.lastRunAt,
+  lastError: syncJobs.lastError,
+  createdAt: syncJobs.createdAt,
+};
+
 export const syncJobsRepo = {
   async list(workspaceId: string): Promise<SyncJobRow[]> {
     return db
-      .select({
-        id: syncJobs.id,
-        installationId: syncJobs.installationId,
-        workspaceId: syncJobs.workspaceId,
-        entityType: syncJobs.entityType,
-        schedule: syncJobs.schedule,
-        status: syncJobs.status,
-        lastRunAt: syncJobs.lastRunAt,
-        lastError: syncJobs.lastError,
-        createdAt: syncJobs.createdAt,
-      })
+      .select(syncJobColumns)
       .from(syncJobs)
       .where(eq(syncJobs.workspaceId, workspaceId));
   },
 
   async findById(id: string): Promise<SyncJobRow | undefined> {
     const rows = await db
-      .select({
-        id: syncJobs.id,
-        installationId: syncJobs.installationId,
-        workspaceId: syncJobs.workspaceId,
-        entityType: syncJobs.entityType,
-        schedule: syncJobs.schedule,
-        status: syncJobs.status,
-        lastRunAt: syncJobs.lastRunAt,
-        lastError: syncJobs.lastError,
-        createdAt: syncJobs.createdAt,
-      })
+      .select(syncJobColumns)
       .from(syncJobs)
       .where(eq(syncJobs.id, id))
       .limit(1);
@@ -68,17 +60,7 @@ export const syncJobsRepo = {
         schedule: input.schedule ?? null,
         batchSize: 100,
       })
-      .returning({
-        id: syncJobs.id,
-        installationId: syncJobs.installationId,
-        workspaceId: syncJobs.workspaceId,
-        entityType: syncJobs.entityType,
-        schedule: syncJobs.schedule,
-        status: syncJobs.status,
-        lastRunAt: syncJobs.lastRunAt,
-        lastError: syncJobs.lastError,
-        createdAt: syncJobs.createdAt,
-      });
+      .returning(syncJobColumns);
     return rows[0]!;
   },
 
