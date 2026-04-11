@@ -11,7 +11,7 @@ export const createAgentSchema = z.object({
   maxTokens: z.number().int().positive().optional(),
   thinkingBudget: z.number().int().min(0).optional(),
   toolIds: z.array(z.string()).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const updateAgentSchema = z.object({
@@ -24,7 +24,7 @@ export const updateAgentSchema = z.object({
   maxTokens: z.number().int().positive().optional(),
   thinkingBudget: z.number().int().min(0).optional(),
   toolIds: z.array(z.string()).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const agentIdParamSchema = z.object({

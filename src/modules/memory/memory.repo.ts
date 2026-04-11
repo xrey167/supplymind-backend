@@ -57,8 +57,8 @@ export const memoryRepo = {
   },
 
   async delete(id: string): Promise<boolean> {
-    const result = await db.delete(agentMemories).where(eq(agentMemories.id, id));
-    return (result as any).rowCount > 0;
+    const rows = await db.delete(agentMemories).where(eq(agentMemories.id, id)).returning({ id: agentMemories.id });
+    return rows.length > 0;
   },
 
   async createProposal(input: ProposeMemoryInput): Promise<MemoryProposal> {

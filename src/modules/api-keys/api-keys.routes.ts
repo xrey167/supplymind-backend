@@ -9,12 +9,14 @@ import { requirePermission } from '../../api/middlewares/permissions';
 const listRoute = createRoute({
   method: 'get',
   path: '/',
+  middleware: [requirePermission('api-keys', 'read')] as any,
   responses: { 200: { description: 'List API keys', content: { 'application/json': { schema: z.object({ data: z.array(apiKeyResponseSchema) }) } } } },
 });
 
 const createRoute_ = createRoute({
   method: 'post',
   path: '/',
+  middleware: [requirePermission('api-keys', 'write')] as any,
   request: { body: { content: { 'application/json': { schema: createApiKeySchema } } } },
   responses: { 201: { description: 'API key created', content: { 'application/json': { schema: createApiKeyResponseSchema } } } },
 });
@@ -22,6 +24,7 @@ const createRoute_ = createRoute({
 const getRoute = createRoute({
   method: 'get',
   path: '/{keyId}',
+  middleware: [requirePermission('api-keys', 'read')] as any,
   request: { params: apiKeyParamSchema },
   responses: {
     200: { description: 'API key details', content: { 'application/json': { schema: apiKeyResponseSchema } } },
@@ -32,6 +35,7 @@ const getRoute = createRoute({
 const revokeRoute = createRoute({
   method: 'post',
   path: '/{keyId}/revoke',
+  middleware: [requirePermission('api-keys', 'write')] as any,
   request: { params: apiKeyParamSchema },
   responses: {
     200: { description: 'Key revoked', content: { 'application/json': { schema: z.object({ revoked: z.boolean() }) } } },
@@ -42,6 +46,7 @@ const revokeRoute = createRoute({
 const deleteRoute = createRoute({
   method: 'delete',
   path: '/{keyId}',
+  middleware: [requirePermission('api-keys', 'delete')] as any,
   request: { params: apiKeyParamSchema },
   responses: {
     200: { description: 'Key deleted', content: { 'application/json': { schema: z.object({ deleted: z.boolean() }) } } },
@@ -51,13 +56,13 @@ const deleteRoute = createRoute({
 
 export const ApiKeysRoutes = new OpenAPIHono();
 
-ApiKeysRoutes.openapi(listRoute, requirePermission('api-keys', 'read'), async (c) => {
+ApiKeysRoutes.openapi(listRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const keys = await apiKeysService.list(workspaceId);
   return c.json({ data: keys.map(toApiKeyResponse) });
 });
 
-ApiKeysRoutes.openapi(createRoute_, requirePermission('api-keys', 'write'), async (c) => {
+ApiKeysRoutes.openapi(createRoute_, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const input = c.req.valid('json');
   const result = await apiKeysService.create(workspaceId, input);
@@ -65,7 +70,7 @@ ApiKeysRoutes.openapi(createRoute_, requirePermission('api-keys', 'write'), asyn
   return c.json({ token: result.token, key: toApiKeyResponse(result.key) }, 201);
 });
 
-ApiKeysRoutes.openapi(getRoute, requirePermission('api-keys', 'read'), async (c) => {
+ApiKeysRoutes.openapi(getRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const { keyId } = c.req.valid('param');
   const key = await apiKeysService.get(keyId, workspaceId);
@@ -73,7 +78,7 @@ ApiKeysRoutes.openapi(getRoute, requirePermission('api-keys', 'read'), async (c)
   return c.json(toApiKeyResponse(key));
 });
 
-ApiKeysRoutes.openapi(revokeRoute, requirePermission('api-keys', 'write'), async (c) => {
+ApiKeysRoutes.openapi(revokeRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const { keyId } = c.req.valid('param');
   const revoked = await apiKeysService.revoke(keyId, workspaceId);
@@ -82,7 +87,7 @@ ApiKeysRoutes.openapi(revokeRoute, requirePermission('api-keys', 'write'), async
   return c.json({ revoked: true });
 });
 
-ApiKeysRoutes.openapi(deleteRoute, requirePermission('api-keys', 'delete'), async (c) => {
+ApiKeysRoutes.openapi(deleteRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const { keyId } = c.req.valid('param');
   const deleted = await apiKeysService.deleteKey(keyId, workspaceId);

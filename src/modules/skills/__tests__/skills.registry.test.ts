@@ -79,6 +79,38 @@ describe('SkillRegistry', () => {
     expect(defs).toEqual([{ name: 'echo', description: 'Echo skill', inputSchema: { type: 'object' } }]);
   });
 
+  test('toToolDefinitions passes strict from toolHints', () => {
+    registry.register(makeSkill({ toolHints: { strict: true } }));
+    const defs = registry.toToolDefinitions();
+    expect(defs[0].strict).toBe(true);
+  });
+
+  test('toToolDefinitions passes cacheControl when cacheable', () => {
+    registry.register(makeSkill({ toolHints: { cacheable: true } }));
+    const defs = registry.toToolDefinitions();
+    expect(defs[0].cacheControl).toEqual({ type: 'ephemeral' });
+  });
+
+  test('toToolDefinitions omits cacheControl when cacheable is false', () => {
+    registry.register(makeSkill({ toolHints: { cacheable: false } }));
+    const defs = registry.toToolDefinitions();
+    expect(defs[0]).not.toHaveProperty('cacheControl');
+  });
+
+  test('toToolDefinitions passes eagerInputStreaming from toolHints', () => {
+    registry.register(makeSkill({ toolHints: { eagerInputStreaming: false } }));
+    const defs = registry.toToolDefinitions();
+    expect(defs[0].eagerInputStreaming).toBe(false);
+  });
+
+  test('toToolDefinitions omits toolHints fields when no toolHints set', () => {
+    registry.register(makeSkill());
+    const defs = registry.toToolDefinitions();
+    expect(defs[0]).not.toHaveProperty('strict');
+    expect(defs[0]).not.toHaveProperty('cacheControl');
+    expect(defs[0]).not.toHaveProperty('eagerInputStreaming');
+  });
+
   test('clear removes all skills', () => {
     registry.register(makeSkill());
     registry.clear();

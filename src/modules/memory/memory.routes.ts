@@ -26,7 +26,7 @@ const listRoute = createRoute({
 const forgetRoute = createRoute({
   method: 'delete', path: '/{id}',
   request: { params: memoryIdParamSchema },
-  responses: { 200: { description: 'Memory deleted', ...jsonRes } },
+  responses: { 204: { description: 'Memory deleted' }, 404: { description: 'Not found', ...jsonRes } },
 });
 
 const proposeRoute = createRoute({
@@ -74,7 +74,7 @@ memoryRoutes.openapi(forgetRoute, async (c) => {
   const { id } = c.req.valid('param');
   const deleted = await memoryService.forget(id);
   if (!deleted) return c.json({ error: 'Memory not found' }, 404);
-  return c.json({ ok: true });
+  return c.body(null, 204);
 });
 
 memoryRoutes.openapi(proposeRoute, async (c) => {

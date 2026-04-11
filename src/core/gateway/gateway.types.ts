@@ -24,7 +24,11 @@ export type GatewayOp =
   | 'task.input'
   | 'task.interrupt'
   | 'collaboration.start'
-  | 'a2a.delegate';
+  | 'a2a.delegate'
+  | 'plan.create'
+  | 'plan.run'
+  | 'plan.approve'
+  | 'plan.get';
 
 // ---------------------------------------------------------------------------
 // Streaming events — protocol-agnostic, each transport adapter projects these

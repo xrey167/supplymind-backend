@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const createSessionSchema = z.object({
   agentId: z.string().uuid().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const addMessageSchema = z.object({

@@ -57,7 +57,7 @@ ToolsRoutes.openapi(getByIdRoute, async (c) => {
 
 ToolsRoutes.openapi(createRoute_, async (c) => {
   const body = c.req.valid('json');
-  const result = await toolsService.create(body);
+  const result = await toolsService.create({ ...body, providerType: body.providerType ?? 'inline' });
   if (!result.ok) return c.json({ error: result.error.message }, 400);
   return c.json({ data: result.value }, 201);
 });

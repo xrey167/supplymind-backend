@@ -24,7 +24,7 @@ let idleCleanupTimer: ReturnType<typeof setInterval> | null = null;
  * Skills loading is critical — if it fails, startup crashes.
  * Redis and MCP are non-critical — if they fail, we warn and continue.
  */
-export async function initSubsystems(): Promise<void> {
+export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHono): Promise<void> {
   // Step 0: Initialize OTel tracing
   const { initOtel } = await import('../infra/observability/otel');
   await initOtel();
@@ -41,6 +41,15 @@ export async function initSubsystems(): Promise<void> {
   // Register memory skills (remember, recall, propose_memory, forget)
   registerMemorySkills();
   logger.info('Memory skills registered');
+
+  // Register execution skills (A2A)
+  try {
+    const { registerExecutionSkills } = await import('../modules/execution/execution.skills');
+    registerExecutionSkills();
+    logger.info('Execution skills registered');
+  } catch (err) {
+    logger.warn({ err }, 'Failed to register execution skills — non-critical');
+  }
 
   // StateStore + CacheProvider
   const stateStore = getStateStore();
@@ -182,13 +191,42 @@ export async function initSubsystems(): Promise<void> {
     logger.warn({ err }, 'Step 12: Job schedulers failed to register');
   }
 
-  // Step 13: Register computer use routes (non-critical — requires playwright)
+  // Step 13: Start ERP sync worker (non-critical)
   try {
-    const { computerUseRoutes } = await import('../modules/computer-use/computer-use.routes');
-    app.route('/workspaces/:workspaceId/computer-use', computerUseRoutes);
-    logger.info('Computer use routes registered');
+    const syncRedis = new (await import('ioredis')).default(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null } as any);
+    const { createErpSyncWorker } = await import('../infra/queue/workers/erp-sync.worker');
+    const erpSyncWorker = createErpSyncWorker(syncRedis);
+    logger.info('ERP sync worker started');
+    (globalThis as any).__erpSyncWorker = { worker: erpSyncWorker, connection: syncRedis };
   } catch (err) {
-    logger.warn({ err }, 'Computer use routes failed to register — continuing without computer use');
+    logger.warn({ err }, 'Failed to start ERP sync worker — non-critical');
+  }
+
+  // Step 14: Register plugin health check repeatable job (non-critical)
+  try {
+    const { Queue, Worker } = await import('bullmq');
+    const Redis = (await import('ioredis')).default;
+    const healthConnection = new Redis(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null } as any);
+    const healthQueue = new Queue('plugin-health', { connection: healthConnection });
+    await healthQueue.upsertJobScheduler('plugin-health-check', { every: 5 * 60 * 1000 }, { name: 'health-check' });
+    const { processHealthCheckJob } = await import('../infra/queue/workers/plugin-health.worker');
+    const healthWorker = new Worker('plugin-health', async () => { await processHealthCheckJob(); }, { connection: healthConnection });
+    healthWorker.on('error', (err) => logger.warn({ err }, 'Plugin health worker error'));
+    (globalThis as any).__pluginHealthWorker = { worker: healthWorker, connection: healthConnection };
+    logger.info('Step 14: Plugin health check worker registered');
+  } catch (err) {
+    logger.warn({ err }, 'Step 14: Plugin health check worker failed to register — non-critical');
+  }
+
+  // Step 16: Register computer use routes (non-critical — requires playwright)
+  if (app) {
+    try {
+      const { computerUseRoutes } = await import('../modules/computer-use/computer-use.routes');
+      app.route('/workspaces/:workspaceId/computer-use', computerUseRoutes);
+      logger.info('Computer use routes registered');
+    } catch (err) {
+      logger.warn({ err }, 'Computer use routes failed to register — continuing without computer use');
+    }
   }
 
   // Start idle MCP connection cleanup — runs every 2 minutes
@@ -239,6 +277,12 @@ export async function destroySubsystems(): Promise<void> {
     await jobWorkerHandles.cleanupWorker.close();
     await jobWorkerHandles.syncWorker.close();
     await jobWorkerHandles.connection.quit();
+  }
+
+  const erpHandles = (globalThis as any).__erpSyncWorker;
+  if (erpHandles) {
+    await erpHandles.worker.close();
+    await erpHandles.connection.quit();
   }
 
   // Destroy all computer use sessions (close browsers)

@@ -29,7 +29,7 @@ const mockProposal: MemoryProposal = {
   createdAt: new Date('2024-01-01'),
 };
 
-// --- Mocks (must be declared before importing the module under test) ---
+// --- Mocks ---
 
 const repoMocks = {
   save: mock(async () => mockMemory),
@@ -50,7 +50,6 @@ const eventMocks = {
   emitMemoryRejected: mock(() => undefined),
 };
 
-mock.module('../memory.repo', () => ({ memoryRepo: repoMocks }));
 mock.module('../memory.events', () => eventMocks);
 
 // Embedding path mocks — happy path by default
@@ -75,9 +74,13 @@ mock.module('../memory.search', () => ({
 }));
 
 // Import after all mock.module calls
-import { memoryService } from '../memory.service';
+import { MemoryService } from '../memory.service';
 
 // --- Helpers ---
+
+function makeService() {
+  return new MemoryService(repoMocks as any);
+}
 
 function resetMocks() {
   Object.values(repoMocks).forEach(m => m.mockClear());
@@ -99,8 +102,9 @@ describe('memoryService', () => {
     });
 
     test('should save via repo and return the memory', async () => {
+      const svc = makeService();
       const input = { workspaceId: 'ws-1', type: 'domain' as const, title: 'Test Memory', content: 'Some content' };
-      const result = await memoryService.save(input);
+      const result = await svc.save(input);
 
       expect(repoMocks.save).toHaveBeenCalledTimes(1);
       expect(repoMocks.save).toHaveBeenCalledWith(input);
@@ -108,16 +112,18 @@ describe('memoryService', () => {
     });
 
     test('should emit MemorySaved event with correct ids', async () => {
+      const svc = makeService();
       const input = { workspaceId: 'ws-1', type: 'domain' as const, title: 'Test Memory', content: 'Some content' };
-      await memoryService.save(input);
+      await svc.save(input);
 
       expect(eventMocks.emitMemorySaved).toHaveBeenCalledTimes(1);
       expect(eventMocks.emitMemorySaved).toHaveBeenCalledWith(mockMemory.id, mockMemory.workspaceId);
     });
 
     test('should attempt to generate and upsert embedding', async () => {
+      const svc = makeService();
       const input = { workspaceId: 'ws-1', type: 'domain' as const, title: 'Test Memory', content: 'Some content' };
-      await memoryService.save(input);
+      await svc.save(input);
 
       expect(embedMock).toHaveBeenCalledTimes(1);
       expect(upsertMock).toHaveBeenCalledTimes(1);
@@ -127,8 +133,9 @@ describe('memoryService', () => {
     test('should still save and emit event even when embedding fails', async () => {
       embedMock.mockImplementation(async () => { throw new Error('embed service unavailable'); });
 
+      const svc = makeService();
       const input = { workspaceId: 'ws-1', type: 'domain' as const, title: 'Test Memory', content: 'Some content' };
-      const result = await memoryService.save(input);
+      const result = await svc.save(input);
 
       expect(result).toEqual(mockMemory);
       expect(eventMocks.emitMemorySaved).toHaveBeenCalledTimes(1);
@@ -137,16 +144,18 @@ describe('memoryService', () => {
     test('should still save and emit event when vector store upsert fails', async () => {
       upsertMock.mockImplementation(async () => { throw new Error('pgvector unavailable'); });
 
+      const svc = makeService();
       const input = { workspaceId: 'ws-1', type: 'domain' as const, title: 'Test Memory', content: 'Some content' };
-      const result = await memoryService.save(input);
+      const result = await svc.save(input);
 
       expect(result).toEqual(mockMemory);
       expect(eventMocks.emitMemorySaved).toHaveBeenCalledTimes(1);
     });
 
     test('should include agentId when provided', async () => {
+      const svc = makeService();
       const input = { workspaceId: 'ws-1', agentId: 'agent-42', type: 'feedback' as const, title: 'Feedback', content: 'Good run' };
-      await memoryService.save(input);
+      await svc.save(input);
 
       expect(repoMocks.save).toHaveBeenCalledWith(input);
     });
@@ -161,12 +170,12 @@ describe('memoryService', () => {
     });
 
     test('should return memories via hybrid search when it succeeds and returns results', async () => {
-      const results = await memoryService.recall({ query: 'supply chain', workspaceId: 'ws-1' });
+      const svc = makeService();
+      const results = await svc.recall({ query: 'supply chain', workspaceId: 'ws-1' });
 
       expect(hybridSearchMock).toHaveBeenCalledTimes(1);
       expect(hybridSearchMock).toHaveBeenCalledWith('supply chain', 'ws-1', undefined, 5);
       expect(results).toHaveLength(1);
-      // recall wraps results with toRecallResult — check core identity fields
       expect(results[0].id).toBe(mockMemory.id);
       expect(results[0].content).toBe(mockMemory.content);
     });
@@ -174,7 +183,8 @@ describe('memoryService', () => {
     test('should fall back to text search when hybrid search throws', async () => {
       hybridSearchMock.mockImplementation(async () => { throw new Error('pgvector down'); });
 
-      const results = await memoryService.recall({ query: 'supply chain', workspaceId: 'ws-1' });
+      const svc = makeService();
+      const results = await svc.recall({ query: 'supply chain', workspaceId: 'ws-1' });
 
       expect(repoMocks.search).toHaveBeenCalledTimes(1);
       expect(repoMocks.search).toHaveBeenCalledWith('supply chain', 'ws-1', undefined, 5);
@@ -185,19 +195,22 @@ describe('memoryService', () => {
     test('should fall back to text search when hybrid search returns empty results', async () => {
       hybridSearchMock.mockImplementation(async () => []);
 
-      await memoryService.recall({ query: 'no match', workspaceId: 'ws-1' });
+      const svc = makeService();
+      await svc.recall({ query: 'no match', workspaceId: 'ws-1' });
 
       expect(repoMocks.search).toHaveBeenCalledTimes(1);
     });
 
     test('should pass agentId and limit to hybrid search', async () => {
-      await memoryService.recall({ query: 'test', workspaceId: 'ws-1', agentId: 'agent-1', limit: 10 });
+      const svc = makeService();
+      await svc.recall({ query: 'test', workspaceId: 'ws-1', agentId: 'agent-1', limit: 10 });
 
       expect(hybridSearchMock).toHaveBeenCalledWith('test', 'ws-1', 'agent-1', 10);
     });
 
     test('should default limit to 5', async () => {
-      await memoryService.recall({ query: 'test', workspaceId: 'ws-1' });
+      const svc = makeService();
+      await svc.recall({ query: 'test', workspaceId: 'ws-1' });
 
       expect(hybridSearchMock).toHaveBeenCalledWith('test', 'ws-1', undefined, 5);
     });
@@ -206,7 +219,8 @@ describe('memoryService', () => {
       hybridSearchMock.mockImplementation(async () => [{ id: 'mem-1', score: 0.9 }, { id: 'mem-missing', score: 0.5 }]);
       repoMocks.get.mockImplementation(async (id: string) => id === 'mem-1' ? mockMemory : undefined);
 
-      const results = await memoryService.recall({ query: 'test', workspaceId: 'ws-1' });
+      const svc = makeService();
+      const results = await svc.recall({ query: 'test', workspaceId: 'ws-1' });
 
       expect(results).toHaveLength(1);
       expect(results[0].id).toBe('mem-1');
@@ -215,7 +229,8 @@ describe('memoryService', () => {
     test('should pass agentId and limit to text search fallback', async () => {
       hybridSearchMock.mockImplementation(async () => { throw new Error('fail'); });
 
-      await memoryService.recall({ query: 'test', workspaceId: 'ws-1', agentId: 'agent-1', limit: 3 });
+      const svc = makeService();
+      await svc.recall({ query: 'test', workspaceId: 'ws-1', agentId: 'agent-1', limit: 3 });
 
       expect(repoMocks.search).toHaveBeenCalledWith('test', 'ws-1', 'agent-1', 3);
     });
@@ -228,7 +243,8 @@ describe('memoryService', () => {
       hybridSearchMock.mockImplementation(async () => [{ id: 'mem-stale', score: 0.9 }]);
       repoMocks.get.mockImplementation(async () => staleMemory);
 
-      const results = await memoryService.recall({ query: 'stale', workspaceId: 'ws-1' });
+      const svc = makeService();
+      const results = await svc.recall({ query: 'stale', workspaceId: 'ws-1' });
 
       expect(results[0].stale).toBe(true);
       expect(results[0].staleDays).toBeGreaterThanOrEqual(31);
@@ -239,7 +255,8 @@ describe('memoryService', () => {
       hybridSearchMock.mockImplementation(async () => [{ id: 'mem-fresh', score: 0.9 }]);
       repoMocks.get.mockImplementation(async () => freshMemory);
 
-      const results = await memoryService.recall({ query: 'fresh', workspaceId: 'ws-1' });
+      const svc = makeService();
+      const results = await svc.recall({ query: 'fresh', workspaceId: 'ws-1' });
 
       expect(results[0].stale).toBe(false);
       expect(results[0].staleDays).toBe(0);
@@ -251,16 +268,15 @@ describe('memoryService', () => {
       hybridSearchMock.mockImplementation(async () => [{ id: 'mem-30', score: 0.9 }]);
       repoMocks.get.mockImplementation(async () => borderMemory);
 
-      const results = await memoryService.recall({ query: 'border', workspaceId: 'ws-1' });
+      const svc = makeService();
+      const results = await svc.recall({ query: 'border', workspaceId: 'ws-1' });
 
       expect(results[0].stale).toBe(false);
       expect(results[0].staleDays).toBe(30);
     });
 
     test('scope is "agent" when agentId set, "workspace" when not', async () => {
-      // memory with agentId
       const agentMemory: typeof mockMemory = { ...mockMemory, id: 'mem-agent', agentId: 'agent-42', updatedAt: new Date() };
-      // memory without agentId
       const workspaceMemory: typeof mockMemory = { ...mockMemory, id: 'mem-ws', agentId: undefined as unknown as string, updatedAt: new Date() };
 
       hybridSearchMock.mockImplementation(async () => [
@@ -271,7 +287,8 @@ describe('memoryService', () => {
         id === 'mem-agent' ? agentMemory : workspaceMemory,
       );
 
-      const results = await memoryService.recall({ query: 'scope', workspaceId: 'ws-1' });
+      const svc = makeService();
+      const results = await svc.recall({ query: 'scope', workspaceId: 'ws-1' });
 
       const agentResult = results.find((r) => r.id === 'mem-agent');
       const wsResult = results.find((r) => r.id === 'mem-ws');
@@ -287,7 +304,8 @@ describe('memoryService', () => {
     });
 
     test('should delegate to repo.list and return results', async () => {
-      const results = await memoryService.list('ws-1');
+      const svc = makeService();
+      const results = await svc.list('ws-1');
 
       expect(repoMocks.list).toHaveBeenCalledTimes(1);
       expect(repoMocks.list).toHaveBeenCalledWith('ws-1', undefined);
@@ -295,7 +313,8 @@ describe('memoryService', () => {
     });
 
     test('should pass agentId when provided', async () => {
-      await memoryService.list('ws-1', 'agent-1');
+      const svc = makeService();
+      await svc.list('ws-1', 'agent-1');
 
       expect(repoMocks.list).toHaveBeenCalledWith('ws-1', 'agent-1');
     });
@@ -303,7 +322,8 @@ describe('memoryService', () => {
     test('should return empty array when repo returns none', async () => {
       repoMocks.list.mockImplementation(async () => []);
 
-      const results = await memoryService.list('ws-empty');
+      const svc = makeService();
+      const results = await svc.list('ws-empty');
 
       expect(results).toEqual([]);
     });
@@ -316,7 +336,8 @@ describe('memoryService', () => {
     });
 
     test('should delegate to repo.delete and return true on success', async () => {
-      const result = await memoryService.forget('mem-1');
+      const svc = makeService();
+      const result = await svc.forget('mem-1');
 
       expect(repoMocks.delete).toHaveBeenCalledTimes(1);
       expect(repoMocks.delete).toHaveBeenCalledWith('mem-1');
@@ -326,7 +347,8 @@ describe('memoryService', () => {
     test('should return false when repo reports memory not found', async () => {
       repoMocks.delete.mockImplementation(async () => false);
 
-      const result = await memoryService.forget('mem-nonexistent');
+      const svc = makeService();
+      const result = await svc.forget('mem-nonexistent');
 
       expect(result).toBe(false);
     });
@@ -339,8 +361,9 @@ describe('memoryService', () => {
     });
 
     test('should create proposal via repo and return it', async () => {
+      const svc = makeService();
       const input = { workspaceId: 'ws-1', agentId: 'agent-1', type: 'pattern' as const, title: 'Proposed Memory', content: 'Pattern content' };
-      const result = await memoryService.propose(input);
+      const result = await svc.propose(input);
 
       expect(repoMocks.createProposal).toHaveBeenCalledTimes(1);
       expect(repoMocks.createProposal).toHaveBeenCalledWith(input);
@@ -348,8 +371,9 @@ describe('memoryService', () => {
     });
 
     test('should emit MemoryProposal event with proposal fields', async () => {
+      const svc = makeService();
       const input = { workspaceId: 'ws-1', agentId: 'agent-1', type: 'domain' as const, title: 'Proposed Memory', content: 'Content' };
-      await memoryService.propose(input);
+      await svc.propose(input);
 
       expect(eventMocks.emitMemoryProposal).toHaveBeenCalledTimes(1);
       expect(eventMocks.emitMemoryProposal).toHaveBeenCalledWith({
@@ -361,8 +385,9 @@ describe('memoryService', () => {
     });
 
     test('should return proposal with pending status', async () => {
+      const svc = makeService();
       const input = { workspaceId: 'ws-1', agentId: 'agent-1', type: 'reference' as const, title: 'Ref', content: 'Content' };
-      const result = await memoryService.propose(input);
+      const result = await svc.propose(input);
 
       expect(result.status).toBe('pending');
     });
@@ -375,7 +400,8 @@ describe('memoryService', () => {
     });
 
     test('should approve proposal via repo and return the resulting memory', async () => {
-      const result = await memoryService.approveProposal('prop-1');
+      const svc = makeService();
+      const result = await svc.approveProposal('prop-1');
 
       expect(repoMocks.approveProposal).toHaveBeenCalledTimes(1);
       expect(repoMocks.approveProposal).toHaveBeenCalledWith('prop-1');
@@ -383,7 +409,8 @@ describe('memoryService', () => {
     });
 
     test('should emit MemoryApproved event with correct ids', async () => {
-      await memoryService.approveProposal('prop-1');
+      const svc = makeService();
+      await svc.approveProposal('prop-1');
 
       expect(eventMocks.emitMemoryApproved).toHaveBeenCalledTimes(1);
       expect(eventMocks.emitMemoryApproved).toHaveBeenCalledWith(mockMemory.id, 'prop-1', mockMemory.workspaceId);
@@ -398,7 +425,8 @@ describe('memoryService', () => {
     });
 
     test('should reject proposal via repo and emit event', async () => {
-      await memoryService.rejectProposal('prop-1', 'Not accurate');
+      const svc = makeService();
+      await svc.rejectProposal('prop-1', 'Not accurate');
 
       expect(repoMocks.getProposal).toHaveBeenCalledWith('prop-1');
       expect(repoMocks.rejectProposal).toHaveBeenCalledWith('prop-1', 'Not accurate');
@@ -407,7 +435,8 @@ describe('memoryService', () => {
     });
 
     test('should work without a rejection reason', async () => {
-      await memoryService.rejectProposal('prop-1');
+      const svc = makeService();
+      await svc.rejectProposal('prop-1');
 
       expect(repoMocks.rejectProposal).toHaveBeenCalledWith('prop-1', undefined);
       expect(eventMocks.emitMemoryRejected).toHaveBeenCalledWith('prop-1', mockProposal.workspaceId, undefined);
@@ -416,14 +445,16 @@ describe('memoryService', () => {
     test('should throw when proposal does not exist', async () => {
       repoMocks.getProposal.mockImplementation(async () => undefined);
 
-      await expect(memoryService.rejectProposal('prop-missing')).rejects.toThrow('Proposal not found: prop-missing');
+      const svc = makeService();
+      await expect(svc.rejectProposal('prop-missing')).rejects.toThrow('Proposal not found: prop-missing');
     });
 
     test('should not call rejectProposal on repo when proposal is not found', async () => {
       repoMocks.getProposal.mockImplementation(async () => undefined);
 
+      const svc = makeService();
       try {
-        await memoryService.rejectProposal('prop-missing');
+        await svc.rejectProposal('prop-missing');
       } catch {
         // expected
       }

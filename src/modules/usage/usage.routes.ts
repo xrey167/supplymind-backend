@@ -23,7 +23,7 @@ usageRoutes.openapi(getUsageRoute, async (c) => {
   const { period } = c.req.valid('query');
   try {
     const summary = await usageService.getWorkspaceSummary(workspaceId, period ?? 'month');
-    return c.json(summary, 200);
+    return c.json({ data: summary }, 200);
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Internal error' }, 500);
   }

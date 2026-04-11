@@ -49,7 +49,8 @@ export async function truncateTables(...tableNames: string[]): Promise<void> {
   await testDb.execute(sql.raw(`TRUNCATE TABLE ${list} CASCADE`));
 }
 
-/** Close the test DB connection */
+/** Close the test DB connection (no-op: connection closes on process exit) */
 export async function closeTestDb(): Promise<void> {
-  await client.end();
+  // Intentionally not closing: bun test runs multiple files in the same process,
+  // so ending the shared client here would break subsequent test files.
 }

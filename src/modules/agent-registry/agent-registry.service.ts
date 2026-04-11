@@ -9,8 +9,14 @@ import type { RegisteredAgent } from './agent-registry.types';
 export class AgentRegistryService {
   async register(workspaceId: string, url: string, apiKey?: string): Promise<Result<RegisteredAgent>> {
     try {
-      // 1. Discover agent card
-      const card = await workerRegistry.discover(url, apiKey);
+      // 1. Discover agent card (best-effort; registration proceeds even if discovery fails)
+      let card: import('../../infra/a2a/types').AgentCard;
+      try {
+        card = await workerRegistry.discover(url, apiKey);
+      } catch (discoverErr) {
+        logger.warn({ url, err: discoverErr }, 'Agent discovery failed during registration — using stub card');
+        card = { name: url, description: '', url, version: '0.0.0', capabilities: { streaming: false }, skills: [] };
+      }
 
       // 2. Hash apiKey if provided
       let apiKeyHash: string | undefined;

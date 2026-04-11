@@ -1,6 +1,6 @@
 import { PgVectorMemoryStore, type SearchResult } from './memory.store';
 import { getEmbeddingProvider } from './memory.embedding';
-import { memoryRepo } from './memory.repo';
+import { memoryRepo as defaultMemoryRepo } from './memory.repo';
 
 const VECTOR_WEIGHT = 0.7;
 const TEXT_WEIGHT = 0.3;
@@ -17,6 +17,7 @@ export async function hybridSearch(
   workspaceId: string,
   agentId?: string,
   limit = 5,
+  repo: Pick<typeof defaultMemoryRepo, 'search'> = defaultMemoryRepo,
 ): Promise<SearchResult[]> {
   const embeddingProvider = getEmbeddingProvider();
 
@@ -30,7 +31,7 @@ export async function hybridSearch(
       }
     })(),
     (async () => {
-      const memories = await memoryRepo.search(query, workspaceId, agentId, limit * 2);
+      const memories = await repo.search(query, workspaceId, agentId, limit * 2);
       return memories.map((m) => ({
         id: m.id,
         text: `${m.title}: ${m.content}`,

@@ -19,14 +19,19 @@ const subscriptions: Array<{ pattern: string; handler: (event: any) => Promise<v
 
 // Include publish so downstream tests that import eventBus from the real module
 // and call eventBus.publish still work (they get the real module, not this mock).
+// Stable mock references for eventBus methods (returning mock() inline creates
+// a new function each access, breaking assertion tracking).
+const _mockSubscribe = mock((pattern: string, handler: any) => {
+  subscriptions.push({ pattern, handler });
+  return 'sub-id';
+});
+const _mockPublish = mock(() => Promise.resolve());
+const _mockUnsubscribe = mock(() => {});
 mock.module('../../../events/bus', () => ({
   eventBus: {
-    subscribe: mock((pattern: string, handler: any) => {
-      subscriptions.push({ pattern, handler });
-      return 'sub-id';
-    }),
-    publish: mock(() => Promise.resolve()),
-    unsubscribe: mock(() => {}),
+    subscribe: _mockSubscribe,
+    publish: _mockPublish,
+    unsubscribe: _mockUnsubscribe,
   },
 }));
 

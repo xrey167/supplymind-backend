@@ -7,7 +7,7 @@ const promptVariableSchema = z.object({
 });
 
 export const createPromptSchema = z.object({
-  workspaceId: z.string().uuid(),
+  workspaceId: z.string().uuid().optional(),
   name: z.string().min(1).max(255),
   description: z.string().optional(),
   content: z.string().min(1),
@@ -30,7 +30,7 @@ export const promptIdParamSchema = z.object({
 });
 
 export const listPromptsQuerySchema = z.object({
-  workspaceId: z.string().uuid(),
+  workspaceId: z.string().uuid().optional(),
   tag: z.string().optional(),
   isActive: z.coerce.boolean().optional(),
   limit: z.coerce.number().int().positive().optional(),
@@ -38,5 +38,5 @@ export const listPromptsQuerySchema = z.object({
 });
 
 export const renderPromptSchema = z.object({
-  variables: z.record(z.string()),
+  variables: z.record(z.string(), z.string()),
 });

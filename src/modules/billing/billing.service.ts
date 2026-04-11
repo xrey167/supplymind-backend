@@ -46,19 +46,25 @@ async function syncTokenBudget(workspaceId: string, plan: PlanTier) {
 }
 
 export class BillingService {
+  private repo: typeof billingRepo;
+
+  constructor(repo?: typeof billingRepo) {
+    this.repo = repo ?? billingRepo;
+  }
+
   async createCheckoutSession(
     workspaceId: string,
     planTier: PlanTier,
     urls: { successUrl: string; cancelUrl: string },
   ) {
     const stripe = getStripe();
-    let customer = await billingRepo.getCustomer(workspaceId);
+    let customer = await this.repo.getCustomer(workspaceId);
 
     if (!customer) {
       const stripeCustomer = await stripe.customers.create({
         metadata: { workspaceId },
       });
-      customer = await billingRepo.upsertCustomer(workspaceId, stripeCustomer.id);
+      customer = await this.repo.upsertCustomer(workspaceId, stripeCustomer.id);
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -75,7 +81,7 @@ export class BillingService {
 
   async createPortalSession(workspaceId: string, returnUrl: string) {
     const stripe = getStripe();
-    const customer = await billingRepo.getCustomer(workspaceId);
+    const customer = await this.repo.getCustomer(workspaceId);
     if (!customer) throw new Error('No billing customer found for workspace');
 
     const session = await stripe.billingPortal.sessions.create({
@@ -87,7 +93,7 @@ export class BillingService {
   }
 
   async getSubscriptionStatus(workspaceId: string) {
-    const sub = await billingRepo.getSubscription(workspaceId);
+    const sub = await this.repo.getSubscription(workspaceId);
     if (!sub) return { plan: 'free' as PlanTier, status: null, subscription: null };
     return {
       plan: sub.plan as PlanTier,
@@ -125,7 +131,7 @@ export class BillingService {
   }
 
   async enforceLimits(workspaceId: string) {
-    const plan = await billingRepo.getActivePlan(workspaceId);
+    const plan = await this.repo.getActivePlan(workspaceId);
     const limits = PLAN_LIMITS[plan];
     if (limits.maxAgents === -1) return { allowed: true, plan, limits };
 
@@ -150,7 +156,7 @@ export class BillingService {
       return;
     }
 
-    await billingRepo.upsertCustomer(workspaceId, customerId);
+    await this.repo.upsertCustomer(workspaceId, customerId);
 
     if (session.subscription) {
       const stripe = getStripe();
@@ -160,7 +166,7 @@ export class BillingService {
   }
 
   private async handleSubscriptionUpdated(sub: Stripe.Subscription) {
-    const customer = await billingRepo.getCustomerByStripeId(sub.customer as string);
+    const customer = await this.repo.getCustomerByStripeId(sub.customer as string);
     if (!customer) {
       logger.warn({ customerId: sub.customer }, 'Subscription update for unknown customer');
       return;
@@ -169,7 +175,7 @@ export class BillingService {
   }
 
   private async handleSubscriptionDeleted(sub: Stripe.Subscription) {
-    const customer = await billingRepo.getCustomerByStripeId(sub.customer as string);
+    const customer = await this.repo.getCustomerByStripeId(sub.customer as string);
     if (!customer) {
       logger.warn({ customerId: sub.customer, event: 'subscription.deleted' }, 'Webhook for unknown customer');
       return;
@@ -178,7 +184,7 @@ export class BillingService {
     const priceId = sub.items.data[0]?.price.id ?? '';
     const plan = getPlanFromPriceId(priceId);
 
-    await billingRepo.upsertSubscription({
+    await this.repo.upsertSubscription({
       workspaceId: customer.workspaceId,
       stripeSubscriptionId: sub.id,
       stripePriceId: priceId,
@@ -200,13 +206,13 @@ export class BillingService {
   }
 
   private async handleInvoicePaid(invoice: Stripe.Invoice) {
-    const customer = await billingRepo.getCustomerByStripeId(invoice.customer as string);
+    const customer = await this.repo.getCustomerByStripeId(invoice.customer as string);
     if (!customer) {
       logger.warn({ customerId: invoice.customer, event: 'invoice.paid' }, 'Webhook for unknown customer');
       return;
     }
 
-    await billingRepo.insertInvoice({
+    await this.repo.insertInvoice({
       workspaceId: customer.workspaceId,
       stripeInvoiceId: invoice.id,
       amountDue: invoice.amount_due,
@@ -227,13 +233,13 @@ export class BillingService {
   }
 
   private async handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
-    const customer = await billingRepo.getCustomerByStripeId(invoice.customer as string);
+    const customer = await this.repo.getCustomerByStripeId(invoice.customer as string);
     if (!customer) {
       logger.warn({ customerId: invoice.customer, event: 'invoice.payment_failed' }, 'Webhook for unknown customer');
       return;
     }
 
-    await billingRepo.insertInvoice({
+    await this.repo.insertInvoice({
       workspaceId: customer.workspaceId,
       stripeInvoiceId: invoice.id,
       amountDue: invoice.amount_due,
@@ -253,7 +259,7 @@ export class BillingService {
     const plan = getPlanFromPriceId(priceId);
     const status = sub.status as SubscriptionStatus;
 
-    await billingRepo.upsertSubscription({
+    await this.repo.upsertSubscription({
       workspaceId,
       stripeSubscriptionId: sub.id,
       stripePriceId: priceId,

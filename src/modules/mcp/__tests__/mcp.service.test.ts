@@ -103,7 +103,7 @@ mock.module('../../../infra/mcp/client-pool', () => ({
 const mockPublish = mock((_topic: string, _payload: unknown) => {});
 
 mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mockPublish },
+  eventBus: { publish: mockPublish, subscribe: mock(() => 'sub-mock'), unsubscribe: mock(() => {}) },
 }));
 
 

@@ -6,7 +6,7 @@ export const usageQuerySchema = z.object({
   period: z.enum(['day', 'week', 'month', 'all']).optional().default('month'),
 });
 
-export const usageSummaryResponseSchema = z.object({
+export const usageSummaryDataSchema = z.object({
   totalCostUsd: z.number(),
   totalTokens: z.object({ input: z.number(), output: z.number() }),
   byModel: z.array(z.object({
@@ -34,3 +34,5 @@ export const usageSummaryResponseSchema = z.object({
     agentId: z.string().nullable(),
   })),
 });
+
+export const usageSummaryResponseSchema = z.object({ data: usageSummaryDataSchema });

@@ -50,7 +50,7 @@ mock.module('../../../infra/db/schema', () => ({
 }));
 
 mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mock(() => Promise.resolve()) },
+  eventBus: { publish: mock(() => Promise.resolve()), subscribe: mock(() => 'sub-mock'), unsubscribe: mock(() => {}) },
 }));
 
 

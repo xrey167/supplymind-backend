@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "sr_job_entity_action_idx" ON "sync_records" USING btree ("job_id","entity_id","action");

@@ -122,7 +122,7 @@ publicRoutes.post('/a2a', async (c) => {
     return c.json({ jsonrpc: '2.0', id: body.id, result: result.value });
   }
 
-  return c.json({ jsonrpc: '2.0', id: body.id, error: { code: -32601, message: 'Method not found' } });
+  return c.json({ jsonrpc: '2.0', id: body.id, error: { code: -32601, message: 'Method not found' } }, 400);
 });
 
 export { publicRoutes };

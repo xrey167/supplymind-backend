@@ -12,6 +12,11 @@ import type { SkillMcpServerEntry, McpToolDef, McpResourceDef, McpPromptDef, Mcp
 export class SkillEmbeddedMcpManager {
   private clients = new Map<string, McpClient>();
   private inFlight = new Map<string, Promise<McpClient>>();
+  private _clientFactory: (config: McpServerConfig) => McpClient;
+
+  constructor(_clientFactory?: (config: McpServerConfig) => McpClient) {
+    this._clientFactory = _clientFactory ?? ((config) => new McpClient(config));
+  }
 
   private poolKey(workspaceId: string, skillId: string, mcpName: string): string {
     return `${workspaceId}:${skillId}:${mcpName}`;
@@ -48,7 +53,7 @@ export class SkillEmbeddedMcpManager {
 
     const promise = (async () => {
       const config = this.entryToConfig(mcpName, entry);
-      const client = new McpClient(config);
+      const client = this._clientFactory(config);
       await client.connect();
       this.clients.set(key, client);
       this.inFlight.delete(key);

@@ -32,7 +32,7 @@ class FeatureFlagsService {
 
   async setFlag(workspaceId: string, flag: string, value: FlagValue): Promise<void> {
     await featureFlagsRepo.set(workspaceId, flag, value);
-    await getCacheProvider().clear(`ff:${workspaceId}:`);
+    await getCacheProvider().clear(`ff:${workspaceId}:*`);
   }
 
   async getAll(workspaceId: string): Promise<Record<string, FlagValue>> {
@@ -53,7 +53,7 @@ class FeatureFlagsService {
   }
 
   async invalidateCache(workspaceId: string): Promise<void> {
-    await getCacheProvider().clear(`ff:${workspaceId}:`);
+    await getCacheProvider().clear(`ff:${workspaceId}:*`);
   }
 }
 
