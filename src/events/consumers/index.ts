@@ -6,9 +6,17 @@ import { enqueueAgentRun } from '../../infra/queue/bullmq';
 import { initMemoryExtractionHandler } from './memory-extraction.handler';
 import { initNotificationHandler } from './notification.handler';
 import { initAuditLogHandler } from './audit-log.handler';
+import { initDomainExtractionHandler } from '../../modules/domain-knowledge/domain-extractor';
+import { initSkillObserver } from '../../modules/learning/observers/skill-observer';
+import { initMemoryObserver } from '../../modules/learning/observers/memory-observer';
+import { initTaskObserver } from '../../modules/learning/observers/task-observer';
 
 export function initEventConsumers() {
   initMemoryExtractionHandler();
+  initDomainExtractionHandler();
+  initSkillObserver();
+  initMemoryObserver();
+  initTaskObserver();
   initNotificationHandler();
   initAuditLogHandler();
   eventBus.subscribe(Topics.SKILL_INVOKED, (event) => {

@@ -77,6 +77,10 @@ export const cleanupQueue = new Queue('cleanup', { connection });
 
 export const syncQueue = new Queue('sync', { connection });
 
+// Learning & adaptation queues
+export const learningQueue = new Queue('learning-cycle', { connection });
+export const adaptationAgentQueue = new Queue('adaptation-agent', { connection });
+
 export function enqueueOrchestration(data: OrchestrationJobData): Promise<Job<OrchestrationJobData>> {
   return orchestrationQueue.add('run', data, { attempts: 1, removeOnComplete: 100, removeOnFail: 200 });
 }
