@@ -18,7 +18,7 @@ mock.module('../../settings/workspace-settings/workspace-settings.service', () =
     getTokenBudget: mockGetTokenBudget,
     getSandboxPolicy: mock(async () => ({})),
     getToolPermissionMode: mock(async () => 'auto'),
-  }),
+  },
 }));
 
 import { usageService } from '../usage.service';

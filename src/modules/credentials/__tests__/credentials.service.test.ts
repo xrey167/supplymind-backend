@@ -14,11 +14,12 @@ const publishedEvents: { topic: string; data: any }[] = [];
 // Re-export the real eventBus alongside mock overrides to avoid contaminating
 // other test files that depend on the real eventBus (e.g. task-manager.test.ts).
 const _realBus = require('../../../events/bus');
+const _origCredPublish = _realBus.eventBus.publish.bind(_realBus.eventBus);
 mock.module('../../../events/bus', () => ({
   ..._realBus,
   eventBus: new Proxy(_realBus.eventBus, {
     get(target: any, prop: string | symbol) {
-      if (prop === 'publish') return (topic: string, data: any) => { publishedEvents.push({ topic, data }); return target.publish(topic, data); };
+      if (prop === 'publish') return (...args: any[]) => { const [topic, data] = args; publishedEvents.push({ topic, data }); return _origCredPublish(...args); };
       return target[prop];
     },
   }),
