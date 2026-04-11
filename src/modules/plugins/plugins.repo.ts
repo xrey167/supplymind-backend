@@ -9,27 +9,24 @@ export interface PluginInstallationRow {
   enabled: boolean;
 }
 
+const installationColumns = {
+  id: pluginInstallations.id,
+  pluginId: pluginInstallations.pluginId,
+  workspaceId: pluginInstallations.workspaceId,
+  enabled: pluginInstallations.enabled,
+};
+
 export const pluginInstallationRepo = {
   async listEnabled(): Promise<PluginInstallationRow[]> {
     return db
-      .select({
-        id: pluginInstallations.id,
-        pluginId: pluginInstallations.pluginId,
-        workspaceId: pluginInstallations.workspaceId,
-        enabled: pluginInstallations.enabled,
-      })
+      .select(installationColumns)
       .from(pluginInstallations)
       .where(eq(pluginInstallations.enabled, true));
   },
 
   async findById(id: string): Promise<PluginInstallationRow | undefined> {
     const rows = await db
-      .select({
-        id: pluginInstallations.id,
-        pluginId: pluginInstallations.pluginId,
-        workspaceId: pluginInstallations.workspaceId,
-        enabled: pluginInstallations.enabled,
-      })
+      .select(installationColumns)
       .from(pluginInstallations)
       .where(eq(pluginInstallations.id, id))
       .limit(1);
