@@ -1,12 +1,10 @@
 import { describe, it, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
 
+// Use DI — no mock.module needed for taskRepo.
 const mockFindStale = mock(() => Promise.resolve([]));
 const mockUpdateStatus = mock(() => Promise.resolve());
+const mockTaskRepo = { findStale: mockFindStale, updateStatus: mockUpdateStatus } as any;
 const mockDeleteExpiredKeys = mock(() => Promise.resolve(0));
-
-mock.module('../../../infra/a2a/task-repo', () => ({
-  taskRepo: { findStale: mockFindStale, updateStatus: mockUpdateStatus },
-}));
 mock.module('../../../modules/api-keys/api-keys.repo', () => ({
   apiKeysRepo: { deleteExpired: mockDeleteExpiredKeys },
 }));
@@ -14,7 +12,8 @@ mock.module('../../../config/logger', () => ({
   logger: { info: () => {}, warn: () => {}, error: () => {} },
 }));
 
-const { runCleanup } = await import('../index');
+import { runCleanup } from '../index';
+const wrappedRunCleanup = () => runCleanup(mockTaskRepo);
 import { sessionsService } from '../../../modules/sessions/sessions.service';
 
 // Use spyOn to avoid polluting sessions.service module cache for downstream tests
@@ -36,7 +35,7 @@ describe('cleanup job', () => {
   });
 
   it('calls all cleanup steps', async () => {
-    await runCleanup();
+    await wrappedRunCleanup();
     expect(mockFindStale).toHaveBeenCalledTimes(2);
     expect(expireIdleSessionsSpy).toHaveBeenCalledTimes(1);
     expect(mockDeleteExpiredKeys).toHaveBeenCalledTimes(1);
@@ -46,13 +45,13 @@ describe('cleanup job', () => {
     mockFindStale.mockResolvedValueOnce([
       { id: 't-1', status: { state: 'working' } },
     ]);
-    await runCleanup();
+    await wrappedRunCleanup();
     expect(mockUpdateStatus).toHaveBeenCalledWith('t-1', 'failed', undefined, undefined);
   });
 
   it('continues if one step fails', async () => {
     mockFindStale.mockRejectedValueOnce(new Error('db error'));
-    await runCleanup();
+    await wrappedRunCleanup();
     expect(expireIdleSessionsSpy).toHaveBeenCalledTimes(1);
     expect(mockDeleteExpiredKeys).toHaveBeenCalledTimes(1);
   });

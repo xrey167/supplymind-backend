@@ -4,24 +4,11 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
  * Gateway client tests.
  *
  * We inject a mock execute() via the _execute option to verify the client
- * sends correct ops and params, without using mock.module (which would
- * pollute the gateway module for gateway.test.ts and gateway-stream.test.ts).
+ * sends correct ops and params without needing real gateway execution.
+ * No mock.module needed — _execute short-circuits all operations.
  */
 
 const mockExecute = mock((_req: any) => Promise.resolve({ ok: true as const, value: {} }));
-
-
-mock.module('../../../modules/skills/skills.registry', () => ({
-  skillRegistry: {
-    register: mock(() => {}),
-    unregister: mock(() => {}),
-    toToolDefinitions: mock(() => []),
-    list: mock(() => []),
-    get: mock(() => undefined),
-    has: mock(() => false),
-    clear: mock(() => {}),
-  },
-}));
 
 import { GatewayClient, createGatewayClient } from '../gateway-client';
 

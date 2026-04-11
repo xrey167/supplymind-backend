@@ -9,25 +9,31 @@ mock.module('../../../modules/audit-logs/audit-logs.service', () => ({
   AuditLogsService: class {},
 }));
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
-  logger: {
-    error: mock(),
-    info: mock(),
-    debug: mock(),
-    warn: mock(),
-  },
+  ..._realLogger,
+  logger: new Proxy(_realLogger.logger, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'error') return mock();
+      if (prop === 'info') return mock();
+      if (prop === 'debug') return mock();
+      if (prop === 'warn') return mock();
+      return target[prop];
+    },
+  }),
 }));
 
 // We need a fresh event bus for testing so handlers don't leak
 let testBus: EventBus;
 
 // Re-mock the bus module to use our test bus
+const _realBus = require('../../../events/bus');
 mock.module('../../../events/bus', () => ({
+  ..._realBus,
   eventBus: (() => {
     testBus = new EventBus();
     return testBus;
   })(),
-  EventBus,
 }));
 
 const { initAuditLogHandler } = await import('../../../events/consumers/audit-log.handler');

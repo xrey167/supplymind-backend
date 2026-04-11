@@ -9,7 +9,7 @@ import { logger } from '../../config/logger';
 
 const REDIS_URL = Bun.env.REDIS_URL ?? 'redis://localhost:6379';
 
-export function startAgentWorkers(concurrency = 3, agentsService: Pick<AgentsService, 'getById'> = defaultAgentsService): { worker: Worker<AgentJobData>; connection: Redis } {
+export function startAgentWorkers(concurrency = 3, agentsService: Pick<AgentsService, 'getById'> = defaultAgentsService, tm: Pick<typeof taskManager, 'send'> = taskManager, tr: Pick<typeof taskRepo, 'updateStatus'> = taskRepo): { worker: Worker<AgentJobData>; connection: Redis } {
   const workerRedis = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
 
   const worker = new Worker<AgentJobData>(
@@ -24,7 +24,7 @@ export function startAgentWorkers(concurrency = 3, agentsService: Pick<AgentsSer
 
       const agent = agentResult.value;
 
-      await taskManager.send({
+      await tm.send({
         id: taskId,
         message,
         sessionId,
@@ -48,7 +48,7 @@ export function startAgentWorkers(concurrency = 3, agentsService: Pick<AgentsSer
   worker.on('failed', (job, err) => {
     logger.error({ jobId: job?.id, taskId: job?.data.taskId, err }, 'Agent job failed');
     if (job?.data.taskId) {
-      taskRepo.updateStatus(job.data.taskId, 'failed', String(err)).catch((e: unknown) => {
+      tr.updateStatus(job.data.taskId, 'failed', String(err)).catch((e: unknown) => {
         logger.error({ e }, 'Failed to mark task as failed after job failure');
       });
     }

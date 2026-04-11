@@ -1,13 +1,22 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
-// Mock logger before importing audit
+// Mock logger before importing audit — stable mock references for assertions
+const _realLogger = require('../../../config/logger');
+const _auditMockInfo = mock(() => {});
+const _auditMockError = mock(() => {});
+const _auditMockWarn = mock(() => {});
+const _auditMockDebug = mock(() => {});
 mock.module('../../../config/logger', () => ({
-  logger: {
-    info: mock(() => {}),
-    error: mock(() => {}),
-    warn: mock(() => {}),
-    debug: mock(() => {}),
-  },
+  ..._realLogger,
+  logger: new Proxy(_realLogger.logger, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'info') return _auditMockInfo;
+      if (prop === 'error') return _auditMockError;
+      if (prop === 'warn') return _auditMockWarn;
+      if (prop === 'debug') return _auditMockDebug;
+      return target[prop];
+    },
+  }),
 }));
 
 // Use real EventBus — it's a pure in-memory class, no side effects
@@ -15,7 +24,9 @@ import { EventBus } from '../../../events/bus';
 
 const testBus = new EventBus();
 
+const _realBus = require('../../../events/bus');
 mock.module('../../../events/bus', () => ({
+  ..._realBus,
   eventBus: testBus,
 }));
 

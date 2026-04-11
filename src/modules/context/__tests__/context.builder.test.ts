@@ -1,10 +1,13 @@
-import { describe, test, expect, mock } from 'bun:test';
+import { describe, test, expect, mock, spyOn, afterAll } from 'bun:test';
 
-mock.module('../../../infra/ai/runtime-factory', () => ({
-  createRuntime: () => ({
-    run: mock(() => Promise.resolve({ ok: true, value: { content: 'Summary of conversation' } })),
-  }),
-}));
+// Use spyOn on the module namespace to avoid contaminating runtime-factory.test.ts.
+import * as runtimeFactory from '../../../infra/ai/runtime-factory';
+const createRuntimeSpy = spyOn(runtimeFactory, 'createRuntime').mockReturnValue({
+  run: mock(() => Promise.resolve({ ok: true, value: { content: 'Summary of conversation' } })),
+  stream: async function* () {},
+} as any);
+
+afterAll(() => { createRuntimeSpy.mockRestore(); });
 
 import { buildContext } from '../context.builder';
 

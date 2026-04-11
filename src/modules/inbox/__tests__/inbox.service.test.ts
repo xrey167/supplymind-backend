@@ -1,19 +1,12 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test';
 
+// Re-export real InboxRepository via require+proxy to avoid contaminating inbox.repo.test.ts.
+const _realInboxRepo = require('../inbox.repo');
 const mockRepo = {
   create: mock(() => Promise.resolve({
-    id: 'item-1',
-    workspaceId: 'ws-1',
-    userId: 'user-1',
-    type: 'notification',
-    title: 'Hello',
-    body: null,
-    metadata: {},
-    sourceType: null,
-    sourceId: null,
-    read: false,
-    pinned: false,
-    createdAt: new Date(),
+    id: 'item-1', workspaceId: 'ws-1', userId: 'user-1', type: 'notification',
+    title: 'Hello', body: null, metadata: {}, sourceType: null, sourceId: null,
+    read: false, pinned: false, createdAt: new Date(),
   })),
   list: mock(() => Promise.resolve([])),
   markRead: mock(() => Promise.resolve({ id: 'item-1', read: true })),
@@ -24,8 +17,13 @@ const mockRepo = {
 };
 
 mock.module('../inbox.repo', () => ({
-  inboxRepo: mockRepo,
-  InboxRepository: class {},
+  ..._realInboxRepo,
+  inboxRepo: new Proxy(_realInboxRepo.inboxRepo, {
+    get(target: any, prop: string | symbol) {
+      if (prop in mockRepo) return (mockRepo as any)[prop];
+      return target[prop];
+    },
+  }),
 }));
 
 const { InboxService } = await import('../inbox.service');

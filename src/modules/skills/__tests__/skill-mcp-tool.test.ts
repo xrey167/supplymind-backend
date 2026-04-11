@@ -14,7 +14,8 @@ mock.module('../skills.service', () => ({
   SkillsService: class {},
 }));
 
-// Mock skillEmbeddedMcpManager
+// Full SkillEmbeddedMcpManager mock with all methods so embedded-manager.test.ts
+// can still construct real instances via the exported class.
 const mockManagerCallTool = mock(async () => 'tool result');
 const mockManagerListTools = mock(async () => [
   { name: 'search', description: 'Search the index', inputSchema: {} },
@@ -22,14 +23,23 @@ const mockManagerListTools = mock(async () => [
 const mockManagerReadResource = mock(async () => 'resource content');
 const mockManagerGetPrompt = mock(async () => 'prompt text');
 
-mock.module('../../../infra/mcp/embedded-manager', () => ({
-  skillEmbeddedMcpManager: {
-    callTool: mockManagerCallTool,
-    listTools: mockManagerListTools,
-    readResource: mockManagerReadResource,
-    getPrompt: mockManagerGetPrompt,
-  },
-  SkillEmbeddedMcpManager: class {},
+mock.module('../../../infra/mcp/embedded-manager', () => {
+  class SkillEmbeddedMcpManager {
+    callTool = mockManagerCallTool;
+    listTools = mockManagerListTools;
+    readResource = mockManagerReadResource;
+    getPrompt = mockManagerGetPrompt;
+    listResources = mock(async () => []);
+    listPrompts = mock(async () => []);
+    cleanupIdle = () => {};
+    disconnectAll = async () => {};
+    activeCount = () => 0;
+    constructor(_factory?: any) {}
+  }
+  return {
+    skillEmbeddedMcpManager: new SkillEmbeddedMcpManager(),
+    SkillEmbeddedMcpManager,
+  }),
 }));
 
 const { BuiltinSkillProvider } = await import('../providers/builtin.provider');

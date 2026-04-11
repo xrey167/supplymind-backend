@@ -55,8 +55,20 @@ mock.module('../invitations.repo', () => ({
   invitationsRepo: mockInvitationsRepo,
   hashToken: (token: string) => `hashed_${token}`,
 }));
-mock.module('../../../events/bus', () => ({ eventBus: mockEventBus }));
-mock.module('../../../infra/db/client', () => ({ db: mockDb }));
+const _realBus = require('../../../events/bus');
+mock.module('../../../events/bus', () => ({
+  ..._realBus,
+  eventBus: new Proxy(_realBus.eventBus, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'publish') return mockPublish;
+      if (prop === 'subscribe') return mock(() => 'sub-mock');
+      if (prop === 'unsubscribe') return mock(() => {});
+      return target[prop];
+    },
+  }),
+}));
+const _realDbClient = require('../../../infra/db/client');
+mock.module('../../../infra/db/client', () => ({ ..._realDbClient, db: mockDb }));
 
 // Import after mocks
 const { membersService } = await import('../members.service');

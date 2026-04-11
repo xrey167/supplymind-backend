@@ -15,10 +15,14 @@ import { taskDependencies } from '../../infra/db/schema';
 export class TasksService {
   private agentsRepo: AgentsRepository;
   private toAgentConfig: typeof defaultToAgentConfig;
+  private tm: typeof taskManager;
+  private tr: typeof taskRepo;
 
-  constructor(agentsRepo?: AgentsRepository, toAgentConfig?: typeof defaultToAgentConfig) {
+  constructor(agentsRepo?: AgentsRepository, toAgentConfig?: typeof defaultToAgentConfig, tm?: typeof taskManager, tr?: typeof taskRepo) {
     this.agentsRepo = agentsRepo ?? defaultAgentsRepo;
     this.toAgentConfig = toAgentConfig ?? defaultToAgentConfig;
+    this.tm = tm ?? taskManager;
+    this.tr = tr ?? taskRepo;
   }
   async send(
     agentId: string,
@@ -40,7 +44,7 @@ export class TasksService {
       const taskId = crypto.randomUUID();
 
       // Pre-create task record so GET /tasks/:id works immediately
-      await taskRepo.create({
+      await this.tr.create({
         id: taskId,
         workspaceId,
         agentId,
@@ -68,7 +72,7 @@ export class TasksService {
     }
 
     // Foreground: existing path
-    const task = await taskManager.send({
+    const task = await this.tm.send({
       skillId,
       args,
       sessionId,
@@ -91,15 +95,15 @@ export class TasksService {
   }
 
   get(taskId: string): A2ATask | undefined {
-    return taskManager.get(taskId);
+    return this.tm.get(taskId);
   }
 
   async cancel(taskId: string, workspaceId: string): Promise<Result<A2ATask, NotFoundError>> {
-    const ownerWorkspaceId = await taskRepo.findWorkspaceById(taskId);
+    const ownerWorkspaceId = await this.tr.findWorkspaceById(taskId);
     if (!ownerWorkspaceId || ownerWorkspaceId !== workspaceId) {
       return err(new NotFoundError('Task not found'));
     }
-    const task = taskManager.cancel(taskId);
+    const task = this.tm.cancel(taskId);
     if (!task) {
       return err(new NotFoundError('Task not found'));
     }
@@ -107,9 +111,9 @@ export class TasksService {
   }
 
   async list(workspaceId: string, opts?: { limit?: number; cursor?: string }): Promise<A2ATask[]> {
-    const dbTasks = await taskRepo.findByWorkspace(workspaceId, opts);
+    const dbTasks = await this.tr.findByWorkspace(workspaceId, opts);
     // Merge live in-memory state for running tasks (more accurate status)
-    return dbTasks.map(t => taskManager.get(t.id) ?? t);
+    return dbTasks.map(t => this.tm.get(t.id) ?? t);
   }
 
   async addDependency(taskId: string, dependsOnTaskId: string): Promise<Result<void>> {
@@ -150,12 +154,12 @@ export class TasksService {
   }
 
   async removeDependency(taskId: string, dependsOnTaskId: string): Promise<Result<void>> {
-    await taskRepo.removeDependency(taskId, dependsOnTaskId);
+    await this.tr.removeDependency(taskId, dependsOnTaskId);
     return ok(undefined);
   }
 
   async getDependencies(taskId: string): Promise<Result<{ blockedBy: string[]; blocks: string[] }>> {
-    const deps = await taskRepo.getDependencies(taskId);
+    const deps = await this.tr.getDependencies(taskId);
     return ok(deps);
   }
 }
