@@ -56,13 +56,12 @@ mock.module('../invitations.repo', () => ({
   hashToken: (token: string) => `hashed_${token}`,
 }));
 const _realBus = require('../../../events/bus');
+const _origMembersPublish = _realBus.eventBus.publish.bind(_realBus.eventBus);
 mock.module('../../../events/bus', () => ({
   ..._realBus,
   eventBus: new Proxy(_realBus.eventBus, {
     get(target: any, prop: string | symbol) {
-      if (prop === 'publish') return mockPublish;
-      if (prop === 'subscribe') return mock(() => 'sub-mock');
-      if (prop === 'unsubscribe') return mock(() => {});
+      if (prop === 'publish') return (...args: any[]) => { mockPublish(...args); return _origMembersPublish(...args); };
       return target[prop];
     },
   }),

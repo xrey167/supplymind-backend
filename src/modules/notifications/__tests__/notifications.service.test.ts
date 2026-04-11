@@ -3,24 +3,10 @@ import type { CreateNotificationInput, Notification } from '../notifications.typ
 
 // --- Mock all transitive deps that fail in test context ---
 
-const _realDbClient = require('../../../infra/db/client');
-mock.module('../../../infra/db/client', () => ({ ..._realDbClient, db: {} }));
-const _realSchema = require('../../../infra/db/schema');
-mock.module('../../../infra/db/schema', () => ({ ..._realSchema, notifications: {}, notificationPreferences: {} }));
-const _realWsServer = require('../../../infra/realtime/ws-server');
-mock.module('../../../infra/realtime/ws-server', () => ({
-  ..._realWsServer,
-  wsServer: { broadcastToSubscribed: mock(() => {}) },
-}));
-const _realDrizzle = require('drizzle-orm');
-mock.module('drizzle-orm', () => ({
-  ..._realDrizzle,
-  eq: mock(() => {}),
-  and: mock(() => {}),
-  isNull: mock(() => {}),
-  desc: mock(() => {}),
-  sql: mock(() => {}),
-}));
+// Do NOT mock db/client, db/schema, drizzle-orm, or ws-server here.
+// This test mocks the repo and channel singletons directly (below),
+// so transitive deps are never reached. Mocking them would contaminate
+// notifications.repo.test.ts which runs in the same Bun worker.
 
 // --- Mock direct deps of the service ---
 
@@ -31,15 +17,27 @@ const mockMarkRead = mock(() => Promise.resolve(null as any));
 const mockMarkAllRead = mock(() => Promise.resolve());
 const mockGetUnreadCount = mock(() => Promise.resolve(5));
 
-mock.module('../notifications.repo', () => ({
-  notificationsRepo: {
-    create: mockCreate,
-    list: mockList,
-    markRead: mockMarkRead,
-    markAllRead: mockMarkAllRead,
-    getUnreadCount: mockGetUnreadCount,
-  },
-}));
+// Export a functional NotificationsRepository class alongside the mock singleton
+// so notifications.repo.test.ts (same Bun worker) can still construct instances.
+mock.module('../notifications.repo', () => {
+  class NotificationsRepository {
+    create = mockCreate;
+    list = mockList;
+    markRead = mockMarkRead;
+    markAllRead = mockMarkAllRead;
+    getUnreadCount = mockGetUnreadCount;
+  }
+  return {
+    notificationsRepo: {
+      create: mockCreate,
+      list: mockList,
+      markRead: mockMarkRead,
+      markAllRead: mockMarkAllRead,
+      getUnreadCount: mockGetUnreadCount,
+    },
+    NotificationsRepository,
+  };
+});
 
 const mockPrefGet = mock(() => Promise.resolve(null));
 
@@ -59,17 +57,14 @@ mock.module('../channels/websocket/websocket.channel', () => ({
   deliverWebSocket: mockDeliverWebSocket,
 }));
 
-const mockPublish = mock(() =>
-  Promise.resolve({ id: 'evt-1', topic: '', data: null, source: '', timestamp: '' }),
-);
 const _realBus = require('../../../events/bus');
+const _origNotifPublish = _realBus.eventBus.publish.bind(_realBus.eventBus);
+const mockPublish = mock((...args: any[]) => _origNotifPublish(...args));
 mock.module('../../../events/bus', () => ({
   ..._realBus,
   eventBus: new Proxy(_realBus.eventBus, {
     get(target: any, prop: string | symbol) {
       if (prop === 'publish') return mockPublish;
-      if (prop === 'subscribe') return () => 'sub-mock';
-      if (prop === 'unsubscribe') return () => {};
       return target[prop];
     },
   }),

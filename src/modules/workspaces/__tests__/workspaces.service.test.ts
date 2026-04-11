@@ -53,16 +53,13 @@ mock.module('../../../infra/db/schema', () => ({
 }));
 
 const _realBus = require('../../../events/bus');
-const _wsMockPublish = mock(() => Promise.resolve());
-const _wsMockSubscribe = mock(() => 'sub-mock');
-const _wsMockUnsubscribe = mock(() => {});
+const _origWsPublish = _realBus.eventBus.publish.bind(_realBus.eventBus);
+const _wsMockPublish = mock((...args: any[]) => _origWsPublish(...args));
 mock.module('../../../events/bus', () => ({
   ..._realBus,
   eventBus: new Proxy(_realBus.eventBus, {
     get(target: any, prop: string | symbol) {
       if (prop === 'publish') return _wsMockPublish;
-      if (prop === 'subscribe') return _wsMockSubscribe;
-      if (prop === 'unsubscribe') return _wsMockUnsubscribe;
       return target[prop];
     },
   }),

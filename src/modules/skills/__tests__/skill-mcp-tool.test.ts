@@ -23,23 +23,17 @@ const mockManagerListTools = mock(async () => [
 const mockManagerReadResource = mock(async () => 'resource content');
 const mockManagerGetPrompt = mock(async () => 'prompt text');
 
-mock.module('../../../infra/mcp/embedded-manager', () => {
-  class SkillEmbeddedMcpManager {
-    callTool = mockManagerCallTool;
-    listTools = mockManagerListTools;
-    readResource = mockManagerReadResource;
-    getPrompt = mockManagerGetPrompt;
-    listResources = mock(async () => []);
-    listPrompts = mock(async () => []);
-    cleanupIdle = () => {};
-    disconnectAll = async () => {};
-    activeCount = () => 0;
-    constructor(_factory?: any) {}
-  }
-  return {
-    skillEmbeddedMcpManager: new SkillEmbeddedMcpManager(),
-    SkillEmbeddedMcpManager,
-  }),
+// Only mock the singleton, NOT the class — embedded-manager.test.ts needs the
+// real SkillEmbeddedMcpManager class to construct instances with mock factories.
+const _realEM = require('../../../infra/mcp/embedded-manager');
+mock.module('../../../infra/mcp/embedded-manager', () => ({
+  SkillEmbeddedMcpManager: _realEM.SkillEmbeddedMcpManager,
+  skillEmbeddedMcpManager: {
+    callTool: mockManagerCallTool,
+    listTools: mockManagerListTools,
+    readResource: mockManagerReadResource,
+    getPrompt: mockManagerGetPrompt,
+  },
 }));
 
 const { BuiltinSkillProvider } = await import('../providers/builtin.provider');
