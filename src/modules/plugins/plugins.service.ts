@@ -191,6 +191,7 @@ export const pluginsService = {
     }
 
     try {
+      await pluginInstallationRepo.transition(installationId, workspaceId, 'uninstalling', 'uninstalled', actor);
       await pluginInstallationRepo.transition(installationId, workspaceId, 'uninstalled', 'uninstalled', actor);
       return ok(undefined);
     } catch (e) {
