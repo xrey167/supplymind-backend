@@ -2,26 +2,21 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import type { AgentCard } from '../../../infra/a2a/types';
 import type { RegisteredAgent } from '../agent-registry.types';
 
-// Mock the worker registry
-const mockDiscover = mock(async (_url: string, _apiKey?: string): Promise<AgentCard> => ({
+const defaultCard: AgentCard = {
   name: 'Test Agent',
   description: 'A test agent',
   url: 'http://localhost:9000',
   version: '1.0.0',
   capabilities: { streaming: false },
   skills: [{ id: 'skill-1', name: 'Skill 1', description: 'Test skill' }],
-}));
+};
 
+// Use dependency injection (no mock.module needed for workerRegistry — avoids
+// contaminating worker-registry.test.ts).
+const mockDiscover = mock(async (_url: string, _apiKey?: string): Promise<AgentCard> => defaultCard);
 const mockLoad = mock((_url: string, _card: AgentCard, _apiKey?: string, _registeredAt?: number) => {});
 const mockRemove = mock((_url: string) => {});
-
-mock.module('../../../infra/a2a/worker-registry', () => ({
-  workerRegistry: {
-    discover: mockDiscover,
-    load: mockLoad,
-    remove: mockRemove,
-  },
-}));
+const mockWorkerRegistry = { discover: mockDiscover, load: mockLoad, remove: mockRemove } as any;
 
 // Mock the repo
 const mockCreate = mock(async (data: Parameters<typeof import('../agent-registry.repo').agentRegistryRepo.create>[0]): Promise<RegisteredAgent> => ({
@@ -73,27 +68,25 @@ const mockUpdateDiscoveredAt = mock(async (id: string): Promise<RegisteredAgent 
   updatedAt: new Date(),
 }));
 
-mock.module('../agent-registry.repo', () => ({
-  agentRegistryRepo: {
-    create: mockCreate,
-    findByWorkspace: mockFindByWorkspace,
-    findByWorkspaceAndUrl: mockFindByWorkspaceAndUrl,
-    findById: mockFindById,
-    remove: mockRepoRemove,
-    updateDiscoveredAt: mockUpdateDiscoveredAt,
-    findAll: mock(async () => []),
-    disable: mock(async () => {}),
-  },
-}));
+// Use direct DI for the repo mock too (no mock.module needed)
+const mockAgentRegistryRepo = {
+  create: mockCreate,
+  findByWorkspace: mockFindByWorkspace,
+  findByWorkspaceAndUrl: mockFindByWorkspaceAndUrl,
+  findById: mockFindById,
+  remove: mockRepoRemove,
+  updateDiscoveredAt: mockUpdateDiscoveredAt,
+  findAll: mock(async () => []),
+  disable: mock(async () => {}),
+} as any;
 
-// Import after mocks
-const { AgentRegistryService } = await import('../agent-registry.service');
+import { AgentRegistryService } from '../agent-registry.service';
 
 describe('AgentRegistryService', () => {
   let service: InstanceType<typeof AgentRegistryService>;
 
   beforeEach(() => {
-    service = new AgentRegistryService();
+    service = new AgentRegistryService(mockWorkerRegistry, mockAgentRegistryRepo);
     mockDiscover.mockClear();
     mockLoad.mockClear();
     mockRemove.mockClear();

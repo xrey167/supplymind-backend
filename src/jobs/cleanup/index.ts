@@ -6,12 +6,12 @@ import { logger } from '../../config/logger';
 const STALE_WORKING_MS = 30 * 60 * 1000;
 const STALE_SUBMITTED_MS = 60 * 60 * 1000;
 
-export async function runCleanup(): Promise<void> {
+export async function runCleanup(tr: Pick<typeof taskRepo, 'findStale' | 'updateStatus'> = taskRepo): Promise<void> {
   try {
-    const staleTasks = await taskRepo.findStale('working', STALE_WORKING_MS);
+    const staleTasks = await tr.findStale('working', STALE_WORKING_MS);
     for (const task of staleTasks) {
       try {
-        await taskRepo.updateStatus(task.id, 'failed', undefined, undefined);
+        await tr.updateStatus(task.id, 'failed', undefined, undefined);
         logger.info({ taskId: task.id }, 'Cleanup: marked stale working task as failed');
       } catch (err) {
         logger.error({ taskId: task.id, err }, 'Cleanup: failed to update stale working task');
@@ -22,10 +22,10 @@ export async function runCleanup(): Promise<void> {
   }
 
   try {
-    const staleSubmitted = await taskRepo.findStale('submitted', STALE_SUBMITTED_MS);
+    const staleSubmitted = await tr.findStale('submitted', STALE_SUBMITTED_MS);
     for (const task of staleSubmitted) {
       try {
-        await taskRepo.updateStatus(task.id, 'failed', undefined, undefined);
+        await tr.updateStatus(task.id, 'failed', undefined, undefined);
         logger.info({ taskId: task.id }, 'Cleanup: marked stale submitted task as failed');
       } catch (err) {
         logger.error({ taskId: task.id, err }, 'Cleanup: failed to update stale submitted task');

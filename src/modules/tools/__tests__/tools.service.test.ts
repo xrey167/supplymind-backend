@@ -18,23 +18,19 @@ mock.module('../tools.repo', () => ({
   },
 }));
 
+// DI mocks for toolRegistry and mcpClientPool — no mock.module needed,
+// avoids contaminating tools.registry.test.ts and client-pool.test.ts.
 const mockRegistryRegister = mock((_tool: any) => undefined);
 const mockRegistryUnregister = mock((_name: string) => undefined);
-
-mock.module('../tools.registry', () => ({
-  toolRegistry: {
-    register: mockRegistryRegister,
-    unregister: mockRegistryUnregister,
-  },
-}));
+const mockToolRegistry = {
+  register: mockRegistryRegister,
+  unregister: mockRegistryUnregister,
+  get: mock(() => undefined),
+  has: mock(() => false),
+} as any;
 
 const mockCallTool = mock(async (_server: string, _tool: string, _args: any) => 'mcp-result');
-
-mock.module('../../../infra/mcp/client-pool', () => ({
-  mcpClientPool: {
-    callTool: mockCallTool,
-  },
-}));
+const mockMcpPool = { callTool: mockCallTool } as any;
 
 const mockEnqueueSkill = mock(async (_payload: any, _opts: any) => ({ success: true, value: 'worker-result' }));
 
@@ -51,6 +47,8 @@ const mockGetSandboxPolicy = mock(async (_wsId?: string) => ({
 mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
   workspaceSettingsService: {
     getSandboxPolicy: mockGetSandboxPolicy,
+    getToolPermissionMode: mock(async () => 'auto'),
+    getTokenBudget: mock(async () => null),
   },
 }));
 
@@ -65,7 +63,6 @@ mock.module('../../../config/logger', () => ({
 
 // --- import after mocks ---
 import { ToolsService } from '../tools.service';
-// Note: mockRunInSandbox is passed via constructor to avoid polluting sandbox.test.ts
 
 // Helpers
 const makeRow = (overrides?: Partial<any>) => ({
@@ -87,7 +84,7 @@ describe('ToolsService', () => {
   let service: ToolsService;
 
   beforeEach(() => {
-    service = new ToolsService(mockRunInSandbox as any);
+    service = new ToolsService(mockRunInSandbox as any, mockToolRegistry, mockMcpPool);
     mockFindById.mockClear();
     mockFindByWorkspace.mockClear();
     mockCreate.mockClear();

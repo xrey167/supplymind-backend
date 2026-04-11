@@ -3,16 +3,21 @@ import { McpSkillProvider } from '../mcp.provider';
 import { ok, err } from '../../../../core/result';
 import type { McpServerConfig, McpToolManifest } from '../../../../infra/mcp/types';
 
-// Mock the MCP client pool
+// Re-export real McpClientPool via require+proxy to avoid contaminating client-pool.test.ts.
+const _realClientPool = require('../../../../infra/mcp/client-pool');
+
 let mockListTools: (config: McpServerConfig) => Promise<McpToolManifest>;
 let mockCallTool: (configId: string, toolName: string, args: Record<string, unknown>) => Promise<unknown>;
 
 mock.module('../../../../infra/mcp/client-pool', () => ({
-  mcpClientPool: {
-    listTools: (config: McpServerConfig) => mockListTools(config),
-    callTool: (configId: string, toolName: string, args: Record<string, unknown>) =>
-      mockCallTool(configId, toolName, args),
-  },
+  ..._realClientPool,
+  mcpClientPool: new Proxy(_realClientPool.mcpClientPool, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'listTools') return (config: any) => mockListTools(config);
+      if (prop === 'callTool') return (configId: any, toolName: any, args: any) => mockCallTool(configId, toolName, args);
+      return target[prop];
+    },
+  }),
 }));
 
 describe('McpSkillProvider', () => {

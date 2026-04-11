@@ -11,13 +11,19 @@ let lastInsert: any = null;
 const publishedEvents: { topic: string; data: any }[] = [];
 
 // Mock modules using paths relative to the SERVICE file (not the test file)
-// bun's mock.module resolves specifiers as they appear in the source
+// Re-export the real eventBus alongside mock overrides to avoid contaminating
+// other test files that depend on the real eventBus (e.g. task-manager.test.ts).
+const _realBus = require('../../../events/bus');
 mock.module('../../../events/bus', () => ({
-  eventBus: {
-    publish: (topic: string, data: any) => { publishedEvents.push({ topic, data }); return Promise.resolve({ id: 'evt-1', topic, data, source: '', timestamp: '' }); },
-    subscribe: () => 'sub-mock',
-    unsubscribe: () => {},
-  },
+  ..._realBus,
+  eventBus: new Proxy(_realBus.eventBus, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'publish') return (topic: string, data: any) => { publishedEvents.push({ topic, data }); return Promise.resolve({ id: 'evt-1', topic, data, source: '', timestamp: '' }); };
+      if (prop === 'subscribe') return () => 'sub-mock';
+      if (prop === 'unsubscribe') return () => {};
+      return target[prop];
+    },
+  }),
 }));
 
 mock.module('../../../config/logger', () => ({

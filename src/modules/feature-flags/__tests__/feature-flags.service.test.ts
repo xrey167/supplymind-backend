@@ -47,11 +47,13 @@ class MemoryCache {
   }
 }
 let _testProvider: any = fakeProvider;
+// Re-export the real cache module alongside mock overrides so
+// memory-cache.test.ts (sharing the same Bun worker) gets the real classes.
+const _realCache = require('../../../infra/cache');
 mock.module('../../../infra/cache', () => ({
+  ..._realCache,
   getCacheProvider: () => _testProvider,
   setCacheProvider: (p: any) => { _testProvider = p; },
-  MemoryCache,
-  RedisCache: class {},
 }));
 
 mock.module('../../../config/logger', () => ({

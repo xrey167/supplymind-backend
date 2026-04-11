@@ -33,11 +33,9 @@ mock.module('ioredis', () => ({
   },
 }));
 
-// ---- taskRepo mock ----
+// ---- taskRepo mock (DI — no mock.module needed) ----
 const mockUpdateStatus = mock(async () => {});
-mock.module('../../../infra/a2a/task-repo', () => ({
-  taskRepo: { updateStatus: mockUpdateStatus },
-}));
+const mockTaskRepo = { updateStatus: mockUpdateStatus } as any;
 
 // ---- mockAgentsService (passed directly to startAgentWorkers to avoid module mock contamination) ----
 const fakeAgentRow = {
@@ -63,11 +61,9 @@ const mockGetById = mock(async (id: string) => {
 
 const mockAgentsService = { getById: mockGetById };
 
-// ---- taskManager mock ----
+// ---- taskManager mock (DI — no mock.module needed) ----
 const mockSend = mock(async () => {});
-mock.module('../../../infra/a2a/task-manager', () => ({
-  taskManager: { send: mockSend },
-}));
+const mockTaskManager = { send: mockSend } as any;
 
 // ---- logger mock ----
 mock.module('../../../config/logger', () => ({
@@ -75,8 +71,8 @@ mock.module('../../../config/logger', () => ({
 }));
 
 // Import AFTER mocks and call startAgentWorkers to capture processor + handlers
-const { startAgentWorkers } = await import('../index');
-startAgentWorkers(1, mockAgentsService as any);
+import { startAgentWorkers } from '../index';
+startAgentWorkers(1, mockAgentsService as any, mockTaskManager, mockTaskRepo);
 
 // ---- Fixtures ----
 const makeJobData = (overrides: Record<string, unknown> = {}) => ({

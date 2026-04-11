@@ -16,7 +16,9 @@ mock.module('../usage.repo', () => ({
 mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
   workspaceSettingsService: {
     getTokenBudget: mockGetTokenBudget,
-  },
+    getSandboxPolicy: mock(async () => ({})),
+    getToolPermissionMode: mock(async () => 'auto'),
+  }),
 }));
 
 import { usageService } from '../usage.service';

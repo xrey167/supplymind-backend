@@ -14,20 +14,42 @@ const mockUpsert = mock(async () => ({
 const mockDelete = mock(async () => {});
 const mockPublish = mock(() => {});
 
-mock.module('../../../infra/db/client', () => ({ db: {} }));
-mock.module('../../../infra/db/schema', () => ({ users: {} }));
-mock.module('drizzle-orm', () => ({ eq: mock(() => {}) }));
+const _realDbClient = require('../../../infra/db/client');
+mock.module('../../../infra/db/client', () => ({ ..._realDbClient, db: {} }));
+const _realSchema = require('../../../infra/db/schema');
+mock.module('../../../infra/db/schema', () => ({ ..._realSchema, users: {} }));
+const _realDrizzle = require('drizzle-orm');
+mock.module('drizzle-orm', () => ({ ..._realDrizzle, eq: mock(() => {}) }));
 
 mock.module('../users.repo', () => ({
   usersRepo: { upsert: mockUpsert, delete: mockDelete, updateLastSeen: mock(async () => {}) },
 }));
 
+const _realBus = require('../../../events/bus');
 mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mockPublish, subscribe: () => 'sub-mock', unsubscribe: () => {} },
+  ..._realBus,
+  eventBus: new Proxy(_realBus.eventBus, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'publish') return mockPublish;
+      if (prop === 'subscribe') return () => 'sub-mock';
+      if (prop === 'unsubscribe') return () => {};
+      return target[prop];
+    },
+  }),
 }));
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
-  logger: { warn: mock(() => {}), debug: mock(() => {}), error: mock(() => {}), info: mock(() => {}) },
+  ..._realLogger,
+  logger: new Proxy(_realLogger.logger, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'warn') return mock(() => {});
+      if (prop === 'debug') return mock(() => {});
+      if (prop === 'error') return mock(() => {});
+      if (prop === 'info') return mock(() => {});
+      return target[prop];
+    },
+  }),
 }));
 
 // ---- Import after mocks ---------------------------------------------------
