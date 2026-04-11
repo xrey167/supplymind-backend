@@ -17,27 +17,19 @@ const mockMarkRead = mock(() => Promise.resolve(null as any));
 const mockMarkAllRead = mock(() => Promise.resolve());
 const mockGetUnreadCount = mock(() => Promise.resolve(5));
 
-// Export a functional NotificationsRepository class alongside the mock singleton
-// so notifications.repo.test.ts (same Bun worker) can still construct instances.
-mock.module('../notifications.repo', () => {
-  class NotificationsRepository {
-    create = mockCreate;
-    list = mockList;
-    markRead = mockMarkRead;
-    markAllRead = mockMarkAllRead;
-    getUnreadCount = mockGetUnreadCount;
-  }
-  return {
-    notificationsRepo: {
-      create: mockCreate,
-      list: mockList,
-      markRead: mockMarkRead,
-      markAllRead: mockMarkAllRead,
-      getUnreadCount: mockGetUnreadCount,
-    },
-    NotificationsRepository,
-  };
-});
+// Re-export the real NotificationsRepository class so notifications.repo.test.ts
+// (same Bun worker) tests the actual class, not a mock stub.
+const _realRepo = require('../notifications.repo');
+mock.module('../notifications.repo', () => ({
+  ..._realRepo,
+  notificationsRepo: {
+    create: mockCreate,
+    list: mockList,
+    markRead: mockMarkRead,
+    markAllRead: mockMarkAllRead,
+    getUnreadCount: mockGetUnreadCount,
+  },
+}));
 
 const mockPrefGet = mock(() => Promise.resolve(null));
 

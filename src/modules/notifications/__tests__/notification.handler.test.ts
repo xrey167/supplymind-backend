@@ -38,9 +38,10 @@ mock.module('../../../events/bus', () => ({
   ..._realBus,
   eventBus: new Proxy(_realBus.eventBus, {
     get(target: any, prop: string | symbol) {
-      if (prop === 'subscribe') return (pattern: string, handler: any) => {
+      if (prop === 'subscribe') return (...args: any[]) => {
+        const [pattern, handler] = args;
         subscriptions.push({ pattern, handler });
-        return target.subscribe(pattern, handler);
+        return target.subscribe(...args);
       };
       if (prop === 'publish') return (...args: any[]) => _origHandlerPublish(...args);
       return target[prop];

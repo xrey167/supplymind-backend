@@ -19,7 +19,7 @@ mock.module('../../../events/bus', () => ({
   ..._realBus,
   eventBus: new Proxy(_realBus.eventBus, {
     get(target: any, prop: string | symbol) {
-      if (prop === 'publish') return (topic: string, data: any) => { publishedEvents.push({ topic, data }); return _origCredPublish(topic, data); };
+      if (prop === 'publish') return (...args: any[]) => { const [topic, data] = args; publishedEvents.push({ topic, data }); return _origCredPublish(...args); };
       return target[prop];
     },
   }),
