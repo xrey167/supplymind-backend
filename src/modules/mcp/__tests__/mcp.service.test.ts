@@ -61,16 +61,15 @@ const mockListTools = mock(async (_config: unknown) => ({
 const mockCallTool = mock(async (_configId: string, _toolName: string, _args: unknown) => 'result');
 const mockPool = { listTools: mockListTools, callTool: mockCallTool } as any;
 
-const mockPublish = mock((_topic: string, _payload: unknown) => {});
-
 const _realBus = require('../../../events/bus');
+const _origMcpPublish = _realBus.eventBus.publish.bind(_realBus.eventBus);
+const mockPublish = mock((...args: any[]) => _origMcpPublish(...args));
+
 mock.module('../../../events/bus', () => ({
   ..._realBus,
   eventBus: new Proxy(_realBus.eventBus, {
     get(target: any, prop: string | symbol) {
       if (prop === 'publish') return mockPublish;
-      if (prop === 'subscribe') return mock(() => 'sub-mock');
-      if (prop === 'unsubscribe') return mock(() => {});
       return target[prop];
     },
   }),

@@ -59,17 +59,14 @@ mock.module('../channels/websocket/websocket.channel', () => ({
   deliverWebSocket: mockDeliverWebSocket,
 }));
 
-const mockPublish = mock(() =>
-  Promise.resolve({ id: 'evt-1', topic: '', data: null, source: '', timestamp: '' }),
-);
 const _realBus = require('../../../events/bus');
+const _origPublish = _realBus.eventBus.publish.bind(_realBus.eventBus);
+const mockPublish = mock((...args: any[]) => _origPublish(...args));
 mock.module('../../../events/bus', () => ({
   ..._realBus,
   eventBus: new Proxy(_realBus.eventBus, {
     get(target: any, prop: string | symbol) {
       if (prop === 'publish') return mockPublish;
-      if (prop === 'subscribe') return () => 'sub-mock';
-      if (prop === 'unsubscribe') return () => {};
       return target[prop];
     },
   }),

@@ -18,9 +18,7 @@ mock.module('../../../events/bus', () => ({
   ..._realBus,
   eventBus: new Proxy(_realBus.eventBus, {
     get(target: any, prop: string | symbol) {
-      if (prop === 'publish') return (topic: string, data: any) => { publishedEvents.push({ topic, data }); return Promise.resolve({ id: 'evt-1', topic, data, source: '', timestamp: '' }); };
-      if (prop === 'subscribe') return () => 'sub-mock';
-      if (prop === 'unsubscribe') return () => {};
+      if (prop === 'publish') return (topic: string, data: any) => { publishedEvents.push({ topic, data }); return target.publish(topic, data); };
       return target[prop];
     },
   }),

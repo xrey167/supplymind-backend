@@ -33,16 +33,16 @@ const subscriptions: Array<{ pattern: string; handler: (event: any) => Promise<v
 // Include publish so downstream tests that import eventBus from the real module
 // and call eventBus.publish still work (they get the real module, not this mock).
 const _realBus = require('../../../events/bus');
+const _origHandlerPublish = _realBus.eventBus.publish.bind(_realBus.eventBus);
 mock.module('../../../events/bus', () => ({
   ..._realBus,
   eventBus: new Proxy(_realBus.eventBus, {
     get(target: any, prop: string | symbol) {
-      if (prop === 'subscribe') return mock((pattern: string, handler: any) => {
+      if (prop === 'subscribe') return (pattern: string, handler: any) => {
         subscriptions.push({ pattern, handler });
-        return 'sub-id';
-      });
-      if (prop === 'publish') return mock(() => Promise.resolve());
-      if (prop === 'unsubscribe') return mock(() => {});
+        return target.subscribe(pattern, handler);
+      };
+      if (prop === 'publish') return (...args: any[]) => _origHandlerPublish(...args);
       return target[prop];
     },
   }),

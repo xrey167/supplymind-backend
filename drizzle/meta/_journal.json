@@ -68,15 +68,8 @@
     {
       "idx": 9,
       "version": "7",
-      "when": 1775570000000,
-      "tag": "0005_normal_shinko_yamashiro",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1775580000000,
-      "tag": "0006_keen_lady_vermin",
+      "when": 1775590000000,
+      "tag": "0009_plugin_platform_core",
       "breakpoints": true
     }
   ]
