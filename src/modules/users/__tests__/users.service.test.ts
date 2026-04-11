@@ -26,13 +26,12 @@ mock.module('../users.repo', () => ({
 }));
 
 const _realBus = require('../../../events/bus');
+const _origUsersPublish = _realBus.eventBus.publish.bind(_realBus.eventBus);
 mock.module('../../../events/bus', () => ({
   ..._realBus,
   eventBus: new Proxy(_realBus.eventBus, {
     get(target: any, prop: string | symbol) {
-      if (prop === 'publish') return mockPublish;
-      if (prop === 'subscribe') return () => 'sub-mock';
-      if (prop === 'unsubscribe') return () => {};
+      if (prop === 'publish') return (...args: any[]) => { mockPublish(...args); return _origUsersPublish(...args); };
       return target[prop];
     },
   }),

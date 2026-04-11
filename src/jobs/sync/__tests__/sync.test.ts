@@ -1,7 +1,14 @@
 import { describe, it, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
 
+const _realSyncLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
-  logger: { info: () => {}, warn: () => {}, error: () => {} },
+  ..._realSyncLogger,
+  logger: new Proxy(_realSyncLogger.logger, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'info' || prop === 'warn' || prop === 'error' || prop === 'debug') return () => {};
+      return target[prop];
+    },
+  }),
 }));
 
 const { runSync } = await import('../index');

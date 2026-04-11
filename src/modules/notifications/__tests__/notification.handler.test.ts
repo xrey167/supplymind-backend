@@ -4,12 +4,46 @@ import { describe, test, expect, mock, spyOn, beforeEach, afterAll } from 'bun:t
 // We do NOT replace notifications.repo itself — that would break notifications.repo.test.ts
 // (which runs after this file alphabetically and imports NotificationsRepository from the same module).
 // Instead we stub the modules notifications.repo USES, so it's importable without a real DB.
+// Build a db mock rich enough for both this test and notifications.repo.test.ts
+// (which shares the same mock.module since it runs in the same Bun worker).
+const _mockWhere = mock(() => ({ returning: mock(() => Promise.resolve([{ id: 'notif-1' }])) }));
+const _mockFrom = mock(() => ({
+  where: _mockWhere,
+  orderBy: mock(() => ({ limit: mock(() => ({ offset: mock(() => Promise.resolve([])) })) })),
+}));
+const _mockValues = mock(() => ({
+  returning: mock(() => Promise.resolve([{
+    id: 'notif-1', workspaceId: 'ws-1', type: 'task_error', title: 'Test', status: 'pending',
+  }])),
+}));
+const _mockSet = mock(() => ({ where: _mockWhere }));
 const _realDbClient = require('../../../infra/db/client');
-mock.module('../../../infra/db/client', () => ({ ..._realDbClient, db: { select: () => ({}), insert: () => ({}), update: () => ({}) } }));
+mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
+  db: {
+    select: () => ({ from: _mockFrom }),
+    insert: () => ({ values: _mockValues }),
+    update: () => ({ set: _mockSet }),
+  },
+}));
 const _realSchema = require('../../../infra/db/schema');
-mock.module('../../../infra/db/schema', () => ({ ..._realSchema, notifications: {}, notificationPreferences: {} }));
+mock.module('../../../infra/db/schema', () => ({
+  ..._realSchema,
+  notifications: {
+    id: 'id', workspaceId: 'workspace_id', userId: 'user_id',
+    type: 'type', readAt: 'read_at', createdAt: 'created_at', status: 'status',
+  },
+  notificationPreferences: {},
+}));
 const _realDrizzle = require('drizzle-orm');
-mock.module('drizzle-orm', () => ({ ..._realDrizzle, eq: () => {}, and: () => {}, isNull: () => {}, desc: () => {}, sql: () => {} }));
+mock.module('drizzle-orm', () => ({
+  ..._realDrizzle,
+  eq: mock(() => {}),
+  and: mock(() => {}),
+  isNull: mock(() => {}),
+  desc: mock(() => {}),
+  sql: mock(() => {}),
+}));
 mock.module('../preferences/notification-preferences.repo', () => ({ notificationPreferencesRepo: { get: mock(async () => null), set: mock(async () => {}), delete: mock(async () => {}) } }));
 mock.module('../../../infra/realtime/ws-server', () => ({ wsServer: { broadcastToSubscribed: mock(() => {}) } }));
 
@@ -33,16 +67,17 @@ const subscriptions: Array<{ pattern: string; handler: (event: any) => Promise<v
 // Include publish so downstream tests that import eventBus from the real module
 // and call eventBus.publish still work (they get the real module, not this mock).
 const _realBus = require('../../../events/bus');
+const _origHandlerPublish = _realBus.eventBus.publish.bind(_realBus.eventBus);
 mock.module('../../../events/bus', () => ({
   ..._realBus,
   eventBus: new Proxy(_realBus.eventBus, {
     get(target: any, prop: string | symbol) {
-      if (prop === 'subscribe') return mock((pattern: string, handler: any) => {
+      if (prop === 'subscribe') return (...args: any[]) => {
+        const [pattern, handler] = args;
         subscriptions.push({ pattern, handler });
-        return 'sub-id';
-      });
-      if (prop === 'publish') return mock(() => Promise.resolve());
-      if (prop === 'unsubscribe') return mock(() => {});
+        return target.subscribe(...args);
+      };
+      if (prop === 'publish') return (...args: any[]) => _origHandlerPublish(...args);
       return target[prop];
     },
   }),
