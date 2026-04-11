@@ -10,17 +10,38 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 const mockExecute = mock((_req: any) => Promise.resolve({ ok: true as const, value: {} }));
 
-const _realSkillsRegistry = require('../../../modules/skills/skills.registry');
-mock.module('../../../modules/skills/skills.registry', () => ({
-  ..._realSkillsRegistry,
-  skillRegistry: new Proxy(_realSkillsRegistry.skillRegistry, {
-    get(target: any, prop: string | symbol) {
-      if (prop === 'register') return mock(() => {});
-      if (prop === 'unregister') return mock(() => {});
-      return target[prop];
-    },
-  }),
-}));
+// Full skills.registry mock — must include all methods since mock.module
+// replaces the module globally. Uses stable mock references (not inline mock()).
+const _mockSkillRegister = mock(() => {});
+const _mockSkillUnregister = mock(() => {});
+mock.module('../../../modules/skills/skills.registry', () => {
+  const skills = new Map<string, any>();
+  class SkillRegistry {
+    register(skill: any) { _mockSkillRegister(skill); skills.set(skill.name, skill); }
+    unregister(name: string) { _mockSkillUnregister(name); skills.delete(name); }
+    get(name: string) { return skills.get(name); }
+    has(name: string) { return skills.has(name); }
+    list() { return Array.from(skills.values()); }
+    clear() { skills.clear(); }
+    toToolDefinitions() {
+      return this.list().map((s: any) => ({
+        name: s.name, description: s.description, inputSchema: s.inputSchema,
+        ...(s.toolHints?.strict != null && { strict: s.toolHints.strict }),
+        ...(s.toolHints?.cacheable && { cacheControl: { type: 'ephemeral' } }),
+        ...(s.toolHints?.eagerInputStreaming != null && { eagerInputStreaming: s.toolHints.eagerInputStreaming }),
+      }));
+    }
+    async invoke(name: string, args: any, ctx?: any) {
+      const s = skills.get(name);
+      if (!s) return { ok: false, error: new Error(`Skill not found: ${name}`) };
+      return s.handler(args, ctx);
+    }
+    async loadFromProviders(providers: any[]) {
+      for (const p of providers) for (const s of await p.loadSkills()) this.register(s);
+    }
+  }
+  return { skillRegistry: new SkillRegistry(), SkillRegistry };
+});
 
 import { GatewayClient, createGatewayClient } from '../gateway-client';
 

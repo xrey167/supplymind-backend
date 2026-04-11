@@ -14,8 +14,8 @@ mock.module('../skills.service', () => ({
   SkillsService: class {},
 }));
 
-// Re-export real SkillEmbeddedMcpManager via require+proxy to avoid contaminating embedded-manager.test.ts.
-const _realEmbeddedManager = require('../../../infra/mcp/embedded-manager');
+// Full SkillEmbeddedMcpManager mock with all methods so embedded-manager.test.ts
+// can still construct real instances via the exported class.
 const mockManagerCallTool = mock(async () => 'tool result');
 const mockManagerListTools = mock(async () => [
   { name: 'search', description: 'Search the index', inputSchema: {} },
@@ -23,16 +23,22 @@ const mockManagerListTools = mock(async () => [
 const mockManagerReadResource = mock(async () => 'resource content');
 const mockManagerGetPrompt = mock(async () => 'prompt text');
 
-mock.module('../../../infra/mcp/embedded-manager', () => ({
-  ..._realEmbeddedManager,
-  skillEmbeddedMcpManager: new Proxy(_realEmbeddedManager.skillEmbeddedMcpManager, {
-    get(target: any, prop: string | symbol) {
-      if (prop === 'callTool') return mockManagerCallTool;
-      if (prop === 'listTools') return mockManagerListTools;
-      if (prop === 'readResource') return mockManagerReadResource;
-      if (prop === 'getPrompt') return mockManagerGetPrompt;
-      return target[prop];
-    },
+mock.module('../../../infra/mcp/embedded-manager', () => {
+  class SkillEmbeddedMcpManager {
+    callTool = mockManagerCallTool;
+    listTools = mockManagerListTools;
+    readResource = mockManagerReadResource;
+    getPrompt = mockManagerGetPrompt;
+    listResources = mock(async () => []);
+    listPrompts = mock(async () => []);
+    cleanupIdle = () => {};
+    disconnectAll = async () => {};
+    activeCount = () => 0;
+    constructor(_factory?: any) {}
+  }
+  return {
+    skillEmbeddedMcpManager: new SkillEmbeddedMcpManager(),
+    SkillEmbeddedMcpManager,
   }),
 }));
 

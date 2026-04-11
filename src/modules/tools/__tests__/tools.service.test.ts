@@ -18,50 +18,23 @@ mock.module('../tools.repo', () => ({
   },
 }));
 
+// DI mocks for toolRegistry and mcpClientPool — no mock.module needed,
+// avoids contaminating tools.registry.test.ts and client-pool.test.ts.
 const mockRegistryRegister = mock((_tool: any) => undefined);
 const mockRegistryUnregister = mock((_name: string) => undefined);
-
-// Mock tools.registry with the REAL module re-exported alongside spy wrappers.
-// We import the real module first so that tools.registry.test.ts gets a working
-// ToolRegistry class and singleton. We only intercept register/unregister for
-// tools.service tests via the mockRegistryRegister/mockRegistryUnregister mocks.
-const _realToolsRegistry = require('../tools.registry');
-
-mock.module('../tools.registry', () => {
-  const realRegistry = _realToolsRegistry.toolRegistry;
-  const origRegister = realRegistry.register.bind(realRegistry);
-  const origUnregister = realRegistry.unregister.bind(realRegistry);
-  return {
-    ..._realToolsRegistry,
-    toolRegistry: new Proxy(realRegistry, {
-      get(target: any, prop: string | symbol) {
-        if (prop === 'register') return (...args: any[]) => { mockRegistryRegister(...args); origRegister(...args); };
-        if (prop === 'unregister') return (...args: any[]) => { mockRegistryUnregister(...args); origUnregister(...args); };
-        return target[prop];
-      },
-    }),
-  };
-});
+const mockToolRegistry = {
+  register: mockRegistryRegister,
+  unregister: mockRegistryUnregister,
+  get: mock(() => undefined),
+  has: mock(() => false),
+} as any;
 
 const mockCallTool = mock(async (_server: string, _tool: string, _args: any) => 'mcp-result');
-
-// Re-export the real McpClientPool class so client-pool.test.ts gets the real implementation.
-const _realClientPool = require('../../../infra/mcp/client-pool');
-mock.module('../../../infra/mcp/client-pool', () => ({
-  ..._realClientPool,
-  mcpClientPool: new Proxy(_realClientPool.mcpClientPool, {
-    get(target: any, prop: string | symbol) {
-      if (prop === 'callTool') return mockCallTool;
-      return target[prop];
-    },
-  }),
-}));
+const mockMcpPool = { callTool: mockCallTool } as any;
 
 const mockEnqueueSkill = mock(async (_payload: any, _opts: any) => ({ success: true, value: 'worker-result' }));
 
-const _realBullmq = require('../../../infra/queue/bullmq');
 mock.module('../../../infra/queue/bullmq', () => ({
-  ..._realBullmq,
   enqueueSkill: mockEnqueueSkill,
 }));
 
@@ -71,15 +44,12 @@ const mockGetSandboxPolicy = mock(async (_wsId?: string) => ({
   maxTimeoutMs: 30000, allowNetwork: false, allowedPaths: [], deniedPaths: [], maxMemoryMb: 128, lockedByOrg: false,
 }));
 
-const _realWss = require('../../settings/workspace-settings/workspace-settings.service');
 mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
-  ..._realWss,
-  workspaceSettingsService: new Proxy(_realWss.workspaceSettingsService, {
-    get(target: any, prop: string | symbol) {
-      if (prop === 'getSandboxPolicy') return mockGetSandboxPolicy;
-      return target[prop];
-    },
-  }),
+  workspaceSettingsService: {
+    getSandboxPolicy: mockGetSandboxPolicy,
+    getToolPermissionMode: mock(async () => 'auto'),
+    getTokenBudget: mock(async () => null),
+  },
 }));
 
 mock.module('../../../config/logger', () => ({
@@ -93,7 +63,6 @@ mock.module('../../../config/logger', () => ({
 
 // --- import after mocks ---
 import { ToolsService } from '../tools.service';
-// Note: mockRunInSandbox is passed via constructor to avoid polluting sandbox.test.ts
 
 // Helpers
 const makeRow = (overrides?: Partial<any>) => ({
@@ -115,7 +84,7 @@ describe('ToolsService', () => {
   let service: ToolsService;
 
   beforeEach(() => {
-    service = new ToolsService(mockRunInSandbox as any);
+    service = new ToolsService(mockRunInSandbox as any, mockToolRegistry, mockMcpPool);
     mockFindById.mockClear();
     mockFindByWorkspace.mockClear();
     mockCreate.mockClear();

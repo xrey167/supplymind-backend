@@ -11,7 +11,7 @@ import type { McpServerRow, CreateMcpData } from './mcp.repo';
 import type { CreateMcpInput, UpdateMcpInput } from './mcp.schemas';
 
 /**
- * Map a DB row to the McpServerConfig expected by mcpClientPool.
+ * Map a DB row to the McpServerConfig expected by this._pool.
  * Casts JSONB columns (args, env, headers) to their proper types.
  */
 function toMcpServerConfig(row: McpServerRow): McpServerConfig {
@@ -31,6 +31,13 @@ function toMcpServerConfig(row: McpServerRow): McpServerConfig {
 
 export class McpService {
   private loadedWorkspaces = new Set<string>();
+  private _skillRegistry: typeof skillRegistry;
+  private _pool: typeof mcpClientPool;
+
+  constructor(sr?: typeof skillRegistry, pool?: typeof mcpClientPool) {
+    this._skillRegistry = sr ?? skillRegistry;
+    this._pool = pool ?? mcpClientPool;
+  }
 
   /**
    * Called at bootstrap — load global (workspaceId IS NULL) MCP servers.
@@ -60,9 +67,9 @@ export class McpService {
     for (const config of enabled) {
       try {
         const mcpConfig = toMcpServerConfig(config);
-        const manifest = await mcpClientPool.listTools(mcpConfig);
+        const manifest = await this._pool.listTools(mcpConfig);
         for (const tool of manifest.tools) {
-          skillRegistry.register({
+          this._skillRegistry.register({
             id: `mcp:${config.workspaceId ?? 'global'}:${config.name}:${tool.name}`,
             name: `mcp:${config.workspaceId ?? 'global'}:${config.name}:${tool.name}`,
             description: `[MCP:${config.name}] ${tool.description}`,
@@ -71,7 +78,7 @@ export class McpService {
             priority: 15,
             handler: async (args) => {
               try {
-                const result = await mcpClientPool.callTool(
+                const result = await this._pool.callTool(
                   config.id,
                   tool.name,
                   (args ?? {}) as Record<string, unknown>,
@@ -159,7 +166,7 @@ export class McpService {
       if (existing.workspaceId !== workspaceId) return err(new Error('MCP server not found in this workspace'));
 
       const mcpConfig = toMcpServerConfig(existing);
-      const manifest = await mcpClientPool.listTools(mcpConfig);
+      const manifest = await this._pool.listTools(mcpConfig);
       return ok({ tools: manifest.tools.map((t) => t.name) });
     } catch (e) {
       return err(e instanceof Error ? e : new Error(String(e)));

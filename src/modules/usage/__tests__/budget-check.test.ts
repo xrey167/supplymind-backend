@@ -13,14 +13,11 @@ mock.module('../usage.repo', () => ({
   },
 }));
 
-const _realWss = require('../../settings/workspace-settings/workspace-settings.service');
 mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
-  ..._realWss,
-  workspaceSettingsService: new Proxy(_realWss.workspaceSettingsService, {
-    get(target: any, prop: string | symbol) {
-      if (prop === 'getTokenBudget') return mockGetTokenBudget;
-      return target[prop];
-    },
+  workspaceSettingsService: {
+    getTokenBudget: mockGetTokenBudget,
+    getSandboxPolicy: mock(async () => ({})),
+    getToolPermissionMode: mock(async () => 'auto'),
   }),
 }));
 

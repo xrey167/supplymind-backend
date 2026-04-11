@@ -14,9 +14,13 @@ import { workspaceSettingsService } from '../settings/workspace-settings/workspa
 
 export class ToolsService {
   private runInSandbox: typeof RunInSandboxFn;
+  private registry: typeof toolRegistry;
+  private pool: typeof mcpClientPool;
 
-  constructor(sandboxFn?: typeof RunInSandboxFn) {
+  constructor(sandboxFn?: typeof RunInSandboxFn, registry?: typeof toolRegistry, pool?: typeof mcpClientPool) {
     this.runInSandbox = sandboxFn ?? defaultRunInSandbox;
+    this.registry = registry ?? toolRegistry;
+    this.pool = pool ?? mcpClientPool;
   }
 
   private createHandler(tool: ToolDef): (args: Record<string, unknown>, ctx?: DispatchContext) => Promise<Result<unknown>> {
@@ -30,7 +34,7 @@ export class ToolsService {
         const { serverName, toolName } = config;
         return async (args) => {
           try {
-            const result = await mcpClientPool.callTool(serverName, toolName, args);
+            const result = await this.pool.callTool(serverName, toolName, args);
             return ok(result);
           } catch (error) {
             return err(error instanceof Error ? error : new Error(String(error)));
@@ -128,7 +132,7 @@ export class ToolsService {
     const tool = toToolDef(row);
 
     // Register in ToolRegistry (auto-syncs to SkillRegistry)
-    toolRegistry.register({
+    this.registry.register({
       id: tool.id,
       name: tool.name,
       description: tool.description,
@@ -149,7 +153,7 @@ export class ToolsService {
     const tool = toToolDef(row);
 
     // Re-register with updated definition
-    toolRegistry.register({
+    this.registry.register({
       id: tool.id,
       name: tool.name,
       description: tool.description,
@@ -168,7 +172,7 @@ export class ToolsService {
     // Find tool name before removing from DB
     const row = await toolsRepo.findById(id);
     if (row) {
-      toolRegistry.unregister(row.name);
+      this.registry.unregister(row.name);
     }
     await toolsRepo.remove(id);
   }
@@ -179,7 +183,7 @@ export class ToolsService {
     let registered = 0;
     for (const tool of tools) {
       if (!tool.enabled) continue;
-      toolRegistry.register({
+      this.registry.register({
         id: tool.id,
         name: tool.name,
         description: tool.description,

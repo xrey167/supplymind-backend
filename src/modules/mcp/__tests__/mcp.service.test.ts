@@ -44,18 +44,10 @@ mock.module('../mcp.repo', () => ({
   McpRepo: class {},
 }));
 
-// Re-export the real SkillRegistry so skills.registry.test.ts gets the real class.
-const _realSkillsRegistry = require('../../skills/skills.registry');
+// DI mocks for skillRegistry and mcpClientPool — avoids contaminating
+// skills.registry.test.ts, memory.skills.test.ts, and client-pool.test.ts.
 const mockRegister = mock((_skill: unknown) => {});
-mock.module('../../skills/skills.registry', () => ({
-  ..._realSkillsRegistry,
-  skillRegistry: new Proxy(_realSkillsRegistry.skillRegistry, {
-    get(target: any, prop: string | symbol) {
-      if (prop === 'register') return (...args: any[]) => { mockRegister(...args); return target.register(...args); };
-      return target[prop];
-    },
-  }),
-}));
+const mockSkillRegistry = { register: mockRegister } as any;
 
 const mockListTools = mock(async (_config: unknown) => ({
   serverName: 'test-server',
@@ -67,19 +59,7 @@ const mockListTools = mock(async (_config: unknown) => ({
 }));
 
 const mockCallTool = mock(async (_configId: string, _toolName: string, _args: unknown) => 'result');
-
-// Re-export the real McpClientPool class so client-pool.test.ts gets the real implementation.
-const _realClientPool = require('../../../infra/mcp/client-pool');
-mock.module('../../../infra/mcp/client-pool', () => ({
-  ..._realClientPool,
-  mcpClientPool: new Proxy(_realClientPool.mcpClientPool, {
-    get(target: any, prop: string | symbol) {
-      if (prop === 'listTools') return mockListTools;
-      if (prop === 'callTool') return mockCallTool;
-      return target[prop];
-    },
-  }),
-}));
+const mockPool = { listTools: mockListTools, callTool: mockCallTool } as any;
 
 const mockPublish = mock((_topic: string, _payload: unknown) => {});
 
@@ -105,7 +85,7 @@ describe('McpService', () => {
   let service: InstanceType<typeof McpService>;
 
   beforeEach(() => {
-    service = new McpService();
+    service = new McpService(mockSkillRegistry, mockPool);
     mockFindGlobal.mockClear();
     mockFindByWorkspace.mockClear();
     mockFindById.mockClear();
