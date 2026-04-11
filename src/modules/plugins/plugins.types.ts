@@ -18,7 +18,7 @@ export type PluginPermission = CorePluginPermission | ErpPluginPermission;
 
 export const VALID_TRANSITIONS: Record<PluginStatus, PluginStatus[]> = {
   installing:   ['active', 'failed'],
-  active:       ['disabled', 'uninstalling', 'failed'],
+  active:       ['active', 'disabled', 'uninstalling', 'failed'],
   disabled:     ['active', 'uninstalling'],
   failed:       ['installing', 'uninstalling'],
   uninstalling: ['uninstalled', 'failed'],
