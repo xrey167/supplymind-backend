@@ -16,6 +16,10 @@ import { improvementPipeline } from './improvement-pipeline';
 import { analyzeSkillWeights } from './analyzers/skill-weight-analyzer';
 import { analyzeRouting } from './analyzers/routing-analyzer';
 import { analyzeMemoryQuality } from './analyzers/memory-analyzer';
+import { detectSkillGaps, generateSkillForGap } from './generators/skill-generator';
+import { findUnderperformingAgents, generatePromptVariant } from './generators/prompt-optimizer';
+import { detectRepeatedSequences, proposeWorkflowTemplate } from './generators/workflow-generator';
+import { featureFlagsService } from '../feature-flags/feature-flags.service';
 import type { ImprovementProposal } from './analyzers/skill-weight-analyzer';
 
 export class LearningEngine {
@@ -58,6 +62,16 @@ export class LearningEngine {
       ...memoryProposals,
     ];
 
+    // Phase 3: Generative self-extension (feature-flagged + AUTONOMOUS+ tier only)
+    const generativeEnabled = await featureFlagsService.isEnabled(workspaceId, 'learning.generativeExtension').catch(() => false);
+    const tierConfig = await trustTierService.getTierConfig(workspaceId);
+    const isAutonomousPlus = tierConfig.autoApply.newSkills; // true only for autonomous/trusted
+
+    if (generativeEnabled && isAutonomousPlus) {
+      const generativeProposals = await this.runGenerativePhase(workspaceId);
+      allProposals.push(...generativeProposals);
+    }
+
     let proposed = 0;
     let applied = 0;
 
@@ -92,6 +106,49 @@ export class LearningEngine {
     }, { source: 'learning-engine' });
 
     return { proposed, applied };
+  }
+
+  /**
+   * Phase 3: detect gaps and generate proposals via LLM.
+   * Only called when learning.generativeExtension is enabled + AUTONOMOUS+ tier.
+   */
+  private async runGenerativePhase(workspaceId: string): Promise<ImprovementProposal[]> {
+    const proposals: ImprovementProposal[] = [];
+
+    try {
+      // Skill gap detection
+      const gaps = await detectSkillGaps(workspaceId);
+      for (const gap of gaps) {
+        const proposal = await generateSkillForGap(gap, '').catch(() => null);
+        if (proposal) proposals.push(proposal);
+      }
+    } catch (err) {
+      logger.warn({ workspaceId, error: err }, 'Phase 3: skill gap generation failed');
+    }
+
+    try {
+      // Underperforming agent prompt optimization
+      const underperforming = await findUnderperformingAgents(workspaceId);
+      for (const perf of underperforming) {
+        // promptsService lookup would happen here; we skip if no prompt available
+        const proposal = await generatePromptVariant(workspaceId, perf, '', '').catch(() => null);
+        if (proposal) proposals.push(proposal);
+      }
+    } catch (err) {
+      logger.warn({ workspaceId, error: err }, 'Phase 3: prompt optimization failed');
+    }
+
+    try {
+      // Workflow template generation from repeated sequences
+      const sequences = await detectRepeatedSequences(workspaceId);
+      for (const seq of sequences) {
+        proposals.push(proposeWorkflowTemplate(seq));
+      }
+    } catch (err) {
+      logger.warn({ workspaceId, error: err }, 'Phase 3: workflow template generation failed');
+    }
+
+    return proposals;
   }
 }
 

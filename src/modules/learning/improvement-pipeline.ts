@@ -193,8 +193,57 @@ export class ImprovementPipeline {
         }
         break;
       }
+      case 'new_skill': {
+        const after = proposal.afterValue as {
+          skillName: string;
+          description: string;
+          inputSchema: Record<string, unknown>;
+          handlerCode: string;
+        } | null;
+        if (after?.skillName && after.handlerCode) {
+          try {
+            const { testAndRegisterGeneratedSkill } = await import('./generators/skill-generator');
+            await testAndRegisterGeneratedSkill(proposal.workspaceId, {
+              skillName: after.skillName,
+              description: after.description,
+              inputSchema: after.inputSchema,
+              handlerCode: after.handlerCode,
+            });
+          } catch (err) {
+            logger.warn({ proposalId: proposal.id, error: err }, 'Failed to register generated skill');
+          }
+        }
+        break;
+      }
+      case 'prompt_update': {
+        const after = proposal.afterValue as { agentId: string; fullPrompt: string } | null;
+        if (after?.agentId && after.fullPrompt) {
+          try {
+            const { applyPromptUpdate } = await import('./generators/prompt-optimizer');
+            await applyPromptUpdate(proposal.workspaceId, after.agentId, after.fullPrompt);
+          } catch (err) {
+            logger.warn({ proposalId: proposal.id, error: err }, 'Failed to apply prompt update');
+          }
+        }
+        break;
+      }
+      case 'workflow_template': {
+        const after = proposal.afterValue as { templateName: string; definition: unknown } | null;
+        if (after?.templateName && after.definition) {
+          try {
+            const { applyWorkflowTemplate } = await import('./generators/workflow-generator');
+            await applyWorkflowTemplate(proposal.workspaceId, {
+              templateName: after.templateName,
+              definition: after.definition,
+            });
+          } catch (err) {
+            logger.warn({ proposalId: proposal.id, error: err }, 'Failed to create workflow template');
+          }
+        }
+        break;
+      }
       default:
-        // routing_rule, prompt_update — stored as proposals for manual review in UI
+        // routing_rule — stored as proposals for manual review in UI
         break;
     }
   }
