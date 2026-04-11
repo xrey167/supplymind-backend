@@ -3,12 +3,18 @@ import type { CreateNotificationInput, Notification } from '../notifications.typ
 
 // --- Mock all transitive deps that fail in test context ---
 
-mock.module('../../../infra/db/client', () => ({ db: {} }));
-mock.module('../../../infra/db/schema', () => ({ notifications: {}, notificationPreferences: {} }));
+const _realDbClient = require('../../../infra/db/client');
+mock.module('../../../infra/db/client', () => ({ ..._realDbClient, db: {} }));
+const _realSchema = require('../../../infra/db/schema');
+mock.module('../../../infra/db/schema', () => ({ ..._realSchema, notifications: {}, notificationPreferences: {} }));
+const _realWsServer = require('../../../infra/realtime/ws-server');
 mock.module('../../../infra/realtime/ws-server', () => ({
+  ..._realWsServer,
   wsServer: { broadcastToSubscribed: mock(() => {}) },
 }));
+const _realDrizzle = require('drizzle-orm');
 mock.module('drizzle-orm', () => ({
+  ..._realDrizzle,
   eq: mock(() => {}),
   and: mock(() => {}),
   isNull: mock(() => {}),
@@ -56,17 +62,31 @@ mock.module('../channels/websocket/websocket.channel', () => ({
 const mockPublish = mock(() =>
   Promise.resolve({ id: 'evt-1', topic: '', data: null, source: '', timestamp: '' }),
 );
+const _realBus = require('../../../events/bus');
 mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mockPublish, subscribe: () => 'sub-mock', unsubscribe: () => {} },
+  ..._realBus,
+  eventBus: new Proxy(_realBus.eventBus, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'publish') return mockPublish;
+      if (prop === 'subscribe') return () => 'sub-mock';
+      if (prop === 'unsubscribe') return () => {};
+      return target[prop];
+    },
+  }),
 }));
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
-  logger: {
-    info: () => {},
-    debug: () => {},
-    warn: () => {},
-    error: () => {},
-  },
+  ..._realLogger,
+  logger: new Proxy(_realLogger.logger, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'info') return () => {};
+      if (prop === 'debug') return () => {};
+      if (prop === 'warn') return () => {};
+      if (prop === 'error') return () => {};
+      return target[prop];
+    },
+  }),
 }));
 
 // --- Import the actual service AFTER mocks are set up ---

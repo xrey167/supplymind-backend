@@ -13,10 +13,15 @@ mock.module('../usage.repo', () => ({
   },
 }));
 
+const _realWss = require('../../settings/workspace-settings/workspace-settings.service');
 mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
-  workspaceSettingsService: {
-    getTokenBudget: mockGetTokenBudget,
-  },
+  ..._realWss,
+  workspaceSettingsService: new Proxy(_realWss.workspaceSettingsService, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'getTokenBudget') return mockGetTokenBudget;
+      return target[prop];
+    },
+  }),
 }));
 
 import { usageService } from '../usage.service';

@@ -44,43 +44,18 @@ mock.module('../mcp.repo', () => ({
   McpRepo: class {},
 }));
 
+// Re-export the real SkillRegistry so skills.registry.test.ts gets the real class.
+const _realSkillsRegistry = require('../../skills/skills.registry');
 const mockRegister = mock((_skill: unknown) => {});
-
-// Full mock that mirrors SkillRegistry API (including priority logic) to avoid polluting other test files
-mock.module('../../skills/skills.registry', () => {
-  class SkillRegistry {
-    private skills = new Map<string, any>();
-    register(skill: any) {
-      mockRegister(skill);
-      const existing = this.skills.get(skill.name);
-      if (existing && existing.priority >= skill.priority) return;
-      this.skills.set(skill.name, skill);
-    }
-    unregister(name: string) { this.skills.delete(name); }
-    get(name: string) { return this.skills.get(name); }
-    has(name: string) { return this.skills.has(name); }
-    list() { return Array.from(this.skills.values()); }
-    clear() { this.skills.clear(); }
-    toToolDefinitions() {
-      return this.list().map((s: any) => ({
-        name: s.name, description: s.description, inputSchema: s.inputSchema,
-        ...(s.toolHints?.strict != null && { strict: s.toolHints.strict }),
-        ...(s.toolHints?.cacheable && { cacheControl: { type: 'ephemeral' as const } }),
-        ...(s.toolHints?.eagerInputStreaming != null && { eagerInputStreaming: s.toolHints.eagerInputStreaming }),
-      }));
-    }
-    async invoke(name: string, args: any, context?: any) {
-      const skill = this.skills.get(name);
-      if (!skill) return { ok: false, error: new Error(`Skill not found: ${name}`) };
-      try { return await skill.handler(args, context); }
-      catch (e: any) { return { ok: false, error: e instanceof Error ? e : new Error(String(e)) }; }
-    }
-    async loadFromProviders(providers: any[]) {
-      for (const p of providers) { for (const s of await p.loadSkills()) this.register(s); }
-    }
-  }
-  return { skillRegistry: new SkillRegistry(), SkillRegistry };
-});
+mock.module('../../skills/skills.registry', () => ({
+  ..._realSkillsRegistry,
+  skillRegistry: new Proxy(_realSkillsRegistry.skillRegistry, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'register') return (...args: any[]) => { mockRegister(...args); return target.register(...args); };
+      return target[prop];
+    },
+  }),
+}));
 
 const mockListTools = mock(async (_config: unknown) => ({
   serverName: 'test-server',
@@ -93,17 +68,32 @@ const mockListTools = mock(async (_config: unknown) => ({
 
 const mockCallTool = mock(async (_configId: string, _toolName: string, _args: unknown) => 'result');
 
+// Re-export the real McpClientPool class so client-pool.test.ts gets the real implementation.
+const _realClientPool = require('../../../infra/mcp/client-pool');
 mock.module('../../../infra/mcp/client-pool', () => ({
-  mcpClientPool: {
-    listTools: mockListTools,
-    callTool: mockCallTool,
-  },
+  ..._realClientPool,
+  mcpClientPool: new Proxy(_realClientPool.mcpClientPool, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'listTools') return mockListTools;
+      if (prop === 'callTool') return mockCallTool;
+      return target[prop];
+    },
+  }),
 }));
 
 const mockPublish = mock((_topic: string, _payload: unknown) => {});
 
+const _realBus = require('../../../events/bus');
 mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mockPublish, subscribe: mock(() => 'sub-mock'), unsubscribe: mock(() => {}) },
+  ..._realBus,
+  eventBus: new Proxy(_realBus.eventBus, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'publish') return mockPublish;
+      if (prop === 'subscribe') return mock(() => 'sub-mock');
+      if (prop === 'unsubscribe') return mock(() => {});
+      return target[prop];
+    },
+  }),
 }));
 
 

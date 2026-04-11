@@ -4,23 +4,22 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
  * Gateway client tests.
  *
  * We inject a mock execute() via the _execute option to verify the client
- * sends correct ops and params, without using mock.module (which would
- * pollute the gateway module for gateway.test.ts and gateway-stream.test.ts).
+ * sends correct ops and params. Use require+proxy to avoid contaminating
+ * skills.registry.test.ts.
  */
 
 const mockExecute = mock((_req: any) => Promise.resolve({ ok: true as const, value: {} }));
 
-
+const _realSkillsRegistry = require('../../../modules/skills/skills.registry');
 mock.module('../../../modules/skills/skills.registry', () => ({
-  skillRegistry: {
-    register: mock(() => {}),
-    unregister: mock(() => {}),
-    toToolDefinitions: mock(() => []),
-    list: mock(() => []),
-    get: mock(() => undefined),
-    has: mock(() => false),
-    clear: mock(() => {}),
-  },
+  ..._realSkillsRegistry,
+  skillRegistry: new Proxy(_realSkillsRegistry.skillRegistry, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'register') return mock(() => {});
+      if (prop === 'unregister') return mock(() => {});
+      return target[prop];
+    },
+  }),
 }));
 
 import { GatewayClient, createGatewayClient } from '../gateway-client';

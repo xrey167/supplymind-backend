@@ -42,15 +42,30 @@ function makeDbMock() {
   };
 }
 
-mock.module('../../../infra/db/client', () => ({ db: makeDbMock() }));
+const _realDbClient = require('../../../infra/db/client');
+mock.module('../../../infra/db/client', () => ({ ..._realDbClient, db: makeDbMock() }));
 
+const _realSchema = require('../../../infra/db/schema');
 mock.module('../../../infra/db/schema', () => ({
+  ..._realSchema,
   workspaces: {},
   workspaceMembers: {},
 }));
 
+const _realBus = require('../../../events/bus');
+const _wsMockPublish = mock(() => Promise.resolve());
+const _wsMockSubscribe = mock(() => 'sub-mock');
+const _wsMockUnsubscribe = mock(() => {});
 mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mock(() => Promise.resolve()), subscribe: mock(() => 'sub-mock'), unsubscribe: mock(() => {}) },
+  ..._realBus,
+  eventBus: new Proxy(_realBus.eventBus, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'publish') return _wsMockPublish;
+      if (prop === 'subscribe') return _wsMockSubscribe;
+      if (prop === 'unsubscribe') return _wsMockUnsubscribe;
+      return target[prop];
+    },
+  }),
 }));
 
 

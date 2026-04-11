@@ -21,24 +21,47 @@ mock.module('../tools.repo', () => ({
 const mockRegistryRegister = mock((_tool: any) => undefined);
 const mockRegistryUnregister = mock((_name: string) => undefined);
 
-mock.module('../tools.registry', () => ({
-  toolRegistry: {
-    register: mockRegistryRegister,
-    unregister: mockRegistryUnregister,
-  },
-}));
+// Mock tools.registry with the REAL module re-exported alongside spy wrappers.
+// We import the real module first so that tools.registry.test.ts gets a working
+// ToolRegistry class and singleton. We only intercept register/unregister for
+// tools.service tests via the mockRegistryRegister/mockRegistryUnregister mocks.
+const _realToolsRegistry = require('../tools.registry');
+
+mock.module('../tools.registry', () => {
+  const realRegistry = _realToolsRegistry.toolRegistry;
+  const origRegister = realRegistry.register.bind(realRegistry);
+  const origUnregister = realRegistry.unregister.bind(realRegistry);
+  return {
+    ..._realToolsRegistry,
+    toolRegistry: new Proxy(realRegistry, {
+      get(target: any, prop: string | symbol) {
+        if (prop === 'register') return (...args: any[]) => { mockRegistryRegister(...args); origRegister(...args); };
+        if (prop === 'unregister') return (...args: any[]) => { mockRegistryUnregister(...args); origUnregister(...args); };
+        return target[prop];
+      },
+    }),
+  };
+});
 
 const mockCallTool = mock(async (_server: string, _tool: string, _args: any) => 'mcp-result');
 
+// Re-export the real McpClientPool class so client-pool.test.ts gets the real implementation.
+const _realClientPool = require('../../../infra/mcp/client-pool');
 mock.module('../../../infra/mcp/client-pool', () => ({
-  mcpClientPool: {
-    callTool: mockCallTool,
-  },
+  ..._realClientPool,
+  mcpClientPool: new Proxy(_realClientPool.mcpClientPool, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'callTool') return mockCallTool;
+      return target[prop];
+    },
+  }),
 }));
 
 const mockEnqueueSkill = mock(async (_payload: any, _opts: any) => ({ success: true, value: 'worker-result' }));
 
+const _realBullmq = require('../../../infra/queue/bullmq');
 mock.module('../../../infra/queue/bullmq', () => ({
+  ..._realBullmq,
   enqueueSkill: mockEnqueueSkill,
 }));
 
@@ -48,10 +71,15 @@ const mockGetSandboxPolicy = mock(async (_wsId?: string) => ({
   maxTimeoutMs: 30000, allowNetwork: false, allowedPaths: [], deniedPaths: [], maxMemoryMb: 128, lockedByOrg: false,
 }));
 
+const _realWss = require('../../settings/workspace-settings/workspace-settings.service');
 mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
-  workspaceSettingsService: {
-    getSandboxPolicy: mockGetSandboxPolicy,
-  },
+  ..._realWss,
+  workspaceSettingsService: new Proxy(_realWss.workspaceSettingsService, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'getSandboxPolicy') return mockGetSandboxPolicy;
+      return target[prop];
+    },
+  }),
 }));
 
 mock.module('../../../config/logger', () => ({

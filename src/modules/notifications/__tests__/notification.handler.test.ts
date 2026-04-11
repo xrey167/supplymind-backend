@@ -4,14 +4,27 @@ import { describe, test, expect, mock, spyOn, beforeEach, afterAll } from 'bun:t
 // We do NOT replace notifications.repo itself — that would break notifications.repo.test.ts
 // (which runs after this file alphabetically and imports NotificationsRepository from the same module).
 // Instead we stub the modules notifications.repo USES, so it's importable without a real DB.
-mock.module('../../../infra/db/client', () => ({ db: { select: () => ({}), insert: () => ({}), update: () => ({}) } }));
-mock.module('../../../infra/db/schema', () => ({ notifications: {}, notificationPreferences: {} }));
-mock.module('drizzle-orm', () => ({ eq: () => {}, and: () => {}, isNull: () => {}, desc: () => {}, sql: () => {} }));
+const _realDbClient = require('../../../infra/db/client');
+mock.module('../../../infra/db/client', () => ({ ..._realDbClient, db: { select: () => ({}), insert: () => ({}), update: () => ({}) } }));
+const _realSchema = require('../../../infra/db/schema');
+mock.module('../../../infra/db/schema', () => ({ ..._realSchema, notifications: {}, notificationPreferences: {} }));
+const _realDrizzle = require('drizzle-orm');
+mock.module('drizzle-orm', () => ({ ..._realDrizzle, eq: () => {}, and: () => {}, isNull: () => {}, desc: () => {}, sql: () => {} }));
 mock.module('../preferences/notification-preferences.repo', () => ({ notificationPreferencesRepo: { get: mock(async () => null), set: mock(async () => {}), delete: mock(async () => {}) } }));
 mock.module('../../../infra/realtime/ws-server', () => ({ wsServer: { broadcastToSubscribed: mock(() => {}) } }));
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
-  logger: { info: () => {}, debug: () => {}, warn: () => {}, error: () => {} },
+  ..._realLogger,
+  logger: new Proxy(_realLogger.logger, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'info') return () => {};
+      if (prop === 'debug') return () => {};
+      if (prop === 'warn') return () => {};
+      if (prop === 'error') return () => {};
+      return target[prop];
+    },
+  }),
 }));
 
 // Capture subscriptions
@@ -19,15 +32,20 @@ const subscriptions: Array<{ pattern: string; handler: (event: any) => Promise<v
 
 // Include publish so downstream tests that import eventBus from the real module
 // and call eventBus.publish still work (they get the real module, not this mock).
+const _realBus = require('../../../events/bus');
 mock.module('../../../events/bus', () => ({
-  eventBus: {
-    subscribe: mock((pattern: string, handler: any) => {
-      subscriptions.push({ pattern, handler });
-      return 'sub-id';
-    }),
-    publish: mock(() => Promise.resolve()),
-    unsubscribe: mock(() => {}),
-  },
+  ..._realBus,
+  eventBus: new Proxy(_realBus.eventBus, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'subscribe') return mock((pattern: string, handler: any) => {
+        subscriptions.push({ pattern, handler });
+        return 'sub-id';
+      });
+      if (prop === 'publish') return mock(() => Promise.resolve());
+      if (prop === 'unsubscribe') return mock(() => {});
+      return target[prop];
+    },
+  }),
 }));
 
 const { notificationsService } = await import('../notifications.service');

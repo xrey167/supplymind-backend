@@ -29,31 +29,25 @@ const fakeTask: A2ATask = {
   history: [],
 };
 
-mock.module('../../../infra/a2a/task-manager', () => ({
-  taskManager: {
-    send: async () => fakeTask,
-    get: (id: string) => mockTasks.get(id),
-    cancel: (id: string) => {
-      const t = mockTasks.get(id);
-      if (!t) return undefined;
-      t.status = { state: 'canceled' };
-      return t;
-    },
-  },
-}));
+// Use DI to inject mock task manager and repo (no mock.module needed).
+const mockTaskManager = {
+  send: mock(async () => fakeTask),
+  get: mock((id: string) => mockTasks.get(id)),
+  cancel: mock((id: string) => {
+    const t = mockTasks.get(id);
+    if (!t) return undefined;
+    t.status = { state: 'canceled' };
+    return t;
+  }),
+} as any;
 
-mock.module('../../../infra/a2a/task-repo', () => ({
-  taskRepo: {
-    create: async (data: any) => { lastCreated = data; },
-    findByWorkspace: async () => Array.from(mockTasks.values()),
-    findWorkspaceById: async (id: string) => {
-      if (id === 'task-ws1') return 'ws-1';
-      return undefined;
-    },
-    removeDependency: async () => {},
-    getDependencies: async () => ({ blockedBy: [], blocks: [] }),
-  },
-}));
+const mockTaskRepo = {
+  create: mock(async (data: any) => { lastCreated = data; }),
+  findByWorkspace: mock(async () => Array.from(mockTasks.values())),
+  findWorkspaceById: mock(async (id: string) => id === 'task-ws1' ? 'ws-1' : undefined),
+  removeDependency: mock(async () => {}),
+  getDependencies: mock(async () => ({ blockedBy: [], blocks: [] })),
+} as any;
 
 const mockAgentsRepo = {
   findById: async (id: string) => id === 'agent-1' ? fakeAgent : null,
@@ -77,8 +71,8 @@ mock.module('../../../config/logger', () => ({
   logger: { info: () => {}, debug: () => {}, warn: () => {}, error: () => {} },
 }));
 
-const { TasksService } = await import('../tasks.service');
-const service = new TasksService(mockAgentsRepo, mockToAgentConfig);
+import { TasksService } from '../tasks.service';
+const service = new TasksService(mockAgentsRepo, mockToAgentConfig, mockTaskManager, mockTaskRepo);
 
 describe('TasksService', () => {
   beforeEach(() => {

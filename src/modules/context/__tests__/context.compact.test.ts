@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, spyOn } from 'bun:test';
 import type { Message } from '../../../infra/ai/types';
 
 // --- Mock helpers ---
@@ -12,20 +12,19 @@ let mockRunCalled = false;
 let mockRunInput: unknown = null;
 let mockRunShouldThrow = false;
 
-mock.module('../../../infra/ai/runtime-factory', () => ({
-  createRuntime: (_provider: string, _mode: string) => ({
-    run: async (input: unknown) => {
-      mockRunCalled = true;
-      mockRunInput = input;
-      if (mockRunShouldThrow) throw new Error('Network error');
-      return mockRunResult;
-    },
-    stream: async function* () {},
-  }),
-}));
+// Use spyOn on the module namespace to avoid contaminating runtime-factory.test.ts.
+import * as runtimeFactory from '../../../infra/ai/runtime-factory';
+spyOn(runtimeFactory, 'createRuntime').mockImplementation((_provider: any, _mode: any) => ({
+  run: async (input: unknown) => {
+    mockRunCalled = true;
+    mockRunInput = input;
+    if (mockRunShouldThrow) throw new Error('Network error');
+    return mockRunResult;
+  },
+  stream: async function* () {},
+}) as any);
 
-// Import after mock registration
-const { compactMessages } = await import('../context.compact');
+import { compactMessages } from '../context.compact';
 
 function makeMessages(n: number, role: 'user' | 'assistant' = 'user'): Message[] {
   return Array.from({ length: n }, (_, i) => ({
