@@ -110,7 +110,7 @@ bun run seed      # seed database
 
 Every protocol surface — WebSocket messages, A2A JSON-RPC calls, MCP tool invocations, SSE streams, and programmatic `GatewayClient` calls — converges into a single `execute(op, params, context)` function. This means adding a new protocol is just writing a thin adapter that maps its wire format to a `GatewayOp`.
 
-The base layer is fully domain-agnostic. Domain modules plug in at the bottom via strategies, hooks, tools, and permission layers — no domain-specific code lives in `src/core/`, `src/infra/`, or `src/events/`.
+The base layer is fully domain-agnostic. Domain modules plug in at the bottom via strategies, hooks, tools, and permission layers — no domain-specific code lives in `src/core/`, `src/infra/`, or `src/events/`. Shared kernel types (including `AppEnv` for Hono context, branded IDs, and Result types) live in `src/core/types/`.
 
 ---
 
@@ -175,6 +175,8 @@ interface GatewayContext {
   onEvent?: (event: GatewayEvent) => void;  // streaming callback
 }
 ```
+
+At the HTTP layer, Hono routes share an `AppEnv` type (`src/core/types/env.ts`) that declares typed context variables (`workspaceId`, `callerId`, `callerRole`, `workspaceRole`, `userId`). All `OpenAPIHono` instances are parameterized as `OpenAPIHono<AppEnv>()` so route handlers access these via `c.get('workspaceId')` with full type safety.
 
 ---
 

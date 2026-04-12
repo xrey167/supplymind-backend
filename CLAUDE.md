@@ -33,6 +33,9 @@ Hono + Bun API server on port 3001. Runtime is **Bun** — use Bun APIs, not Nod
 ## Key Conventions
 
 - Routes use `@hono/zod-openapi` — typed + auto-documented
+- `AppEnv` type (`src/core/types/env.ts`) declares Hono context variables — all route files use `OpenAPIHono<AppEnv>()`
+- Route definitions include error responses (400/404/500) — handlers return `{ data: ... }` for list endpoints
+- Plugin installations use `status` enum (active/disabled), not boolean `enabled`
 - All validation via **Zod v4** (not v3 — API differs)
 - Tests use **bun:test** (`describe`/`it`/`expect`) — place in `__tests__/` alongside source
 - DB: Drizzle ORM + Postgres
