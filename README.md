@@ -22,8 +22,66 @@ bun run infra:down      # stop Docker containers
 bun run infra:logs      # tail Docker container logs
 ```
 
+## Getting Started
+
+### Prerequisites
+
+- [Bun](https://bun.sh/) v1.1+ (runtime and package manager)
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose (for PostgreSQL + Redis)
+- At least one AI provider API key (Anthropic, OpenAI, or Google)
+
+### Quick Start
+
+```bash
+# 1. Clone and install dependencies
+git clone https://github.com/xrey167/supplymind-backend.git
+cd supplymind-backend
+bun install
+
+# 2. Start infrastructure (PostgreSQL with pgvector + Redis)
+bun run infra:up
+
+# 3. Configure environment
+cp .env.example .env.development
+# Edit .env.development with your API keys (defaults work with docker-compose)
+
+# 4. Set up databases (migrate dev + test DBs, seed)
+bun run db:setup
+
+# 5. Start dev server (port 3001, watch mode)
+bun run dev
+```
+
+The server will be available at `http://localhost:3001`. Verify with:
+
+```bash
+curl http://localhost:3001/healthz        # liveness probe
+curl http://localhost:3001/readyz         # readiness probe (checks DB + Redis)
+```
+
+### Running Tests
+
+```bash
+bun run test                # unit tests (bun:test)
+bun run test:integration    # integration tests (requires DB + Redis)
+bun run test:e2e            # end-to-end tests (requires DB + Redis)
+bunx tsc --noEmit           # type check (must be 0 errors)
+```
+
+### Infrastructure Management
+
+```bash
+bun run infra:up            # start Docker containers
+bun run infra:down          # stop Docker containers
+bun run infra:logs          # tail Docker container logs
+bun run db:studio           # open Drizzle Studio GUI
+```
+
+---
+
 ## Table of Contents
 
+- [Getting Started](#getting-started)
 - [Architecture Overview](#architecture-overview)
 - [Source Layout](#source-layout)
 - [Unified Gateway](#unified-gateway)
@@ -150,12 +208,16 @@ src/
   config/           Environment config (Zod-validated)
   contracts/        Shared Zod v4 schemas (api, events, notifications, permissions)
   core/             Shared kernel
+    ai/               AI provider abstractions
+    config/           Configuration validation + management
     errors/           Custom error classes
     gateway/          Unified gateway + GatewayClient (ACP)
     hooks/            Lifecycle hook registry
     permissions/      Permission pipeline + sandbox
     result/           Result<T,E> type (ok/err)
-    security/         RBAC, rate limiter, verification agent
+    security/         RBAC, rate limiter, bash risk classifier, verification agent
+    telemetry/        Tracing + metrics utilities
+    tenant/           Multi-tenancy utilities
     tools/            Tool registry + deferred tool discovery
     types/            AppEnv, branded IDs, shared type definitions
     utils/            General utilities
@@ -168,17 +230,18 @@ src/
   infra/            External integrations
     a2a/              A2A protocol (JSON-RPC, Agent Card)
     ai/               AI providers (Anthropic, OpenAI, Google)
-    auth/             Clerk authentication
-    cache/            In-memory caching
+    auth/             Clerk authentication + API key auth
+    cache/            In-memory + Redis caching
     db/               Drizzle ORM + PostgreSQL (schema, migrations)
     mcp/              MCP server + client pool
     notifications/    Novu push notifications
-    observability/    OpenTelemetry + Sentry
+    observability/    OpenTelemetry + Sentry + metrics
     queue/            BullMQ + Redis (queues, workers, schedulers)
-    realtime/         WebSocket server
-    redis/            Redis client
+    realtime/         WebSocket server + SSE streams
+    redis/            Shared Redis client + Pub/Sub bridge
     state/            In-memory state (task inputs, tool approvals, orchestration gates)
     storage/          File storage abstraction
+    webhooks/         Stripe webhooks + batch uploader
   jobs/             BullMQ job definitions (agents, orchestrations)
   modules/          Domain modules (see below)
   plugins/          Plugin system + domain plugin implementations
@@ -197,7 +260,7 @@ modules/<name>/
   __tests__/           # Unit tests (bun:test)
 ```
 
-**Modules:** agents, api-keys, collaboration, computer-use, context, credentials, execution, feature-flags, inbox, members, memory, mcp-servers, orchestration, plugins, prompts, sessions, settings, skills, tasks, tools, usage, users, workflows.
+**Modules (30):** agent-registry, agents, api-keys, audit-logs, auth, billing, collaboration, computer-use, context, credentials, execution, feature-flags, health, inbox, mcp, members, memory, notifications, orchestration, plugins, prompts, sessions, settings, skills, tasks, tools, usage, users, workflows, workspaces.
 
 ---
 
@@ -1237,6 +1300,8 @@ All environment variables validated at startup via Zod:
 | `SENTRY_DSN` | no | — | Sentry error monitoring |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | no | — | OTel collector endpoint |
 | `OTEL_SERVICE_NAME` | no | `supplymind-backend` | OTel service name |
+| `A2A_API_KEY` | no | — | Shared secret for A2A endpoint authentication |
+| `LOG_LEVEL` | no | `info` | Pino log level (`debug`, `info`, `warn`, `error`) |
 
 ---
 
