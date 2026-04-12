@@ -1,5 +1,22 @@
 import { describe, it, expect, beforeEach, mock, spyOn } from 'bun:test';
-import { EventBus, type BusEvent } from '../../../../events/bus';
+// Minimal EventBus stub — avoids importing the real bus module which
+// breaks under cross-file mock.module contamination in bun:test.
+interface BusEvent {
+  id: string;
+  topic: string;
+  data: unknown;
+  source: string;
+  timestamp: string;
+}
+
+class EventBus {
+  subscribe(
+    _pattern: string,
+    _handler: (event: BusEvent) => void | Promise<void>,
+  ): string {
+    return 'sub-stub';
+  }
+}
 import { Topics } from '../../../../events/topics';
 
 // --- mock db -----------------------------------------------------------------
@@ -9,7 +26,9 @@ const insertFn = mock(() => ({ values: valuesFn }));
 
 const fakeDb = { insert: insertFn };
 
-mock.module('../../../../infra/db/client', () => ({ db: fakeDb }));
+// Dummy db/client mock — prevents real postgres connection on import.
+// The actual test mock (fakeDb) is passed via DI to initTaskObserver.
+mock.module('../../../../infra/db/client', () => ({ db: {} }));
 mock.module('../../../../infra/db/schema', () => ({
   learningObservations: Symbol('learningObservations'),
   skillPerformanceMetrics: { id: 'id', workspaceId: 'workspaceId', skillId: 'skillId', windowStart: 'windowStart' },
@@ -23,7 +42,7 @@ const { initTaskObserver, _resetTaskObserver } = await import('../task-observer'
 // --- helpers -----------------------------------------------------------------
 function captureHandler(bus: EventBus, topic: string) {
   const subscribeSpy = spyOn(bus, 'subscribe');
-  initTaskObserver(bus);
+  initTaskObserver(bus, fakeDb as any);
   const call = subscribeSpy.mock.calls.find((c) => c[0] === topic);
   if (!call) throw new Error(`No subscription found for ${topic}`);
   return call[1] as (event: BusEvent) => Promise<void>;
@@ -51,7 +70,7 @@ describe('task-observer', () => {
   it('subscribes to TASK_COMPLETED and TASK_ERROR', () => {
     const bus = new EventBus();
     const spy = spyOn(bus, 'subscribe');
-    initTaskObserver(bus);
+    initTaskObserver(bus, fakeDb as any);
     const topics = spy.mock.calls.map((c) => c[0]);
     expect(topics).toContain(Topics.TASK_COMPLETED);
     expect(topics).toContain(Topics.TASK_ERROR);
@@ -90,11 +109,13 @@ describe('task-observer', () => {
       }),
     );
 
-    expect(insertFn).toHaveBeenCalled();
-    const values = valuesFn.mock.calls[0]![0] as Record<string, unknown>;
-    expect(values.observationType).toBe('task_error');
-    expect(values.signalStrength).toBe(1.0);
-    expect(values.sourceTopic).toBe(Topics.TASK_ERROR);
+    // Find the specific call — cross-file mock contamination can add extra calls
+    const values = valuesFn.mock.calls
+      .map((c) => c[0] as Record<string, unknown>)
+      .find((v) => v.observationType === 'task_error');
+    expect(values).toBeDefined();
+    expect(values!.signalStrength).toBe(1.0);
+    expect(values!.sourceTopic).toBe(Topics.TASK_ERROR);
   });
 
   it('skips insertion when workspaceId is missing (completed)', async () => {

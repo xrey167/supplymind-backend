@@ -17,7 +17,7 @@ export function _resetMemoryObserver() {
   registered = false;
 }
 
-export function initMemoryObserver(bus = eventBus) {
+export function initMemoryObserver(bus = eventBus, dbClient = db) {
   if (registered) return;
   registered = true;
 
@@ -25,7 +25,7 @@ export function initMemoryObserver(bus = eventBus) {
     const data = event.data as { workspaceId: string; memoryId?: string; type?: string };
     if (!data.workspaceId) return;
     try {
-      await db.insert(learningObservations).values({
+      await dbClient.insert(learningObservations).values({
         workspaceId: data.workspaceId,
         observationType: 'memory_approved',
         signalStrength: 0.7,
@@ -41,7 +41,7 @@ export function initMemoryObserver(bus = eventBus) {
     const data = event.data as { workspaceId: string; memoryId?: string; type?: string; reason?: string };
     if (!data.workspaceId) return;
     try {
-      await db.insert(learningObservations).values({
+      await dbClient.insert(learningObservations).values({
         workspaceId: data.workspaceId,
         observationType: 'memory_rejected',
         signalStrength: 1.0, // rejections are strong negative signals

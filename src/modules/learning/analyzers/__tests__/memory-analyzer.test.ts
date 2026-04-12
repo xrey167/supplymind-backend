@@ -24,10 +24,9 @@ const mockSelect = mock(() => {
   return { from: chain2.from };
 });
 
-mock.module('../../../../infra/db/client', () => ({
-  db: { select: mockSelect },
-}));
+const mockDb = { select: mockSelect } as any;
 
+mock.module('../../../../infra/db/client', () => ({ db: {} }));
 mock.module('../../../../infra/db/schema', () => ({
   learningObservations: {
     workspaceId: 'workspace_id',
@@ -65,13 +64,24 @@ describe('analyzeMemoryQuality', () => {
     chain1.where.mockClear();
     chain2.from.mockClear();
     chain2.where.mockClear();
+
+    // Re-apply implementations — mockClear only resets call history, not behavior
+    chain1.where.mockImplementation(() => Promise.resolve([{ count: approvedCount }]));
+    chain1.from.mockImplementation(() => ({ where: chain1.where }));
+    chain2.where.mockImplementation(() => Promise.resolve([{ count: rejectedCount }]));
+    chain2.from.mockImplementation(() => ({ where: chain2.where }));
+    mockSelect.mockImplementation(() => {
+      callIndex++;
+      if (callIndex % 2 === 1) return { from: chain1.from };
+      return { from: chain2.from };
+    });
   });
 
   it('produces a memory_threshold proposal when rejection rate > 50%', async () => {
     approvedCount = 2;
     rejectedCount = 8; // 8/(2+8) = 80% rejection rate, total=10 >= 5
 
-    const proposals = await analyzeMemoryQuality('ws-1');
+    const proposals = await analyzeMemoryQuality('ws-1', mockDb);
 
     expect(proposals).toHaveLength(1);
     const p = proposals[0];
@@ -96,7 +106,7 @@ describe('analyzeMemoryQuality', () => {
     approvedCount = 7;
     rejectedCount = 3; // 3/10 = 30% rejection rate
 
-    const proposals = await analyzeMemoryQuality('ws-1');
+    const proposals = await analyzeMemoryQuality('ws-1', mockDb);
 
     expect(proposals).toEqual([]);
   });
@@ -105,7 +115,7 @@ describe('analyzeMemoryQuality', () => {
     approvedCount = 1;
     rejectedCount = 2; // total=3 < 5
 
-    const proposals = await analyzeMemoryQuality('ws-1');
+    const proposals = await analyzeMemoryQuality('ws-1', mockDb);
 
     expect(proposals).toEqual([]);
   });

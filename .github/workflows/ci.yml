@@ -33,7 +33,11 @@ jobs:
           bun-version: 1.3.4
       - run: bun install --frozen-lockfile
       - name: Run unit tests
-        run: bun test src/
+        run: |
+          # Run learning integration tests (improvement-pipeline, learning-engine, etc.)
+          # separately — their mock.module calls conflict with component tests.
+          bun test $(find src -name '*.test.ts' -not -path '*/learning/__tests__/*')
+          bun test src/modules/learning/__tests__/
         env:
           CREDENTIALS_ENCRYPTION_KEY: ci-test-key-for-unit-tests-32bytes
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy

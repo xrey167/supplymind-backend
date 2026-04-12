@@ -78,16 +78,11 @@ mock.module('../../../infra/db/client', () => ({ db: mockDb }));
 const mockPublish = mock(async () => undefined);
 mock.module('../../../events/bus', () => ({
   eventBus: { publish: mockPublish },
+  EventBus: class { subscribe() { return 'sub'; } },
 }));
 
-mock.module('../../../events/topics', () => ({
-  Topics: {
-    LEARNING_PROPOSAL_APPLIED: 'learning.proposal.applied',
-    LEARNING_PROPOSAL_APPROVED: 'learning.proposal.approved',
-    LEARNING_PROPOSAL_REJECTED: 'learning.proposal.rejected',
-    LEARNING_PROPOSAL_CREATED: 'learning.proposal.created',
-  },
-}));
+// Do NOT mock events/topics — it's just string constants and mocking it
+// globally stomps Topics used by other test files (e.g. TASK_COMPLETED).
 
 mock.module('../../../config/logger', () => ({
   logger: {
@@ -98,7 +93,10 @@ mock.module('../../../config/logger', () => ({
   },
 }));
 
-// Mock dynamic imports used by applyChange / applyRollback
+// Mock dynamic imports used by applyChange / applyRollback.
+// Each mock MUST include ALL exports from the real module — mock.module
+// replaces the module globally in bun:test, so missing exports break
+// other test files that import the same module.
 mock.module('../../skills/skills.registry', () => ({
   skillRegistry: {
     get: mock(() => null),
@@ -115,14 +113,20 @@ mock.module('../../settings/workspace-settings/workspace-settings.service', () =
 }));
 
 mock.module('../generators/skill-generator', () => ({
+  detectSkillGaps: mock(async () => []),
+  generateSkillForGap: mock(async () => null),
   testAndRegisterGeneratedSkill: mock(async () => undefined),
 }));
 
 mock.module('../generators/prompt-optimizer', () => ({
+  findUnderperformingAgents: mock(async () => []),
+  generatePromptVariant: mock(async () => null),
   applyPromptUpdate: mock(async () => undefined),
 }));
 
 mock.module('../generators/workflow-generator', () => ({
+  detectRepeatedSequences: mock(async () => []),
+  proposeWorkflowTemplate: mock(() => ({})),
   applyWorkflowTemplate: mock(async () => undefined),
 }));
 

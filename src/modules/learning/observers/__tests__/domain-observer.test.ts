@@ -1,5 +1,22 @@
 import { describe, it, expect, beforeEach, mock, spyOn } from 'bun:test';
-import { EventBus, type BusEvent } from '../../../../events/bus';
+// Minimal EventBus stub — avoids importing the real bus module which
+// breaks under cross-file mock.module contamination in bun:test.
+interface BusEvent {
+  id: string;
+  topic: string;
+  data: unknown;
+  source: string;
+  timestamp: string;
+}
+
+class EventBus {
+  subscribe(
+    _pattern: string,
+    _handler: (event: BusEvent) => void | Promise<void>,
+  ): string {
+    return 'sub-stub';
+  }
+}
 import { Topics } from '../../../../events/topics';
 
 // --- mock db -----------------------------------------------------------------
@@ -9,7 +26,7 @@ const insertFn = mock(() => ({ values: valuesFn }));
 
 const fakeDb = { insert: insertFn };
 
-mock.module('../../../../infra/db/client', () => ({ db: fakeDb }));
+mock.module('../../../../infra/db/client', () => ({ db: {} }));
 mock.module('../../../../infra/db/schema', () => ({
   learningObservations: Symbol('learningObservations'),
   skillPerformanceMetrics: { id: 'id', workspaceId: 'workspaceId', skillId: 'skillId', windowStart: 'windowStart' },
@@ -23,7 +40,7 @@ const { initDomainObserver, _resetDomainObserver } = await import('../domain-obs
 // --- helpers -----------------------------------------------------------------
 function captureHandler(bus: EventBus, topic: string) {
   const subscribeSpy = spyOn(bus, 'subscribe');
-  initDomainObserver(bus);
+  initDomainObserver(bus, fakeDb as any);
   const call = subscribeSpy.mock.calls.find((c) => c[0] === topic);
   if (!call) throw new Error(`No subscription found for ${topic}`);
   return call[1] as (event: BusEvent) => Promise<void>;
@@ -51,7 +68,7 @@ describe('domain-observer', () => {
   it('subscribes to DOMAIN_KNOWLEDGE_UPDATED', () => {
     const bus = new EventBus();
     const spy = spyOn(bus, 'subscribe');
-    initDomainObserver(bus);
+    initDomainObserver(bus, fakeDb as any);
     expect(spy).toHaveBeenCalledWith(Topics.DOMAIN_KNOWLEDGE_UPDATED, expect.any(Function));
   });
 

@@ -17,7 +17,7 @@ export function _resetTaskObserver() {
   registered = false;
 }
 
-export function initTaskObserver(bus = eventBus) {
+export function initTaskObserver(bus = eventBus, dbClient = db) {
   if (registered) return;
   registered = true;
 
@@ -25,7 +25,7 @@ export function initTaskObserver(bus = eventBus) {
     const data = event.data as { taskId: string; workspaceId?: string; agentId?: string; durationMs?: number };
     if (!data.workspaceId) return;
     try {
-      await db.insert(learningObservations).values({
+      await dbClient.insert(learningObservations).values({
         workspaceId: data.workspaceId,
         observationType: 'task_completed',
         signalStrength: 0.5,
@@ -41,7 +41,7 @@ export function initTaskObserver(bus = eventBus) {
     const data = event.data as { taskId: string; workspaceId?: string; error?: string };
     if (!data.workspaceId) return;
     try {
-      await db.insert(learningObservations).values({
+      await dbClient.insert(learningObservations).values({
         workspaceId: data.workspaceId,
         observationType: 'task_error',
         signalStrength: 1.0,

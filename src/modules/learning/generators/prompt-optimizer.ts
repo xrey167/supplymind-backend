@@ -30,11 +30,11 @@ export interface PromptPerformance {
 /**
  * Find agents with below-threshold task completion rates over the last 7 days.
  */
-export async function findUnderperformingAgents(workspaceId: string): Promise<PromptPerformance[]> {
+export async function findUnderperformingAgents(workspaceId: string, dbClient = db): Promise<PromptPerformance[]> {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   const [completed, errors] = await Promise.all([
-    db
+    dbClient
       .select({
         agentId: sql<string>`payload->>'agentId'`,
         count: sql<number>`count(*)::int`,
@@ -46,7 +46,7 @@ export async function findUnderperformingAgents(workspaceId: string): Promise<Pr
         gte(learningObservations.createdAt, since),
       ))
       .groupBy(sql`payload->>'agentId'`),
-    db
+    dbClient
       .select({
         agentId: sql<string>`payload->>'agentId'`,
         count: sql<number>`count(*)::int`,

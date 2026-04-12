@@ -10,13 +10,10 @@ const mockWhere = mock(() => ({ groupBy: mockGroupBy }));
 const mockFrom = mock(() => ({ where: mockWhere }));
 const mockSelect = mock(() => ({ from: mockFrom }));
 
-mock.module('../../../../infra/db/client', () => ({
-  db: { select: mockSelect },
-}));
-
 // ---------------------------------------------------------------------------
 // Schema mock
 // ---------------------------------------------------------------------------
+mock.module('../../../../infra/db/client', () => ({ db: {} }));
 mock.module('../../../../infra/db/schema', () => ({
   learningObservations: Symbol('learningObservations'),
 }));
@@ -69,6 +66,11 @@ describe('workflow-generator', () => {
     mockWhere.mockClear();
     mockFrom.mockClear();
     mockSelect.mockClear();
+
+    mockGroupBy.mockImplementation(() => Promise.resolve(dbRows));
+    mockWhere.mockImplementation(() => ({ groupBy: mockGroupBy }));
+    mockFrom.mockImplementation(() => ({ where: mockWhere }));
+    mockSelect.mockImplementation(() => ({ from: mockFrom }));
   });
 
   // -----------------------------------------------------------------------
@@ -81,7 +83,7 @@ describe('workflow-generator', () => {
         { sequence: JSON.stringify(['validate', 'submit', 'notify']), count: 5 },
       ];
 
-      const sequences = await detectRepeatedSequences('ws-1');
+      const sequences = await detectRepeatedSequences('ws-1', { select: mockSelect } as any);
 
       expect(sequences).toHaveLength(2);
       expect(sequences[0]!.steps).toEqual(['fetch_inventory', 'calculate_shipping']);
@@ -98,7 +100,7 @@ describe('workflow-generator', () => {
         { sequence: JSON.stringify(['once_a', 'once_b']), count: 1 },
       ];
 
-      const sequences = await detectRepeatedSequences('ws-1');
+      const sequences = await detectRepeatedSequences('ws-1', { select: mockSelect } as any);
 
       expect(sequences).toHaveLength(1);
       expect(sequences[0]!.steps).toEqual(['fetch_inventory', 'calculate_shipping']);
@@ -110,7 +112,7 @@ describe('workflow-generator', () => {
         { sequence: JSON.stringify(['step_a', 'step_b']), count: 6 },
       ];
 
-      const sequences = await detectRepeatedSequences('ws-1');
+      const sequences = await detectRepeatedSequences('ws-1', { select: mockSelect } as any);
 
       // Single-step filtered out (needs >= 2 steps)
       expect(sequences).toHaveLength(1);
@@ -123,7 +125,7 @@ describe('workflow-generator', () => {
         { sequence: JSON.stringify(['good_a', 'good_b']), count: 5 },
       ];
 
-      const sequences = await detectRepeatedSequences('ws-1');
+      const sequences = await detectRepeatedSequences('ws-1', { select: mockSelect } as any);
 
       // Malformed JSON → steps = [] → filtered out (length < 2)
       expect(sequences).toHaveLength(1);

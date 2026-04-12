@@ -11,10 +11,9 @@ const mockWhere = mock(() => Promise.resolve(mockRows));
 const mockFrom = mock(() => ({ where: mockWhere }));
 const mockSelect = mock(() => ({ from: mockFrom }));
 
-mock.module('../../../../infra/db/client', () => ({
-  db: { select: mockSelect },
-}));
+const mockDb = { select: mockSelect } as any;
 
+mock.module('../../../../infra/db/client', () => ({ db: {} }));
 mock.module('../../../../infra/db/schema', () => ({
   skillPerformanceMetrics: {
     workspaceId: 'workspace_id',
@@ -46,6 +45,11 @@ describe('analyzeSkillWeights', () => {
     mockWhere.mockClear();
     mockFrom.mockClear();
     mockSelect.mockClear();
+
+    // Re-apply implementations — mockClear only resets call history, not behavior
+    mockWhere.mockImplementation(() => Promise.resolve(mockRows));
+    mockFrom.mockImplementation(() => ({ where: mockWhere }));
+    mockSelect.mockImplementation(() => ({ from: mockFrom }));
   });
 
   it('produces a skill_weight proposal when failure rate > 30%', async () => {
@@ -60,7 +64,7 @@ describe('analyzeSkillWeights', () => {
       windowStart: recentWindow,
     }];
 
-    const proposals = await analyzeSkillWeights('ws-1');
+    const proposals = await analyzeSkillWeights('ws-1', mockDb);
 
     expect(proposals).toHaveLength(1);
     const p = proposals[0];
@@ -92,7 +96,7 @@ describe('analyzeSkillWeights', () => {
       windowStart: recentWindow,
     }];
 
-    const proposals = await analyzeSkillWeights('ws-1');
+    const proposals = await analyzeSkillWeights('ws-1', mockDb);
 
     expect(proposals).toEqual([]);
   });
@@ -109,7 +113,7 @@ describe('analyzeSkillWeights', () => {
       windowStart: recentWindow,
     }];
 
-    const proposals = await analyzeSkillWeights('ws-1');
+    const proposals = await analyzeSkillWeights('ws-1', mockDb);
 
     expect(proposals).toEqual([]);
   });

@@ -1,4 +1,8 @@
 DO $$ BEGIN
+  CREATE TYPE "public"."proposal_status" AS ENUM('pending', 'approved', 'rejected', 'rolled_back');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+--> statement-breakpoint
+DO $$ BEGIN
   CREATE TYPE "public"."plugin_event_type" AS ENUM('installed', 'enabled', 'disabled', 'config_updated', 'version_pinned', 'health_checked', 'uninstalled', 'rollback_initiated', 'rollback_completed');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
@@ -45,7 +49,7 @@ CREATE TABLE IF NOT EXISTS "improvement_proposals" (
 	"before_value" jsonb,
 	"after_value" jsonb,
 	"confidence" real DEFAULT 0.5 NOT NULL,
-	"status" text DEFAULT 'pending' NOT NULL,
+	"status" "proposal_status" DEFAULT 'pending' NOT NULL,
 	"rollback_data" jsonb,
 	"auto_applied_at" timestamp with time zone,
 	"approved_at" timestamp with time zone,

@@ -14,11 +14,11 @@ import type { ImprovementProposal } from './skill-weight-analyzer';
 const REJECTION_RATE_THRESHOLD = 0.5; // >50% rejections → raise threshold
 const MIN_EVENTS = 5;
 
-export async function analyzeMemoryQuality(workspaceId: string): Promise<ImprovementProposal[]> {
+export async function analyzeMemoryQuality(workspaceId: string, dbClient = db): Promise<ImprovementProposal[]> {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7-day window for memory
 
   const [approvedRows, rejectedRows] = await Promise.all([
-    db
+    dbClient
       .select({ count: sql<number>`count(*)::int` })
       .from(learningObservations)
       .where(and(
@@ -26,7 +26,7 @@ export async function analyzeMemoryQuality(workspaceId: string): Promise<Improve
         eq(learningObservations.observationType, 'memory_approved'),
         gte(learningObservations.createdAt, since),
       )),
-    db
+    dbClient
       .select({ count: sql<number>`count(*)::int` })
       .from(learningObservations)
       .where(and(

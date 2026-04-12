@@ -28,11 +28,11 @@ interface SkillSequence {
  * Detect repeated skill sequences from the learning_observations payload.
  * Skill sequences are recorded as 'skill_sequence' observations by the task observer.
  */
-export async function detectRepeatedSequences(workspaceId: string): Promise<SkillSequence[]> {
+export async function detectRepeatedSequences(workspaceId: string, dbClient = db): Promise<SkillSequence[]> {
   const since = new Date(Date.now() - SEQUENCE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
   // Query sequences recorded as 'skill_sequence' type observations
-  const rows = await db
+  const rows = await dbClient
     .select({
       sequence: sql<string>`payload->>'sequence'`,
       count: sql<number>`count(*)::int`,

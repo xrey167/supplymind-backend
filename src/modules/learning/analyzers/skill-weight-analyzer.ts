@@ -24,10 +24,10 @@ export interface ImprovementProposal {
 const FAILURE_RATE_THRESHOLD = 0.3; // 30%
 const MIN_INVOCATIONS = 5; // need at least 5 calls before judging
 
-export async function analyzeSkillWeights(workspaceId: string): Promise<ImprovementProposal[]> {
+export async function analyzeSkillWeights(workspaceId: string, dbClient = db): Promise<ImprovementProposal[]> {
   const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  const metrics = await db
+  const metrics = await dbClient
     .select()
     .from(skillPerformanceMetrics)
     .where(

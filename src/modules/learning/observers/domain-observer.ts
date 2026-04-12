@@ -18,7 +18,7 @@ export function _resetDomainObserver() {
   registered = false;
 }
 
-export function initDomainObserver(bus = eventBus) {
+export function initDomainObserver(bus = eventBus, dbClient = db) {
   if (registered) return;
   registered = true;
 
@@ -33,7 +33,7 @@ export function initDomainObserver(bus = eventBus) {
     if (!data.workspaceId) return;
 
     try {
-      await db.insert(learningObservations).values({
+      await dbClient.insert(learningObservations).values({
         workspaceId: data.workspaceId,
         pluginId: data.pluginId ?? null,
         observationType: 'domain_knowledge_update',

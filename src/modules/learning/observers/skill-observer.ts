@@ -19,7 +19,7 @@ export function _resetSkillObserver() {
   registered = false;
 }
 
-export function initSkillObserver(bus = eventBus) {
+export function initSkillObserver(bus = eventBus, dbClient = db) {
   if (registered) return;
   registered = true;
 
@@ -37,7 +37,7 @@ export function initSkillObserver(bus = eventBus) {
 
     try {
       // Write raw observation
-      await db.insert(learningObservations).values({
+      await dbClient.insert(learningObservations).values({
         workspaceId: data.workspaceId,
         pluginId: data.pluginId ?? null,
         observationType: data.success === false ? 'skill_failure' : 'skill_success',
@@ -55,7 +55,7 @@ export function initSkillObserver(bus = eventBus) {
       const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const windowEnd = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-      const existing = await db
+      const existing = await dbClient
         .select()
         .from(skillPerformanceMetrics)
         .where(and(
@@ -75,7 +75,7 @@ export function initSkillObserver(bus = eventBus) {
           ? (prevAvg * row.invocationCount + data.durationMs) / newCount
           : prevAvg;
 
-        await db
+        await dbClient
           .update(skillPerformanceMetrics)
           .set({
             invocationCount: newCount,
@@ -86,7 +86,7 @@ export function initSkillObserver(bus = eventBus) {
           })
           .where(eq(skillPerformanceMetrics.id, row.id));
       } else {
-        await db.insert(skillPerformanceMetrics).values({
+        await dbClient.insert(skillPerformanceMetrics).values({
           workspaceId: data.workspaceId,
           skillId: data.name,
           pluginId: data.pluginId ?? null,

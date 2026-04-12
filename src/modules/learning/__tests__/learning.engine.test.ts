@@ -46,6 +46,7 @@ const mockAnalyzeMemoryQuality = mock(async (_wsId: string) => [memoryProposal])
 
 mock.module('../analyzers/skill-weight-analyzer', () => ({
   analyzeSkillWeights: mockAnalyzeSkillWeights,
+  ImprovementProposal: {},
 }));
 
 mock.module('../analyzers/routing-analyzer', () => ({
@@ -107,16 +108,19 @@ mock.module('../../feature-flags/feature-flags.service', () => ({
 mock.module('../generators/skill-generator', () => ({
   detectSkillGaps: mock(async () => []),
   generateSkillForGap: mock(async () => null),
+  testAndRegisterGeneratedSkill: mock(async () => undefined),
 }));
 
 mock.module('../generators/prompt-optimizer', () => ({
   findUnderperformingAgents: mock(async () => []),
   generatePromptVariant: mock(async () => null),
+  applyPromptUpdate: mock(async () => undefined),
 }));
 
 mock.module('../generators/workflow-generator', () => ({
   detectRepeatedSequences: mock(async () => []),
-  proposeWorkflowTemplate: mock(() => null),
+  proposeWorkflowTemplate: mock(() => ({})),
+  applyWorkflowTemplate: mock(async () => undefined),
 }));
 
 // --- DB + events mock (used by runCycle for workspace listing) ---
@@ -132,14 +136,7 @@ mock.module('../../../infra/db/client', () => ({
 const mockPublish = mock(async () => undefined);
 mock.module('../../../events/bus', () => ({
   eventBus: { publish: mockPublish },
-}));
-
-mock.module('../../../events/topics', () => ({
-  Topics: {
-    LEARNING_PROPOSAL_CREATED: 'learning.proposal.created',
-    LEARNING_PROPOSAL_APPLIED: 'learning.proposal.applied',
-    ADAPTATION_AGENT_CYCLE_COMPLETED: 'learning.adaptation_agent.cycle_completed',
-  },
+  EventBus: class { subscribe() { return 'sub'; } },
 }));
 
 mock.module('../../../config/logger', () => ({

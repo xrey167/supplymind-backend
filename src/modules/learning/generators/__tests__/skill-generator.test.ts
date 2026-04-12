@@ -10,13 +10,10 @@ const mockWhere = mock(() => ({ groupBy: mockGroupBy }));
 const mockFrom = mock(() => ({ where: mockWhere }));
 const mockSelect = mock(() => ({ from: mockFrom }));
 
-mock.module('../../../../infra/db/client', () => ({
-  db: { select: mockSelect },
-}));
-
 // ---------------------------------------------------------------------------
 // Schema mock — just needs to export the symbol
 // ---------------------------------------------------------------------------
+mock.module('../../../../infra/db/client', () => ({ db: {} }));
 mock.module('../../../../infra/db/schema', () => ({
   learningObservations: Symbol('learningObservations'),
 }));
@@ -108,6 +105,11 @@ describe('skill-generator', () => {
     mockWhere.mockClear();
     mockFrom.mockClear();
     mockSelect.mockClear();
+
+    mockGroupBy.mockImplementation(() => Promise.resolve(dbRows));
+    mockWhere.mockImplementation(() => ({ groupBy: mockGroupBy }));
+    mockFrom.mockImplementation(() => ({ where: mockWhere }));
+    mockSelect.mockImplementation(() => ({ from: mockFrom }));
   });
 
   // -----------------------------------------------------------------------
@@ -120,7 +122,7 @@ describe('skill-generator', () => {
         { skillName: 'track_order', context: 'orders', count: 3 },
       ];
 
-      const gaps = await detectSkillGaps('ws-1');
+      const gaps = await detectSkillGaps('ws-1', { select: mockSelect } as any);
 
       expect(gaps).toHaveLength(2);
       expect(gaps[0]!.skillName).toBe('calculate_shipping_cost');
@@ -137,7 +139,7 @@ describe('skill-generator', () => {
         { skillName: 'once_skill', context: 'misc', count: 1 },
       ];
 
-      const gaps = await detectSkillGaps('ws-1');
+      const gaps = await detectSkillGaps('ws-1', { select: mockSelect } as any);
 
       expect(gaps).toHaveLength(1);
       expect(gaps[0]!.skillName).toBe('calculate_shipping_cost');
@@ -150,7 +152,7 @@ describe('skill-generator', () => {
         { skillName: 'valid_skill', context: 'shipping', count: 4 },
       ];
 
-      const gaps = await detectSkillGaps('ws-1');
+      const gaps = await detectSkillGaps('ws-1', { select: mockSelect } as any);
 
       // null and empty string are both falsy, only 'valid_skill' passes
       expect(gaps).toHaveLength(1);

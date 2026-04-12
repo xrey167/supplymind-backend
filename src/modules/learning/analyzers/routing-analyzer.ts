@@ -14,11 +14,11 @@ import type { ImprovementProposal } from './skill-weight-analyzer';
 
 const TASK_ERROR_THRESHOLD = 0.25; // >25% task error rate → suggest routing upgrade
 
-export async function analyzeRouting(workspaceId: string): Promise<ImprovementProposal[]> {
+export async function analyzeRouting(workspaceId: string, dbClient = db): Promise<ImprovementProposal[]> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   const [completedRows, errorRows] = await Promise.all([
-    db
+    dbClient
       .select({ count: sql<number>`count(*)::int` })
       .from(learningObservations)
       .where(and(
@@ -26,7 +26,7 @@ export async function analyzeRouting(workspaceId: string): Promise<ImprovementPr
         eq(learningObservations.observationType, 'task_completed'),
         gte(learningObservations.createdAt, since),
       )),
-    db
+    dbClient
       .select({ count: sql<number>`count(*)::int` })
       .from(learningObservations)
       .where(and(

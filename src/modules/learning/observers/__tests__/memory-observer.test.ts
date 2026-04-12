@@ -1,5 +1,22 @@
 import { describe, it, expect, beforeEach, mock, spyOn } from 'bun:test';
-import { EventBus, type BusEvent } from '../../../../events/bus';
+// Minimal EventBus stub — avoids importing the real bus module which
+// breaks under cross-file mock.module contamination in bun:test.
+interface BusEvent {
+  id: string;
+  topic: string;
+  data: unknown;
+  source: string;
+  timestamp: string;
+}
+
+class EventBus {
+  subscribe(
+    _pattern: string,
+    _handler: (event: BusEvent) => void | Promise<void>,
+  ): string {
+    return 'sub-stub';
+  }
+}
 import { Topics } from '../../../../events/topics';
 
 // --- mock db -----------------------------------------------------------------
@@ -9,7 +26,7 @@ const insertFn = mock(() => ({ values: valuesFn }));
 
 const fakeDb = { insert: insertFn };
 
-mock.module('../../../../infra/db/client', () => ({ db: fakeDb }));
+mock.module('../../../../infra/db/client', () => ({ db: {} }));
 mock.module('../../../../infra/db/schema', () => ({
   learningObservations: Symbol('learningObservations'),
   skillPerformanceMetrics: { id: 'id', workspaceId: 'workspaceId', skillId: 'skillId', windowStart: 'windowStart' },
@@ -23,7 +40,7 @@ const { initMemoryObserver, _resetMemoryObserver } = await import('../memory-obs
 // --- helpers -----------------------------------------------------------------
 function captureHandler(bus: EventBus, topic: string) {
   const subscribeSpy = spyOn(bus, 'subscribe');
-  initMemoryObserver(bus);
+  initMemoryObserver(bus, fakeDb as any);
   const call = subscribeSpy.mock.calls.find((c) => c[0] === topic);
   if (!call) throw new Error(`No subscription found for ${topic}`);
   return call[1] as (event: BusEvent) => Promise<void>;
@@ -51,7 +68,7 @@ describe('memory-observer', () => {
   it('subscribes to MEMORY_APPROVED and MEMORY_REJECTED', () => {
     const bus = new EventBus();
     const spy = spyOn(bus, 'subscribe');
-    initMemoryObserver(bus);
+    initMemoryObserver(bus, fakeDb as any);
     const topics = spy.mock.calls.map((c) => c[0]);
     expect(topics).toContain(Topics.MEMORY_APPROVED);
     expect(topics).toContain(Topics.MEMORY_REJECTED);
@@ -90,11 +107,13 @@ describe('memory-observer', () => {
       }),
     );
 
-    expect(insertFn).toHaveBeenCalled();
-    const values = valuesFn.mock.calls[0]![0] as Record<string, unknown>;
-    expect(values.observationType).toBe('memory_rejected');
-    expect(values.signalStrength).toBe(1.0);
-    expect(values.sourceTopic).toBe(Topics.MEMORY_REJECTED);
+    // Find the specific call — cross-file mock contamination can add extra calls
+    const values = valuesFn.mock.calls
+      .map((c) => c[0] as Record<string, unknown>)
+      .find((v) => v.observationType === 'memory_rejected');
+    expect(values).toBeDefined();
+    expect(values!.signalStrength).toBe(1.0);
+    expect(values!.sourceTopic).toBe(Topics.MEMORY_REJECTED);
   });
 
   it('skips insertion when workspaceId is missing (approved)', async () => {

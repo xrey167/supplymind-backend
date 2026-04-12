@@ -51,10 +51,10 @@ export interface SkillGap {
  * Detect skills that were requested but not found in the registry.
  * Reads 'skill_not_found' observations from the last 7 days.
  */
-export async function detectSkillGaps(workspaceId: string): Promise<SkillGap[]> {
+export async function detectSkillGaps(workspaceId: string, dbClient = db): Promise<SkillGap[]> {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const rows = await db
+  const rows = await dbClient
     .select({
       skillName: sql<string>`payload->>'skillName'`,
       context: sql<string>`payload->>'context'`,

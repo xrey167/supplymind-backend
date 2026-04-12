@@ -16,13 +16,10 @@ const mockWhere = mock(() => ({ groupBy: mockGroupBy }));
 const mockFrom = mock(() => ({ where: mockWhere }));
 const mockSelect = mock(() => ({ from: mockFrom }));
 
-mock.module('../../../../infra/db/client', () => ({
-  db: { select: mockSelect },
-}));
-
 // ---------------------------------------------------------------------------
 // Schema mock
 // ---------------------------------------------------------------------------
+mock.module('../../../../infra/db/client', () => ({ db: {} }));
 mock.module('../../../../infra/db/schema', () => ({
   learningObservations: Symbol('learningObservations'),
 }));
@@ -92,6 +89,15 @@ describe('prompt-optimizer', () => {
     mockWhere.mockClear();
     mockFrom.mockClear();
     mockSelect.mockClear();
+
+    mockGroupBy.mockImplementation(() => {
+      selectCallCount++;
+      if (selectCallCount === 1) return Promise.resolve(completedRows);
+      return Promise.resolve(errorRows);
+    });
+    mockWhere.mockImplementation(() => ({ groupBy: mockGroupBy }));
+    mockFrom.mockImplementation(() => ({ where: mockWhere }));
+    mockSelect.mockImplementation(() => ({ from: mockFrom }));
   });
 
   // -----------------------------------------------------------------------
@@ -108,7 +114,7 @@ describe('prompt-optimizer', () => {
         { agentId: 'agent-2', count: 4 },
       ];
 
-      const results = await findUnderperformingAgents('ws-1');
+      const results = await findUnderperformingAgents('ws-1', { select: mockSelect } as any);
 
       // agent-1: 20 total, 12 completed, 8 errors → rate = 12/20 = 0.6 → below 0.8
       // agent-2: 10 total, 6 completed, 4 errors → rate = 6/10 = 0.6 → below 0.8
@@ -129,7 +135,7 @@ describe('prompt-optimizer', () => {
         { agentId: 'agent-small', count: 3 },
       ];
 
-      const results = await findUnderperformingAgents('ws-1');
+      const results = await findUnderperformingAgents('ws-1', { select: mockSelect } as any);
 
       // agent-small: 6 total → filtered out (< 10)
       expect(results).toHaveLength(1);
@@ -146,7 +152,7 @@ describe('prompt-optimizer', () => {
         { agentId: 'bad-agent', count: 10 },
       ];
 
-      const results = await findUnderperformingAgents('ws-1');
+      const results = await findUnderperformingAgents('ws-1', { select: mockSelect } as any);
 
       // good-agent: 20 total, rate = 18/20 = 0.9 → above threshold, filtered
       // bad-agent:  15 total, rate = 5/15 = 0.333 → below threshold
