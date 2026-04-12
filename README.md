@@ -96,23 +96,32 @@ bun run infra:logs      # tail Docker container logs
 │Builtin ││Fallbk ││  ator   ││Auto-  ││Compaction  ││ Gates    ││            │
 │MCP/Ext ││ Chain ││         ││Extract││  Ranker    ││ Retry    ││            │
 └───┬────┘└───┬───┘└────┬────┘└───┬───┘└──────┬─────┘└────┬─────┘└─────┬──────┘
-    └─────────┴─────────┴─────────┴───────────┴───────────┴────────────┘
+    │         │         │         │            │           │            │
+┌───▼────┐┌───▼───┐┌────▼────┐┌───▼─────┐┌────▼─────┐┌────▼─────┐┌────▼──────┐
+│EXECUT- ││PLUGIN ││ BILLING ││  USAGE  ││  NOTIFS  ││ MEMBERS ││ CREDENTIALS│
+│  ION   ││PLATFRM││         ││         ││          ││         ││           │
+│Intent  ││Catalog││ Stripe  ││ Per-call ││ Novu    ││ Invite  ││ Encrypted │
+│ Gate   ││Install││Checkout ││ Tracking ││ Resend  ││ Roles   ││ Store     │
+│Coord-  ││Health ││Subscr.  ││ Cost    ││ In-app  ││ RBAC    ││ Plugin    │
+│ inator ││ Sync  ││ Quotas  ││ Compute ││ Email   ││         ││ Bindings  │
+└───┬────┘└───┬───┘└────┬────┘└────┬────┘└────┬────┘└────┬────┘└─────┬─────┘
+    └─────────┴─────────┴──────────┴──────────┴──────────┴───────────┘
                                   │
     ╔═════════════════════════════▼════════════════════════════════════════╗
     ║                       INFRASTRUCTURE                                ║
     ║                                                                     ║
     ║  ┌─ Data ──────────┐  ┌─ AI ──────────────┐  ┌─ Messaging ───────┐ ║
     ║  │ Drizzle ORM     │  │ Anthropic SDK     │  │ EventBus (50 topics)│║
-    ║  │ PostgreSQL      │  │ OpenAI SDK        │  │ Redis Pub/Sub     │ ║
-    ║  │ pgvector        │  │ Google GenAI SDK  │  │ BullMQ (5 queues) │ ║
+    ║  │ PostgreSQL (38) │  │ OpenAI SDK        │  │ Redis Pub/Sub     │ ║
+    ║  │ pgvector        │  │ Google GenAI SDK  │  │ BullMQ (7 queues) │ ║
     ║  └─────────────────┘  └───────────────────┘  └───────────────────┘ ║
     ║                                                                     ║
     ║  ┌─ Auth & Security─┐  ┌─ Delivery ──────┐  ┌─ Observability ───┐ ║
     ║  │ Clerk Auth       │  │ Webhooks (Svix) │  │ OpenTelemetry    │ ║
     ║  │ API Keys (RBAC)  │  │ Batch Uploader  │  │ Sentry           │ ║
     ║  │ Rate Limiter     │  │ SSE + Sequence  │  │ Pino Logging     │ ║
-    ║  └─────────────────┘  │ Email (Resend)  │  │ Feature Flags    │ ║
-    ║                       │ Novu Notifs     │  └──────────────────┘ ║
+    ║  │ Stripe Billing   │  │ Email (Resend)  │  │ Feature Flags    │ ║
+    ║  └─────────────────┘  │ Novu Notifs     │  └──────────────────┘ ║
     ║                       └────────────────┘                        ║
     ╚═════════════════════════════╤════════════════════════════════════════╝
                                   │
@@ -122,6 +131,7 @@ bun run infra:logs      # tail Docker container logs
     │  Domain Event Strategies  ·  buildTool() factory  ·  Lifecycle Hooks │
     │  Scoped Config Store      ·  Tool Search / Defer  ·  Permission Ext. │
     │  Plugin Manifests         ·  Skill Providers      ·  Hook Registry   │
+    │  Health Checks            ·  Sync Workers         ·  ERP Connectors  │
     └──────────────────────────────────────────────────────────────────────┘
 ```
 
