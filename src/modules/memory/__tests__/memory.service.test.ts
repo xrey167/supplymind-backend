@@ -39,8 +39,12 @@ const repoMocks = {
   get: mock(async (_id: string) => mockMemory),
   createProposal: mock(async () => mockProposal),
   getProposal: mock(async () => mockProposal),
+  getProposalWithWorkspaceCheck: mock(async () => mockProposal),
   approveProposal: mock(async () => mockMemory),
   rejectProposal: mock(async () => undefined),
+  listProposals: mock(async () => [mockProposal]),
+  updateProposalStatus: mock(async () => undefined),
+  deleteMemoryByProposalId: mock(async () => true),
 };
 
 const eventMocks = {
@@ -48,6 +52,7 @@ const eventMocks = {
   emitMemoryProposal: mock(() => undefined),
   emitMemoryApproved: mock(() => undefined),
   emitMemoryRejected: mock(() => undefined),
+  emitMemoryRolledBack: mock(() => undefined),
 };
 
 mock.module('../memory.events', () => eventMocks);
@@ -396,13 +401,15 @@ describe('memoryService', () => {
   describe('approveProposal()', () => {
     beforeEach(() => {
       resetMocks();
+      repoMocks.getProposalWithWorkspaceCheck.mockImplementation(async () => mockProposal);
       repoMocks.approveProposal.mockImplementation(async () => mockMemory);
     });
 
     test('should approve proposal via repo and return the resulting memory', async () => {
       const svc = makeService();
-      const result = await svc.approveProposal('prop-1');
+      const result = await svc.approveProposal('prop-1', 'ws-1');
 
+      expect(repoMocks.getProposalWithWorkspaceCheck).toHaveBeenCalledWith('prop-1', 'ws-1');
       expect(repoMocks.approveProposal).toHaveBeenCalledTimes(1);
       expect(repoMocks.approveProposal).toHaveBeenCalledWith('prop-1');
       expect(result).toEqual(mockMemory);
@@ -410,51 +417,57 @@ describe('memoryService', () => {
 
     test('should emit MemoryApproved event with correct ids', async () => {
       const svc = makeService();
-      await svc.approveProposal('prop-1');
+      await svc.approveProposal('prop-1', 'ws-1');
 
       expect(eventMocks.emitMemoryApproved).toHaveBeenCalledTimes(1);
       expect(eventMocks.emitMemoryApproved).toHaveBeenCalledWith(mockMemory.id, 'prop-1', mockMemory.workspaceId);
+    });
+
+    test('should throw when proposal not found in workspace', async () => {
+      repoMocks.getProposalWithWorkspaceCheck.mockImplementation(async () => undefined);
+      const svc = makeService();
+      await expect(svc.approveProposal('prop-1', 'ws-wrong')).rejects.toThrow('Proposal not found: prop-1');
     });
   });
 
   describe('rejectProposal()', () => {
     beforeEach(() => {
       resetMocks();
-      repoMocks.getProposal.mockImplementation(async () => mockProposal);
+      repoMocks.getProposalWithWorkspaceCheck.mockImplementation(async () => mockProposal);
       repoMocks.rejectProposal.mockImplementation(async () => undefined);
     });
 
     test('should reject proposal via repo and emit event', async () => {
       const svc = makeService();
-      await svc.rejectProposal('prop-1', 'Not accurate');
+      await svc.rejectProposal('prop-1', 'ws-1', 'Not accurate');
 
-      expect(repoMocks.getProposal).toHaveBeenCalledWith('prop-1');
+      expect(repoMocks.getProposalWithWorkspaceCheck).toHaveBeenCalledWith('prop-1', 'ws-1');
       expect(repoMocks.rejectProposal).toHaveBeenCalledWith('prop-1', 'Not accurate');
       expect(eventMocks.emitMemoryRejected).toHaveBeenCalledTimes(1);
-      expect(eventMocks.emitMemoryRejected).toHaveBeenCalledWith('prop-1', mockProposal.workspaceId, 'Not accurate');
+      expect(eventMocks.emitMemoryRejected).toHaveBeenCalledWith('prop-1', 'ws-1', 'Not accurate');
     });
 
     test('should work without a rejection reason', async () => {
       const svc = makeService();
-      await svc.rejectProposal('prop-1');
+      await svc.rejectProposal('prop-1', 'ws-1');
 
       expect(repoMocks.rejectProposal).toHaveBeenCalledWith('prop-1', undefined);
-      expect(eventMocks.emitMemoryRejected).toHaveBeenCalledWith('prop-1', mockProposal.workspaceId, undefined);
+      expect(eventMocks.emitMemoryRejected).toHaveBeenCalledWith('prop-1', 'ws-1', undefined);
     });
 
     test('should throw when proposal does not exist', async () => {
-      repoMocks.getProposal.mockImplementation(async () => undefined as any);
+      repoMocks.getProposalWithWorkspaceCheck.mockImplementation(async () => undefined);
 
       const svc = makeService();
-      await expect(svc.rejectProposal('prop-missing')).rejects.toThrow('Proposal not found: prop-missing');
+      await expect(svc.rejectProposal('prop-missing', 'ws-1')).rejects.toThrow('Proposal not found: prop-missing');
     });
 
     test('should not call rejectProposal on repo when proposal is not found', async () => {
-      repoMocks.getProposal.mockImplementation(async () => undefined as any);
+      repoMocks.getProposalWithWorkspaceCheck.mockImplementation(async () => undefined);
 
       const svc = makeService();
       try {
-        await svc.rejectProposal('prop-missing');
+        await svc.rejectProposal('prop-missing', 'ws-1');
       } catch {
         // expected
       }

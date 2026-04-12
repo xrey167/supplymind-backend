@@ -10,6 +10,7 @@ import { initDomainExtractionHandler } from '../../modules/domain-knowledge/doma
 import { initSkillObserver } from '../../modules/learning/observers/skill-observer';
 import { initMemoryObserver } from '../../modules/learning/observers/memory-observer';
 import { initTaskObserver } from '../../modules/learning/observers/task-observer';
+import { initDomainObserver } from '../../modules/learning/observers/domain-observer';
 
 export function initEventConsumers() {
   initMemoryExtractionHandler();
@@ -17,6 +18,7 @@ export function initEventConsumers() {
   initSkillObserver();
   initMemoryObserver();
   initTaskObserver();
+  initDomainObserver();
   initNotificationHandler();
   initAuditLogHandler();
   eventBus.subscribe(Topics.SKILL_INVOKED, (event) => {

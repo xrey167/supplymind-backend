@@ -105,6 +105,11 @@ export class TrustTierService {
     if (!key) return false;
     return config.autoApply[key] ?? false;
   }
+
+  async setTier(workspaceId: string, tier: TrustTier): Promise<void> {
+    const { workspaceSettingsService } = await import('../settings/workspace-settings/workspace-settings.service');
+    await workspaceSettingsService.set(workspaceId, WorkspaceSettingKeys.LEARNING_TRUST_TIER, tier);
+  }
 }
 
 export const trustTierService = new TrustTierService();

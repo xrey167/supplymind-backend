@@ -125,7 +125,7 @@ export const sessionStatusEnum = pgEnum('session_status', ['created', 'active', 
 export const messageRoleEnum = pgEnum('message_role', ['user', 'assistant', 'system', 'tool']);
 export const memoryTypeEnum = pgEnum('memory_type', ['domain', 'feedback', 'pattern', 'reference']);
 export const memorySourceEnum = pgEnum('memory_source', ['explicit', 'proposed', 'approved']);
-export const proposalStatusEnum = pgEnum('proposal_status', ['pending', 'approved', 'rejected']);
+export const proposalStatusEnum = pgEnum('proposal_status', ['pending', 'approved', 'rejected', 'rolled_back']);
 export const orchestrationStatusEnum = pgEnum('orchestration_status', ['submitted', 'running', 'paused', 'completed', 'failed', 'cancelled']);
 export const workspaceRoleEnum = pgEnum('workspace_role', ['owner', 'admin', 'member', 'viewer']);
 

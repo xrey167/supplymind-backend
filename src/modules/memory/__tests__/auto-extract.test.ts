@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { extractFacts, type ExtractedFact } from '../auto-extract';
+import { extractFacts, detectConflict, type ExtractedFact } from '../auto-extract';
 
 const entry = (role: 'user' | 'assistant', content: string) => ({
   id: 'e1',
@@ -43,5 +43,56 @@ describe('extractFacts', () => {
       entry('user', 'I prefer dark mode'),
     ]);
     expect(facts.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('ignores assistant-role messages', () => {
+    const facts = extractFacts([
+      entry('assistant', 'My name is Bot'),
+    ]);
+    expect(facts.length).toBe(0);
+  });
+
+  it('extracts UI preference (dark mode)', () => {
+    const facts = extractFacts([entry('user', 'I prefer dark mode')]);
+    expect(facts.some(f => f.key === 'ui_preference' && f.value === 'dark_mode')).toBe(true);
+  });
+});
+
+describe('detectConflict', () => {
+  it('returns false when stored value is null', () => {
+    expect(detectConflict(null, 'new')).toBe(false);
+  });
+
+  it('returns false when stored value is undefined', () => {
+    expect(detectConflict(undefined, 'new')).toBe(false);
+  });
+
+  it('returns false when new value is null', () => {
+    expect(detectConflict('old', null)).toBe(false);
+  });
+
+  it('returns false when new value is undefined', () => {
+    expect(detectConflict('old', undefined)).toBe(false);
+  });
+
+  it('returns false when values match (same case)', () => {
+    expect(detectConflict('Alice', 'Alice')).toBe(false);
+  });
+
+  it('returns false when values match (case-insensitive)', () => {
+    expect(detectConflict('alice', 'ALICE')).toBe(false);
+  });
+
+  it('returns true when values differ', () => {
+    expect(detectConflict('Alice', 'Bob')).toBe(true);
+  });
+
+  it('handles numeric values via string coercion', () => {
+    expect(detectConflict(42, 42)).toBe(false);
+    expect(detectConflict(42, 99)).toBe(true);
+  });
+
+  it('returns false when both values are null', () => {
+    expect(detectConflict(null, null)).toBe(false);
   });
 });

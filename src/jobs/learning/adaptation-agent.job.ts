@@ -10,7 +10,7 @@ import { Worker, type Job } from 'bullmq';
 import { adaptationAgentQueue, redis as connection } from '../../infra/queue/bullmq';
 import { db } from '../../infra/db/client';
 import { adaptationAgents } from '../../infra/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { learningEngine } from '../../modules/learning/learning.engine';
 import { logger } from '../../config/logger';
 
@@ -66,10 +66,7 @@ export function createAdaptationAgentWorker(): Worker<AdaptationAgentJobData> {
         .update(adaptationAgents)
         .set({
           lastCycleAt: new Date(),
-          cycleCount: db.$count(adaptationAgents, and(
-            eq(adaptationAgents.workspaceId, workspaceId),
-            eq(adaptationAgents.pluginId, pluginId),
-          )) as any, // increment via raw SQL in next iteration
+          cycleCount: sql`${adaptationAgents.cycleCount} + 1`,
         })
         .where(and(
           eq(adaptationAgents.workspaceId, workspaceId),

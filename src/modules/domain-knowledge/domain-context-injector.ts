@@ -36,8 +36,19 @@ function simpleSimilarity(text: string, terms: string[]): number {
 export async function buildDomainContext(
   workspaceId: string,
   promptText: string,
-  tokenBudget = DEFAULT_CONTEXT_TOKEN_BUDGET,
+  tokenBudget?: number,
 ): Promise<string> {
+  if (tokenBudget === undefined) {
+    try {
+      const { workspaceSettingsService } = await import('../settings/workspace-settings/workspace-settings.service');
+      const { WorkspaceSettingKeys: K } = await import('../settings/workspace-settings/workspace-settings.schemas');
+      const raw = await workspaceSettingsService.getRaw(workspaceId, K.LEARNING_DOMAIN_CONTEXT_BUDGET);
+      tokenBudget = typeof raw === 'number' ? raw : DEFAULT_CONTEXT_TOKEN_BUDGET;
+    } catch {
+      tokenBudget = DEFAULT_CONTEXT_TOKEN_BUDGET;
+    }
+  }
+
   const cacheKey = `${workspaceId}:${simpleHash(promptText)}`;
   const cached = cache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {

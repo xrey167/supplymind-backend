@@ -9,7 +9,7 @@
 
 import { db } from '../../infra/db/client';
 import { improvementProposals } from '../../infra/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and, gte } from 'drizzle-orm';
 import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
 import { logger } from '../../config/logger';
@@ -263,9 +263,57 @@ export class ImprovementPipeline {
         }
         break;
       }
+      case 'memory_threshold': {
+        const before = proposal.rollbackData as { minConfidence: number } | null;
+        if (before) {
+          const { workspaceSettingsService } = await import('../settings/workspace-settings/workspace-settings.service');
+          const { WorkspaceSettingKeys: K } = await import('../settings/workspace-settings/workspace-settings.schemas');
+          await workspaceSettingsService.set(proposal.workspaceId, K.LEARNING_MEMORY_EXTRACTION_THRESHOLD, before.minConfidence);
+        }
+        break;
+      }
+      case 'new_skill': {
+        const before = proposal.rollbackData as { skillName: string } | null;
+        if (before?.skillName) {
+          const { skillRegistry } = await import('../skills/skills.registry');
+          skillRegistry.unregister(before.skillName);
+        }
+        break;
+      }
+      case 'prompt_update': {
+        const before = proposal.rollbackData as { agentId: string; fullPrompt: string } | null;
+        if (before?.agentId && before.fullPrompt) {
+          const { applyPromptUpdate } = await import('./generators/prompt-optimizer');
+          await applyPromptUpdate(proposal.workspaceId, before.agentId, before.fullPrompt);
+        }
+        break;
+      }
+      case 'workflow_template': {
+        logger.info({ proposalId: proposal.id }, 'Workflow template rollback — manual cleanup needed');
+        break;
+      }
       default:
+        // routing_rule — manual review only
         break;
     }
+  }
+
+  async getById(proposalId: string): Promise<ProposalRow | null> {
+    const rows = await db.select().from(improvementProposals)
+      .where(eq(improvementProposals.id, proposalId)).limit(1);
+    return rows[0] ?? null;
+  }
+
+  async listFiltered(
+    workspaceId: string,
+    filters?: { status?: string; proposalType?: string; since?: Date },
+  ): Promise<ProposalRow[]> {
+    const conditions: any[] = [eq(improvementProposals.workspaceId, workspaceId)];
+    if (filters?.status) conditions.push(eq(improvementProposals.status, filters.status as any));
+    if (filters?.proposalType) conditions.push(eq(improvementProposals.proposalType, filters.proposalType));
+    if (filters?.since) conditions.push(gte(improvementProposals.createdAt, filters.since));
+    return db.select().from(improvementProposals)
+      .where(and(...conditions)).orderBy(improvementProposals.createdAt) as unknown as Promise<ProposalRow[]>;
   }
 }
 
