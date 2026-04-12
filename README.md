@@ -3,17 +3,29 @@
 Multi-tenant API server for AI-powered supply chain management. Built on **Hono + Bun** with a multi-protocol agent runtime that supports MCP, A2A, WebSocket, SSE, and programmatic access through a unified gateway.
 
 ```
-bun run dev       # start dev server (port 3001)
-bun run build     # build to dist/
-bun run test      # run tests (bun:test)
-bun run db:push   # push schema (dev only)
-bun run db:migrate # run migrations
-bun run seed      # seed database
+bun run dev             # start dev server (port 3001, watch mode)
+bun run build           # build to dist/
+bun run start           # start built server
+bun run test            # unit tests (bun:test)
+bun run test:integration # integration tests (needs DB + Redis)
+bun run test:e2e        # e2e tests (needs DB + Redis)
+bun run db:setup        # migrate dev + test DBs and seed (run after fresh clone)
+bun run db:generate     # generate Drizzle migration from schema changes
+bun run db:migrate      # apply migrations to dev DB
+bun run db:migrate:test # apply migrations to test DB
+bun run db:push         # push schema directly (dev only, no migration file)
+bun run db:studio       # Drizzle Studio GUI
+bun run seed            # seed dev database
+bun run create-admin    # create an admin user
+bun run infra:up        # start Docker containers (PostgreSQL + Redis)
+bun run infra:down      # stop Docker containers
+bun run infra:logs      # tail Docker container logs
 ```
 
 ## Table of Contents
 
 - [Architecture Overview](#architecture-overview)
+- [Source Layout](#source-layout)
 - [Unified Gateway](#unified-gateway)
 - [Protocol Surfaces](#protocol-surfaces)
   - [WebSocket](#websocket)
@@ -24,11 +36,15 @@ bun run seed      # seed database
 - [Computer Use Protocol](#computer-use-protocol)
 - [AI Providers](#ai-providers)
 - [Skills System](#skills-system)
+- [Plugin Platform](#plugin-platform)
 - [Orchestration Engine](#orchestration-engine)
+- [Execution Engine](#execution-engine)
 - [Memory System](#memory-system)
 - [Context Management](#context-management)
 - [Feature Flags](#feature-flags)
 - [Usage Tracking](#usage-tracking)
+- [Billing](#billing)
+- [Notifications and Email](#notifications-and-email)
 - [Event System](#event-system)
 - [Background Jobs](#background-jobs)
 - [Security](#security)
@@ -37,6 +53,7 @@ bun run seed      # seed database
 - [Configuration](#configuration)
 - [SSE Resumption](#sse-resumption)
 - [API Routes](#api-routes)
+- [Conventions](#conventions)
 
 ---
 
@@ -111,6 +128,66 @@ bun run seed      # seed database
 Every protocol surface — WebSocket messages, A2A JSON-RPC calls, MCP tool invocations, SSE streams, and programmatic `GatewayClient` calls — converges into a single `execute(op, params, context)` function. This means adding a new protocol is just writing a thin adapter that maps its wire format to a `GatewayOp`.
 
 The base layer is fully domain-agnostic. Domain modules plug in at the bottom via strategies, hooks, tools, and permission layers — no domain-specific code lives in `src/core/`, `src/infra/`, or `src/events/`. Shared kernel types (including `AppEnv` for Hono context, branded IDs, and Result types) live in `src/core/types/`.
+
+---
+
+## Source Layout
+
+```
+src/
+  api/              Routes, middlewares, presenters (HTTP layer)
+  app/              Bootstrap (createApp wires OpenAPIHono + subsystems)
+  config/           Environment config (Zod-validated)
+  contracts/        Shared Zod v4 schemas (api, events, notifications, permissions)
+  core/             Shared kernel
+    errors/           Custom error classes
+    gateway/          Unified gateway + GatewayClient (ACP)
+    hooks/            Lifecycle hook registry
+    permissions/      Permission pipeline + sandbox
+    result/           Result<T,E> type (ok/err)
+    security/         RBAC, rate limiter, verification agent
+    tools/            Tool registry + deferred tool discovery
+    types/            AppEnv, branded IDs, shared type definitions
+    utils/            General utilities
+  engine/           Agent execution engine (runtime loop, tool dispatch)
+  events/           Domain event system (EventEmitter3, Redis pub/sub bridge)
+    consumers/        Event consumers
+    domain/           Domain event strategies
+    publishers/       Event publishers
+    schemas/          Event type schemas
+  infra/            External integrations
+    a2a/              A2A protocol (JSON-RPC, Agent Card)
+    ai/               AI providers (Anthropic, OpenAI, Google)
+    auth/             Clerk authentication
+    cache/            In-memory caching
+    db/               Drizzle ORM + PostgreSQL (schema, migrations)
+    mcp/              MCP server + client pool
+    notifications/    Novu push notifications
+    observability/    OpenTelemetry + Sentry
+    queue/            BullMQ + Redis (queues, workers, schedulers)
+    realtime/         WebSocket server
+    redis/            Redis client
+    state/            In-memory state (task inputs, tool approvals, orchestration gates)
+    storage/          File storage abstraction
+  jobs/             BullMQ job definitions (agents, orchestrations)
+  modules/          Domain modules (see below)
+  plugins/          Plugin system + domain plugin implementations
+  sdk/              Internal SDK abstractions
+```
+
+Each domain module in `src/modules/` follows this layout:
+
+```
+modules/<name>/
+  <name>.routes.ts     # OpenAPI route definitions + handlers
+  <name>.service.ts    # Business logic
+  <name>.repo.ts       # Database queries (Drizzle)
+  <name>.schemas.ts    # Zod validation schemas
+  <name>.mapper.ts     # DB row <-> domain object mapping
+  __tests__/           # Unit tests (bun:test)
+```
+
+**Modules:** agents, api-keys, collaboration, computer-use, context, credentials, execution, feature-flags, inbox, members, memory, mcp-servers, orchestration, plugins, prompts, sessions, settings, skills, tasks, tools, usage, users, workflows.
 
 ---
 
@@ -618,6 +695,61 @@ Skills loaded from: builtin provider → DB (`skill_definitions` table) → MCP 
 
 ---
 
+## Plugin Platform
+
+Extensible plugin system with a read-only catalog, per-workspace installations, health monitoring, event sourcing, and sync workers.
+
+**Plugin kinds:**
+
+| Kind | Description |
+|------|-------------|
+| `remote_mcp` | External MCP server |
+| `remote_a2a` | External A2A agent |
+| `webhook` | Webhook-based integration |
+| `local_sandboxed` | In-process sandboxed plugin |
+
+**Lifecycle state machine:**
+
+```
+installing → active ⇄ disabled
+               ↓          ↓
+          uninstalling ← ──┘
+               ↓
+          uninstalled
+```
+
+Every state transition writes an immutable `plugin_events` record (12 event types: `installed`, `enabled`, `disabled`, `config_updated`, `version_pinned`, `health_checked`, `uninstalled`, `rollback_initiated`, `rollback_completed`, etc.) with actor info, enabling full audit trail and rollback.
+
+**Plugin capabilities** (declared in manifest):
+
+`workspace:read`, `workspace:write`, `credentials:bind`, `agent:invoke`, `hitl:request`, `erp:read`, `erp:write`
+
+**Health checks:**
+
+Each installed plugin can declare a health check URL (HTTPS only, private IPs blocked). The `plugin-health` BullMQ queue runs checks on a repeatable schedule. Results are stored in `plugin_health_checks` with a 3-state model: `healthy`, `degraded`, `unreachable` (with latency tracking, 5s timeout).
+
+**Sync workers:**
+
+Plugins that sync external data (e.g., ERP connectors) use the `sync_jobs` / `sync_records` tables. Sync jobs support cursor-based incremental sync, per-entity-type scheduling, pagination (max 100 pages/run), and idempotent deduplication via SHA-256 payload hashes. Failed records go to a dead-letter state for manual retry.
+
+**Built-in plugin — ERP Business Central:**
+
+The `erp-bc` plugin (`src/plugins/erp-bc/`) provides an OData v4 connector for Microsoft Dynamics 365 Business Central. It registers 3 skills: `sync-now` (trigger sync), `get-entity` (read BC data), `post-action` (write to BC). Includes HITL gate for write operations.
+
+**API:**
+
+```
+GET    /api/v1/workspaces/:id/plugins/catalog       # browse available plugins
+POST   /api/v1/workspaces/:id/plugins/install        # install a plugin
+POST   /api/v1/workspaces/:id/plugins/:id/enable     # enable
+POST   /api/v1/workspaces/:id/plugins/:id/disable    # disable
+POST   /api/v1/workspaces/:id/plugins/:id/uninstall  # uninstall
+GET    /api/v1/workspaces/:id/plugins                # list installations
+GET    /api/v1/workspaces/:id/plugins/:id/health     # health check history
+```
+
+---
+
 ## Orchestration Engine
 
 Multi-step workflows with dependency resolution, concurrency control, and human-in-the-loop gates.
@@ -678,6 +810,28 @@ Multi-step workflows with dependency resolution, concurrency control, and human-
 - Template variables: `{{stepId.result}}` and `{{input.field}}` resolved at runtime
 - Error handling per step: `retry` (exponential backoff, max 30s), `skip` (continue), or `fail` (default — abort orchestration)
 - Deadlock detection: if pending steps exist but none are ready, fails with deadlock error
+
+---
+
+## Execution Engine
+
+The execution engine (`src/engine/`, `src/modules/execution/`) manages plan-based execution with safety gates.
+
+**Flow:**
+
+1. Execution plans are created with typed steps and a policy (auto-approve, require-approval, etc.)
+2. An **Intent Gate** classifies the intent (quick / deep / visual / ops) using rules + LLM — blocks critical operations or requests human approval
+3. Approved plans compile to `OrchestrationDefinition` and enqueue to the job queue
+4. The **Coordinator** orchestrates multi-phase workflows, dispatching parallel agent tasks with timeout support
+
+**Tables:**
+
+| Table | Purpose |
+|-------|---------|
+| `execution_plans` | Steps, policy, intent classification, status |
+| `execution_runs` | Per-plan execution attempts with orchestrationId linkage |
+
+Events published: `COORDINATOR_PHASE_CHANGED`, `COORDINATOR_PHASE_COMPLETED`.
 
 ---
 
@@ -808,6 +962,60 @@ Usage writes are fire-and-forget — DB failures do not propagate to the calling
 
 ---
 
+## Billing
+
+Stripe-based subscription billing with webhook-driven state sync.
+
+**Tables:**
+
+| Table | Purpose |
+|-------|---------|
+| `billing_customers` | Stripe customer ↔ workspace mapping |
+| `subscriptions` | Active subscription state (plan, status, period) |
+| `invoices` | Invoice records synced from Stripe webhooks |
+
+**API:**
+
+```
+POST /api/v1/workspaces/:id/billing/checkout     # create Stripe checkout session
+POST /api/v1/workspaces/:id/billing/portal        # create Stripe customer portal URL
+GET  /api/v1/workspaces/:id/billing/subscription  # current subscription
+GET  /api/v1/workspaces/:id/billing/invoices      # invoice history
+GET  /api/v1/workspaces/:id/billing/limits         # current usage limits
+```
+
+Events: `subscription_created`, `subscription_updated`, `subscription_canceled`, `invoice_paid`. Quota enforcement is controlled by the `billing.enforce-quota` and `billing.monthly-cost-limit-usd` feature flags.
+
+---
+
+## Notifications and Email
+
+**In-app notifications** (`src/modules/notifications/`):
+
+Notification flow: check user preferences → insert DB record → dispatch to channels → publish `NOTIFICATION_CREATED` event. Three channels: `in_app`, `websocket`, `email`. Per-user preferences allow muting and channel selection.
+
+| Table | Purpose |
+|-------|---------|
+| `notifications` | Notification records (type, read status, payload) |
+| `notification_preferences` | Per-user channel and muting settings |
+
+**Novu** (`src/infra/notifications/novu.ts`):
+
+Push notification provider for out-of-band alerts. Defined workflows:
+
+| Workflow ID | Trigger |
+|-------------|---------|
+| `agent-failure` | Agent execution fails |
+| `task-completed` | Task finishes successfully |
+| `api-key-created` | New API key generated |
+| `workspace-invitation` | User invited to workspace |
+
+**Email** (`src/modules/notifications/channels/email/`):
+
+Resend provider (`RESEND_API_KEY`). Sends from `noreply@supplymind.ai`. Used for workspace invitations and notification channel delivery.
+
+---
+
 ## Event System
 
 Custom EventBus with wildcard topic matching, dead letter queue, replay, and Redis pub/sub bridge for cross-service communication.
@@ -841,7 +1049,7 @@ Custom EventBus with wildcard topic matching, dead letter queue, replay, and Red
 
 ## Background Jobs
 
-BullMQ with 5 queues on Redis:
+BullMQ with 7 queues on Redis:
 
 | Queue | Schedule | Purpose |
 |-------|----------|---------|
@@ -850,6 +1058,8 @@ BullMQ with 5 queues on Redis:
 | `orchestration-run` | on-demand | Orchestration execution |
 | `cleanup` | `*/15 * * * *` | Stale task timeout (30min working, 60min submitted), expired sessions, expired API keys, expired invitations |
 | `sync` | `0 * * * *` | Agent registry refresh (re-fetch Agent Cards from all registered external agents) |
+| `plugin-health` | repeatable | Plugin health check worker — checks installed plugin health endpoints |
+| `erp-sync` | on-demand | ERP Business Central data sync (per-entity, paginated, incremental) |
 
 ---
 
@@ -931,29 +1141,56 @@ Pino-based structured JSON logging throughout. All log calls include contextual 
 
 ## Database Schema
 
-PostgreSQL via Drizzle ORM. 19 tables:
+PostgreSQL via Drizzle ORM. 38 tables:
 
 | Table | Purpose |
 |-------|---------|
-| `agent_configs` | AI agent configurations (provider, model, system prompt, tools) |
-| `skill_definitions` | Registered skills (builtin, MCP, plugin, etc.) |
-| `mcp_server_configs` | MCP server connection configs |
-| `a2a_tasks` | Task execution state and artifacts |
-| `task_dependencies` | Task dependency graph |
-| `tool_call_logs` | Tool execution audit trail |
-| `sessions` | Conversation sessions with `tokenCount` for compaction tracking |
-| `session_messages` | Message history; `isCompacted` + `tokenEstimate` for soft-archive compaction |
-| `agent_memories` | Agent knowledge base (with 1536-dim pgvector embeddings) |
-| `memory_proposals` | Pending memory proposals for human review |
-| `orchestrations` | Multi-step orchestration state |
+| **Core** | |
 | `workspaces` | Multi-tenant workspace isolation (soft-delete via `deletedAt`) |
 | `workspace_members` | Workspace membership and roles |
 | `workspace_settings` | Per-workspace key-value configuration (backing store for feature flags) |
 | `workspace_invitations` | Email-based workspace invites with hashed tokens and expiry |
 | `users` | Clerk-synced user records |
+| `user_settings` | Per-user preferences and settings |
 | `api_keys` | API key management (hashed, with prefix, role, expiry) |
-| `workflow_templates` | Reusable workflow definitions |
+| `credentials` | Encrypted credential store (plugin secret bindings) |
+| `audit_logs` | Request-level audit trail |
+| **Agents & Skills** | |
+| `agent_configs` | AI agent configurations (provider, model, system prompt, tools) |
+| `skill_definitions` | Registered skills (builtin, MCP, plugin, etc.) |
+| `mcp_server_configs` | MCP server connection configs |
 | `registered_agents` | External A2A agent registry |
+| **Tasks & Execution** | |
+| `a2a_tasks` | Task execution state and artifacts |
+| `task_dependencies` | Task dependency graph |
+| `tool_call_logs` | Tool execution audit trail |
+| `execution_plans` | Execution plan steps, policy, intent classification |
+| `execution_runs` | Per-plan execution attempts with orchestrationId linkage |
+| `orchestrations` | Multi-step orchestration state |
+| **Sessions & Memory** | |
+| `sessions` | Conversation sessions with `tokenCount` for compaction tracking |
+| `session_messages` | Message history; `isCompacted` + `tokenEstimate` for soft-archive compaction |
+| `agent_memories` | Agent knowledge base (with 1536-dim pgvector embeddings) |
+| `memory_proposals` | Pending memory proposals for human review |
+| `prompts` | Prompt templates |
+| **Plugins** | |
+| `plugin_catalog` | Read-only plugin registry (name, version, kind, capabilities, manifest) |
+| `plugin_installations` | Per-workspace plugin state (status, config, pinnedVersion) |
+| `plugin_events` | Immutable plugin lifecycle event log |
+| `plugin_health_checks` | Timestamped health check results (status, latencyMs) |
+| `sync_jobs` | Plugin data sync job state (entity type, cursor, schedule) |
+| `sync_records` | Individual synced records (payload hash for deduplication) |
+| **Billing** | |
+| `billing_customers` | Stripe customer ↔ workspace mapping |
+| `subscriptions` | Subscription state (plan, status, period) |
+| `invoices` | Invoice records synced from Stripe |
+| **Notifications** | |
+| `notifications` | Notification records (type, read status, payload) |
+| `notification_preferences` | Per-user channel and muting settings |
+| `inbox_items` | User inbox items |
+| **Usage & Workflows** | |
+| `usage_records` | AI call usage tracking (model, tokens, cost) |
+| `workflow_templates` | Reusable workflow definitions |
 
 ---
 
@@ -1018,6 +1255,12 @@ All require authentication + workspace membership + audit + rate limiting.
 | `/members` | Workspace membership: list, invite (email/link), revoke, update role, remove |
 | `/feature-flags` | Feature flag read + override (`GET` list, `PATCH` set) |
 | `/usage` | AI usage records + cost aggregation by model/agent/period |
+| `/billing` | Stripe checkout, portal, subscription, invoices, limits |
+| `/plugins` | Plugin catalog, install, enable/disable, health |
+| `/notifications` | Notification list, mark read |
+| `/inbox` | User inbox items |
+| `/credentials` | Credential management (plugin secret bindings) |
+| `/prompts` | Prompt template management |
 
 ### User routes (`/api/v1/users/...`)
 
@@ -1035,3 +1278,62 @@ All require authentication + workspace membership + audit + rate limiting.
 | `POST/DELETE` | `/mcp` | MCP Streamable HTTP |
 | `GET` | `/healthz` | Liveness probe |
 | `GET` | `/readyz` | Readiness probe (DB + Redis) |
+
+---
+
+## Conventions
+
+### Type Safety (`AppEnv`)
+
+All `OpenAPIHono` instances use a shared `AppEnv` type (`src/core/types/env.ts`) that declares typed context variables:
+
+```typescript
+type AppEnv = {
+  Variables: {
+    workspaceId: string;
+    callerId: string;
+    callerRole: string;
+    workspaceRole: string;
+    userId: string;
+  };
+};
+
+// Every route file:
+export const myRoutes = new OpenAPIHono<AppEnv>();
+```
+
+Handlers access context via `c.get('workspaceId')` with full type safety.
+
+### Route Definitions
+
+Routes use `@hono/zod-openapi` and must follow these rules:
+
+1. **Declare error responses** — route definitions must include all status codes the handler can return, not just the success code:
+   ```typescript
+   const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+   const errRes = (desc: string) => ({ description: desc, ...jsonRes });
+
+   const myRoute = createRoute({
+     responses: {
+       200: { description: 'Success', ...jsonRes },
+       404: errRes('Not found'),
+       500: errRes('Internal error'),
+     },
+   });
+   ```
+
+2. **Wrap list responses** — handlers returning arrays must wrap in `{ data: [...] }`, never return bare arrays.
+
+3. **204 = no body** — use `c.body(null, 204)`, never `c.json({...}, 204)`.
+
+### Validation
+
+All validation uses **Zod v4** (not v3 — API differs).
+
+### Plugin Status
+
+`plugin_installations.status` is an enum (`'active'`, `'disabled'`), not a boolean `enabled` field.
+
+### Tests
+
+Tests use `bun:test` (`describe`/`it`/`expect`). Place in `__tests__/` directories alongside source code. Integration and e2e tests live in the top-level `tests/` directory.
