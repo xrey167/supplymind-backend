@@ -9,6 +9,11 @@ import { classifyAIError } from '../../core/errors';
 import { err } from '../../core/result';
 import type { Result } from '../../core/result';
 import { captureException } from '../observability/sentry';
+import { buildDomainContext, invalidateDomainContextCache } from '../../modules/domain-knowledge/domain-context-injector';
+import { eventBus } from '../../events/bus';
+import { Topics } from '../../events/topics';
+
+export { invalidateDomainContextCache };
 
 export function withRetryRuntime(runtime: AgentRuntime): AgentRuntime {
   return {
@@ -38,6 +43,57 @@ export function withRetryRuntime(runtime: AgentRuntime): AgentRuntime {
     },
     // stream() is NOT wrapped — it has its own watchdog
     stream: runtime.stream.bind(runtime),
+  };
+}
+
+/**
+ * Wraps a runtime with domain context injection.
+ * Enriches `input.systemPrompt` with relevant domain knowledge before calling
+ * the inner runtime. Requires `workspaceId` in the input.
+ *
+ * Cache is invalidated via `invalidateDomainContextCache` on DOMAIN_KNOWLEDGE_UPDATED.
+ */
+export function withDomainContext(
+  runtime: AgentRuntime,
+  getWorkspaceId: (input: RunInput) => string | undefined,
+): AgentRuntime {
+  // Subscribe to domain updates to invalidate the injector cache
+  eventBus.subscribe(Topics.DOMAIN_KNOWLEDGE_UPDATED, (event) => {
+    const { workspaceId } = event.data as { workspaceId: string };
+    if (workspaceId) invalidateDomainContextCache(workspaceId);
+  });
+
+  const injectContext = async (input: RunInput): Promise<RunInput> => {
+    const workspaceId = getWorkspaceId(input);
+    if (!workspaceId) return input;
+
+    const promptText = typeof input.messages.at(-1)?.content === 'string'
+      ? (input.messages.at(-1)!.content as string)
+      : '';
+
+    const domainContext = await buildDomainContext(workspaceId, promptText);
+    if (!domainContext) return input;
+
+    const enrichedSystemPrompt = input.systemPrompt
+      ? `${input.systemPrompt}\n\n${domainContext}`
+      : domainContext;
+
+    await eventBus.publish(Topics.DOMAIN_CONTEXT_INJECTED, {
+      workspaceId,
+      tokensAdded: Math.ceil(domainContext.length / 4),
+      cacheHit: false, // the injector handles its own cache; this is just an event
+    }, { source: 'runtime-factory' });
+
+    return { ...input, systemPrompt: enrichedSystemPrompt };
+  };
+
+  return {
+    async run(input: RunInput): Promise<Result<RunResult>> {
+      return runtime.run(await injectContext(input));
+    },
+    async *stream(input: RunInput): AsyncIterable<StreamEvent> {
+      yield* runtime.stream(await injectContext(input));
+    },
   };
 }
 

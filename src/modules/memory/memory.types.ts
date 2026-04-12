@@ -1,6 +1,6 @@
 export type MemoryType = 'domain' | 'feedback' | 'pattern' | 'reference';
 export type MemorySource = 'explicit' | 'proposed' | 'approved';
-export type ProposalStatus = 'pending' | 'approved' | 'rejected';
+export type ProposalStatus = 'pending' | 'approved' | 'rejected' | 'rolled_back';
 
 export interface AgentMemory {
   id: string;

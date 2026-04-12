@@ -1,6 +1,6 @@
 import { db } from '../../infra/db/client';
 import { agentMemories, memoryProposals } from '../../infra/db/schema';
-import { eq, and, or, isNull, ilike } from 'drizzle-orm';
+import { eq, and, or, isNull, ilike, desc } from 'drizzle-orm';
 import type { AgentMemory, MemoryProposal, SaveMemoryInput, ProposeMemoryInput } from './memory.types';
 
 export const memoryRepo = {
@@ -110,5 +110,43 @@ export const memoryRepo = {
         reviewedAt: new Date(),
       })
       .where(eq(memoryProposals.id, proposalId));
+  },
+
+  async updateProposalStatus(proposalId: string, status: string): Promise<void> {
+    await db.update(memoryProposals)
+      .set({ status: status as any, reviewedAt: new Date() })
+      .where(eq(memoryProposals.id, proposalId));
+  },
+
+  async listProposals(workspaceId: string, status?: string): Promise<MemoryProposal[]> {
+    const conditions = [eq(memoryProposals.workspaceId, workspaceId)];
+    if (status) conditions.push(eq(memoryProposals.status, status as any));
+    const rows = await db.select().from(memoryProposals)
+      .where(and(...conditions))
+      .orderBy(desc(memoryProposals.createdAt))
+      .limit(100);
+    return rows as unknown as MemoryProposal[];
+  },
+
+  async getProposalWithWorkspaceCheck(id: string, workspaceId: string): Promise<MemoryProposal | undefined> {
+    const [row] = await db.select().from(memoryProposals)
+      .where(and(eq(memoryProposals.id, id), eq(memoryProposals.workspaceId, workspaceId)))
+      .limit(1);
+    return row as unknown as MemoryProposal | undefined;
+  },
+
+  async deleteMemoryByProposalId(proposalId: string): Promise<boolean> {
+    // Find the memory created from this proposal via metadata.proposalId
+    const memories = await db.select({ id: agentMemories.id, metadata: agentMemories.metadata })
+      .from(agentMemories)
+      .limit(200);
+    for (const m of memories) {
+      const meta = m.metadata as Record<string, unknown> | null;
+      if (meta?.proposalId === proposalId) {
+        await db.delete(agentMemories).where(eq(agentMemories.id, m.id));
+        return true;
+      }
+    }
+    return false;
   },
 };

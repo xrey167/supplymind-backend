@@ -13,6 +13,43 @@ import type { ConfigScope } from '../../core/config/scoped-config';
 import { logger } from '../../config/logger';
 
 // ---------------------------------------------------------------------------
+// Domain schema types — declarative business context for AI adaptation
+// ---------------------------------------------------------------------------
+
+export interface DomainEntity {
+  name: string;
+  aliases?: string[];
+  description: string;
+}
+
+export interface DomainRule {
+  id: string;
+  description: string;
+  severity: 'info' | 'warn' | 'block';
+}
+
+export interface VocabularyTerm {
+  term: string;
+  definition: string;
+  category?: string;
+}
+
+/**
+ * Declarative domain schema that a plugin can ship with its manifest.
+ * Seeds the domain knowledge graph on install and is continuously refined
+ * by the learning engine via live observation.
+ */
+export interface DomainSchema {
+  entities: DomainEntity[];
+  vocabulary: VocabularyTerm[];
+  rules: DomainRule[];
+  /** Words that should raise risk classification (→ POWERFUL tier routing). */
+  riskTerms?: string[];
+  /** Key verbs that enrich intent classification (→ BALANCED tier routing). */
+  primaryActions?: string[];
+}
+
+// ---------------------------------------------------------------------------
 // Manifest types
 // ---------------------------------------------------------------------------
 
@@ -46,6 +83,11 @@ export interface PluginManifest {
   skills?: PluginSkillDefinition[];
   hooks?: PluginHookDefinition[];
   config?: PluginConfigDefinition[];
+  /**
+   * Optional domain schema. When present, seeds the domain knowledge graph on
+   * install so the AI platform becomes domain-aware for this plugin.
+   */
+  domain?: DomainSchema;
   /** Called once when the plugin is installed for a workspace. */
   onInstall?: (workspaceId: string) => Promise<void>;
   /** Called when the plugin is uninstalled. */
@@ -124,6 +166,46 @@ export class PluginManager {
         scopedConfig.set(scope, workspaceId, `plugin:${manifest.id}:${cfg.key}`, cfg.defaultValue, `plugin:${manifest.id}`);
         cleanups.push(() => scopedConfig.delete(scope, workspaceId, `plugin:${manifest.id}:${cfg.key}`));
       }
+    }
+
+    // Seed domain knowledge if the manifest declares a domain schema
+    if (manifest.domain) {
+      const { domainKnowledgeService } = await import('../domain-knowledge/domain-knowledge.service');
+      await domainKnowledgeService.seed(manifest.id, workspaceId, manifest.domain);
+      cleanups.push(async () => {
+        const { domainKnowledgeService: svc } = await import('../domain-knowledge/domain-knowledge.service');
+        await svc.remove(manifest.id, workspaceId).catch(() => { /* swallow */ });
+      });
+    }
+
+    // Create adaptation agent for this plugin
+    try {
+      const { db } = await import('../../infra/db/client');
+      const { adaptationAgents } = await import('../../infra/db/schema');
+      await db.insert(adaptationAgents).values({
+        workspaceId,
+        pluginId: manifest.id,
+        status: 'active',
+        config: {},
+      }).onConflictDoUpdate({
+        target: [adaptationAgents.workspaceId, adaptationAgents.pluginId],
+        set: { status: 'active' },
+      });
+      const { enqueueAdaptationAgent } = await import('../../jobs/learning/adaptation-agent.job');
+      await enqueueAdaptationAgent(workspaceId, manifest.id);
+      cleanups.push(async () => {
+        const { db: _db } = await import('../../infra/db/client');
+        const { adaptationAgents: _aa } = await import('../../infra/db/schema');
+        const { eq, and } = await import('drizzle-orm');
+        await _db.update(_aa).set({ status: 'deactivated' }).where(
+          and(eq(_aa.workspaceId, workspaceId), eq(_aa.pluginId, manifest.id)),
+        ).catch(() => { /* swallow */ });
+        const { removeAdaptationAgent } = await import('../../jobs/learning/adaptation-agent.job');
+        await removeAdaptationAgent(workspaceId, manifest.id).catch(() => { /* swallow */ });
+      });
+    } catch (e) {
+      // Adaptation agent setup is best-effort — don't fail the install
+      logger.warn({ pluginId: manifest.id, workspaceId, error: e }, 'Adaptation agent setup failed (non-fatal)');
     }
 
     // Run onInstall

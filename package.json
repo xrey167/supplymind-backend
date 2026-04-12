@@ -12,6 +12,7 @@
     "db:migrate:test": "bun run --env-file .env.test --bun node_modules/.bin/drizzle-kit migrate",
     "db:push": "bun run --env-file .env.development --bun node_modules/.bin/drizzle-kit push",
     "db:studio": "bun run --env-file .env.development --bun node_modules/.bin/drizzle-kit studio",
+    "db:migrate:docker": "bun scripts/run-migrations-via-docker.ts",
     "db:setup": "bun run db:migrate && bun run db:migrate:test && bun run seed",
     "infra:up": "docker compose up -d && docker compose wait postgres redis",
     "infra:down": "docker compose down",

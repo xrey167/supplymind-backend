@@ -10,6 +10,9 @@ export const WorkspaceSettingKeys = {
   BILLING_TIER: 'billing_tier',
   LICENSE_LIMITS: 'license_limits',
   TOKEN_BUDGET: 'token_budget',
+  LEARNING_TRUST_TIER: 'learning.trust_tier',
+  LEARNING_DOMAIN_CONTEXT_BUDGET: 'learning.domain_context_budget',
+  LEARNING_MEMORY_EXTRACTION_THRESHOLD: 'learning.memory_extraction_threshold',
 } as const;
 
 export type WorkspaceSettingKey = (typeof WorkspaceSettingKeys)[keyof typeof WorkspaceSettingKeys];
@@ -46,6 +49,10 @@ export type TokenBudget = z.infer<typeof tokenBudgetSchema>;
 export type ToolPermissionMode = z.infer<typeof toolPermissionModeSchema>;
 export type SandboxPolicy = z.infer<typeof sandboxPolicySchema>;
 export type McpServerPolicy = z.infer<typeof mcpServerPolicySchema>;
+// Learning / AI-native adaptation settings
+export const trustTierSchema = z.enum(['observer', 'learner', 'autonomous', 'trusted']).default('observer');
+export type TrustTier = z.infer<typeof trustTierSchema>;
+
 export const approvalIdParamSchema = z.object({ approvalId: z.string() });
 
 export type UpdateWorkspaceSettingsInput = z.infer<typeof updateWorkspaceSettingsSchema>;

@@ -6,7 +6,7 @@ import { runIntentGate } from './intent-gate';
 import { compileToOrchestration } from './execution.compiler';
 import { DEFAULT_INTENT_GATE_CONFIG } from './execution.types';
 import type {
-  ExecutionPlanRow, ExecutionRunRow, ExecutionStep, ExecutionPolicy, IntentGateConfig,
+  ExecutionPlanRow, ExecutionPlanStatus, ExecutionRunRow, ExecutionStep, ExecutionPolicy, IntentGateConfig,
 } from './execution.types';
 
 // In-process cache fallback — no Redis required in test environment
@@ -183,6 +183,25 @@ export const executionService = {
     }
 
     return ok({ planId: plan.id, runId: run.id, orchestrationId: orch.id, status: 'running' });
+  },
+
+  async reject(
+    workspaceId: string,
+    planId: string,
+    callerId: string,
+    reason?: string,
+  ): Promise<Result<{ planId: string; status: string }>> {
+    const plan = await executionRepo.getPlan(planId);
+    if (!plan || plan.workspaceId !== workspaceId) return err(new Error('Plan not found'));
+    if (plan.status !== 'pending_approval') return err(new Error('Plan not awaiting approval: ' + plan.status));
+
+    await executionRepo.updatePlanStatus(planId, 'cancelled');
+    logger.info({ planId, callerId, reason }, 'Execution plan rejected');
+    return ok({ planId, status: 'cancelled' });
+  },
+
+  async listByStatus(workspaceId: string, status: ExecutionPlanStatus): Promise<ExecutionPlanRow[]> {
+    return executionRepo.listPlansByStatus(workspaceId, status);
   },
 
   async get(workspaceId: string, planId: string): Promise<ExecutionPlanRow | undefined> {

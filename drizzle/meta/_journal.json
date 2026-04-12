@@ -71,6 +71,13 @@
       "when": 1775590000000,
       "tag": "0009_plugin_platform_core",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1775940367676,
+      "tag": "0010_sad_tarot",
+      "breakpoints": true
     }
   ]
 }

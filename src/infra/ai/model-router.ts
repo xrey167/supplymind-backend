@@ -1,6 +1,15 @@
 import { IntentTier } from '../../core/ai/types';
+import type { DomainKeywords } from '../../modules/domain-knowledge/domain-knowledge.service';
 
 export { IntentTier };
+
+// Per-workspace domain keyword cache (invalidated on DOMAIN_KNOWLEDGE_UPDATED)
+const domainKeywordCache = new Map<string, { keywords: DomainKeywords; expiresAt: number }>();
+const DOMAIN_CACHE_TTL_MS = 5 * 60 * 1000;
+
+export function invalidateDomainRouterCache(workspaceId: string): void {
+  domainKeywordCache.delete(workspaceId);
+}
 
 const DEFAULT_MODELS: Record<IntentTier, string> = {
   [IntentTier.FAST]:     'claude-haiku-4-5-20251001',
@@ -60,6 +69,49 @@ export function classifyIntent(prompt: string): IntentTier {
     return IntentTier.FAST;
   }
 
+  return wordCount < 20 ? IntentTier.FAST : IntentTier.BALANCED;
+}
+
+/**
+ * Domain-aware intent classification.
+ *
+ * Merges domain primaryActions into the BALANCED tier keyword set and
+ * domain riskTerms into the POWERFUL tier keyword set before scoring.
+ * This makes the router automatically aware of plugin-specific vocabulary.
+ *
+ * @param prompt          The user prompt to classify.
+ * @param domainKeywords  Domain keywords from the active workspace's knowledge graphs.
+ */
+export function classifyIntentWithDomain(prompt: string, domainKeywords: DomainKeywords): IntentTier {
+  const lower = prompt.toLowerCase();
+  const wordCount = lower.split(/\s+/).filter(Boolean).length;
+
+  const effectiveKeywords: Record<IntentTier, string[]> = {
+    [IntentTier.FAST]: [...TIER_KEYWORDS[IntentTier.FAST]],
+    [IntentTier.BALANCED]: [...TIER_KEYWORDS[IntentTier.BALANCED], ...domainKeywords.primaryActions],
+    [IntentTier.POWERFUL]: [...TIER_KEYWORDS[IntentTier.POWERFUL], ...domainKeywords.riskTerms],
+  };
+
+  const scores: Record<IntentTier, number> = {
+    [IntentTier.FAST]: 0,
+    [IntentTier.BALANCED]: 0,
+    [IntentTier.POWERFUL]: 0,
+  };
+
+  for (const [tier, keywords] of Object.entries(effectiveKeywords) as [IntentTier, string[]][]) {
+    for (const kw of keywords) {
+      if (lower.includes(kw)) scores[tier]++;
+    }
+  }
+
+  if (wordCount < 5 && scores[IntentTier.POWERFUL] === 0 && scores[IntentTier.BALANCED] === 0) {
+    return IntentTier.FAST;
+  }
+  if (scores[IntentTier.POWERFUL] > 0 && scores[IntentTier.POWERFUL] >= scores[IntentTier.BALANCED]) {
+    return IntentTier.POWERFUL;
+  }
+  if (scores[IntentTier.BALANCED] > 0) return IntentTier.BALANCED;
+  if (scores[IntentTier.FAST] > 0) return IntentTier.FAST;
   return wordCount < 20 ? IntentTier.FAST : IntentTier.BALANCED;
 }
 

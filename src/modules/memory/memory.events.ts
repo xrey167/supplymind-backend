@@ -16,3 +16,7 @@ export function emitMemoryApproved(memoryId: string, proposalId: string, workspa
 export function emitMemoryRejected(proposalId: string, workspaceId: string, reason?: string): void {
   eventBus.publish(Topics.MEMORY_REJECTED, { proposalId, workspaceId, reason });
 }
+
+export function emitMemoryRolledBack(proposalId: string, workspaceId: string): void {
+  eventBus.publish(Topics.MEMORY_ROLLED_BACK, { proposalId, workspaceId });
+}

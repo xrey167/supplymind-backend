@@ -218,6 +218,24 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
     logger.warn({ err }, 'Step 14: Plugin health check worker failed to register — non-critical');
   }
 
+  // Step 15: Start learning cycle + adaptation agent workers (non-critical)
+  try {
+    const { enqueueLearningCycle, createLearningCycleWorker } = await import('../jobs/learning/index');
+    const { createAdaptationAgentWorker } = await import('../jobs/learning/adaptation-agent.job');
+
+    await enqueueLearningCycle();
+    const learningWorker = createLearningCycleWorker();
+    learningWorker.on('error', (err) => logger.warn({ err }, 'Learning cycle worker error'));
+
+    const adaptationWorker = createAdaptationAgentWorker();
+    adaptationWorker.on('error', (err) => logger.warn({ err }, 'Adaptation agent worker error'));
+
+    (globalThis as any).__learningWorkers = { learningWorker, adaptationWorker };
+    logger.info('Step 15: Learning cycle + adaptation agent workers started');
+  } catch (err) {
+    logger.warn({ err }, 'Step 15: Learning workers failed to start — non-critical');
+  }
+
   // Step 16: Register computer use routes (non-critical — requires playwright)
   if (app) {
     try {
@@ -277,6 +295,12 @@ export async function destroySubsystems(): Promise<void> {
     await jobWorkerHandles.cleanupWorker.close();
     await jobWorkerHandles.syncWorker.close();
     await jobWorkerHandles.connection.quit();
+  }
+
+  const learningHandles = (globalThis as any).__learningWorkers;
+  if (learningHandles) {
+    await learningHandles.learningWorker.close();
+    await learningHandles.adaptationWorker.close();
   }
 
   const erpHandles = (globalThis as any).__erpSyncWorker;

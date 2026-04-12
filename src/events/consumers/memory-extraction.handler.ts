@@ -1,7 +1,7 @@
 import { eventBus } from '../bus';
 import { Topics } from '../topics';
 import { taskRepo } from '../../infra/a2a/task-repo';
-import { extractFacts } from '../../modules/memory/auto-extract';
+import { extractFacts, detectConflict } from '../../modules/memory/auto-extract';
 import { memoryService } from '../../modules/memory/memory.service';
 import { logger } from '../../config/logger';
 import type { TranscriptEntry } from '../../modules/sessions/transcript-chain';
@@ -18,7 +18,7 @@ export function _resetMemoryExtractionHandler() {
 export function initMemoryExtractionHandler(
   bus = eventBus,
   repo: Pick<typeof taskRepo, 'findRawById'> = taskRepo,
-  svc: Pick<typeof memoryService, 'propose'> = memoryService,
+  svc: Pick<typeof memoryService, 'propose' | 'recall'> = memoryService,
 ) {
   if (registered) return;
   registered = true;
@@ -50,13 +50,26 @@ export function initMemoryExtractionHandler(
 
       let proposed = 0;
       for (const fact of qualifying) {
+        let evidence = `Auto-extracted (scope: ${fact.scope}) from task ${taskId}`;
+
+        // Check for conflicts with existing memories
+        try {
+          const existing = await svc.recall({ query: fact.key, workspaceId: row.workspaceId, limit: 3 });
+          const conflicting = existing.find(m => m.title === fact.key && detectConflict(m.content, fact.value));
+          if (conflicting) {
+            evidence += ` | CONFLICT: existing memory ${conflicting.id} has "${conflicting.content}", new value is "${fact.value}"`;
+          }
+        } catch {
+          // Best-effort conflict detection — don't block proposal on recall failure
+        }
+
         await svc.propose({
           workspaceId: row.workspaceId,
           agentId: row.agentId,
           type: fact.scope === 'user' ? 'reference' : 'domain',
           title: fact.key,
           content: String(fact.value),
-          evidence: `Auto-extracted (scope: ${fact.scope}) from task ${taskId}`,
+          evidence,
           sessionId: row.sessionId ?? undefined,
         });
         proposed++;
