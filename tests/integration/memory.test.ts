@@ -56,7 +56,7 @@ describe('Memory', () => {
       headers: { ...authHeader(userId, 'admin') },
     });
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json() as any).data;
     expect(Array.isArray(body)).toBe(true);
   });
 
@@ -67,7 +67,7 @@ describe('Memory', () => {
       body: JSON.stringify({ query: 'concise answers', agentId, limit: 5 }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json() as any).data;
     expect(Array.isArray(body)).toBe(true);
   });
 

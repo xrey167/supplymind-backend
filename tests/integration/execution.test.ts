@@ -50,7 +50,7 @@ describe('Execution Layer', () => {
   it('GET / lists plans', async () => {
     const res = await app.request(base(), { headers: hdrs() });
     expect(res.status).toBe(200);
-    const body = await res.json() as any[];
+    const body = (await res.json() as any).data;
     expect(Array.isArray(body)).toBe(true);
     expect(body.some((p: any) => p.id === planId)).toBe(true);
   });
@@ -69,7 +69,7 @@ describe('Execution Layer', () => {
   it('GET /:id/runs returns runs list', async () => {
     const res = await app.request(`${base()}/${planId}/runs`, { headers: hdrs() });
     expect(res.status).toBe(200);
-    const body = await res.json() as any[];
+    const body = (await res.json() as any).data;
     expect(Array.isArray(body)).toBe(true);
   });
 

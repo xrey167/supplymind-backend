@@ -49,7 +49,7 @@ describe('Plugin Platform', () => {
   it('GET /plugin-catalog returns catalog list', async () => {
     const res = await app.request('/api/v1/plugin-catalog', { headers: hdrs() });
     expect(res.status).toBe(200);
-    const body = await res.json() as any[];
+    const body = (await res.json() as any).data;
     expect(Array.isArray(body)).toBe(true);
     expect(body.some((p: any) => p.id === catalogPluginId)).toBe(true);
   });
@@ -79,7 +79,7 @@ describe('Plugin Platform', () => {
   it('GET /plugins lists installed plugins', async () => {
     const res = await app.request(base(), { headers: hdrs() });
     expect(res.status).toBe(200);
-    const body = await res.json() as any[];
+    const body = (await res.json() as any).data;
     expect(Array.isArray(body)).toBe(true);
     expect(body.some((i: any) => i.id === installationId)).toBe(true);
   });
@@ -150,7 +150,7 @@ describe('Plugin Platform', () => {
   it('GET /plugins/:id/events returns event log', async () => {
     const res = await app.request(`${base()}/${installationId}/events`, { headers: hdrs() });
     expect(res.status).toBe(200);
-    const body = await res.json() as any[];
+    const body = (await res.json() as any).data;
     expect(Array.isArray(body)).toBe(true);
     expect(body.length).toBeGreaterThanOrEqual(3);
   });
