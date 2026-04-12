@@ -1,44 +1,46 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { billingService } from './billing.service';
 import { createCheckoutSchema, portalSessionSchema, invoiceListSchema } from './billing.schemas';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 
 const checkoutRoute = createRoute({
   method: 'post',
   path: '/checkout',
   request: { body: { content: { 'application/json': { schema: createCheckoutSchema } } } },
-  responses: { 200: { description: 'Checkout session URL', ...jsonRes } },
+  responses: { 200: { description: 'Checkout session URL', ...jsonRes }, 400: errRes('Bad request') },
 });
 
 const portalRoute = createRoute({
   method: 'post',
   path: '/portal',
   request: { body: { content: { 'application/json': { schema: portalSessionSchema } } } },
-  responses: { 200: { description: 'Portal session URL', ...jsonRes } },
+  responses: { 200: { description: 'Portal session URL', ...jsonRes }, 400: errRes('Bad request') },
 });
 
 const subscriptionRoute = createRoute({
   method: 'get',
   path: '/subscription',
-  responses: { 200: { description: 'Current subscription', ...jsonRes } },
+  responses: { 200: { description: 'Current subscription', ...jsonRes }, 400: errRes('Bad request') },
 });
 
 const invoicesRoute = createRoute({
   method: 'get',
   path: '/invoices',
   request: { query: invoiceListSchema },
-  responses: { 200: { description: 'Invoice list', ...jsonRes } },
+  responses: { 200: { description: 'Invoice list', ...jsonRes }, 400: errRes('Bad request') },
 });
 
 const limitsRoute = createRoute({
   method: 'get',
   path: '/limits',
-  responses: { 200: { description: 'Current plan limits', ...jsonRes } },
+  responses: { 200: { description: 'Current plan limits', ...jsonRes }, 400: errRes('Bad request') },
 });
 
-export const BillingRoutes = new OpenAPIHono();
+export const BillingRoutes = new OpenAPIHono<AppEnv>();
 
 BillingRoutes.openapi(checkoutRoute, async (c) => {
   const body = c.req.valid('json');

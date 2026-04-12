@@ -16,9 +16,9 @@ const fakeAuditLog: AuditLog = {
 
 // Direct mock objects — avoids bun mock.module transitive issues
 const repo = {
-  create: mock(() => Promise.resolve(fakeAuditLog)),
-  list: mock(() => Promise.resolve([fakeAuditLog])),
-  count: mock(() => Promise.resolve(3)),
+  create: mock((..._args: any[]) => Promise.resolve(fakeAuditLog)),
+  list: mock((..._args: any[]) => Promise.resolve([fakeAuditLog])),
+  count: mock((..._args: any[]) => Promise.resolve(3)),
 };
 
 const mockLogger = {

@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { userSettingsService } from './user-settings/user-settings.service';
 import { userSettingKeyParamSchema, setUserSettingBodySchema } from './settings.schemas';
@@ -6,6 +7,7 @@ import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 
 const getAllRoute = createRoute({
   method: 'get',
@@ -34,10 +36,10 @@ const deleteRoute = createRoute({
   method: 'delete',
   path: '/user/{key}',
   request: { params: userSettingKeyParamSchema },
-  responses: { 200: { description: 'Setting deleted', ...jsonRes } },
+  responses: { 200: { description: 'Setting deleted', ...jsonRes }, 404: errRes('Not found') },
 });
 
-export const settingsRoutes = new OpenAPIHono();
+export const settingsRoutes = new OpenAPIHono<AppEnv>();
 
 settingsRoutes.openapi(getAllRoute, async (c) => {
   const userId = c.get('userId') as string;

@@ -12,7 +12,7 @@ const mockUpsert = mock(async () => ({
   updatedAt: new Date(),
 }));
 const mockDelete = mock(async () => {});
-const mockPublish = mock(() => {});
+const mockPublish = mock((..._args: any[]) => {});
 
 const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({ ..._realDbClient, db: {} }));
@@ -31,7 +31,7 @@ mock.module('../../../events/bus', () => ({
   ..._realBus,
   eventBus: new Proxy(_realBus.eventBus, {
     get(target: any, prop: string | symbol) {
-      if (prop === 'publish') return (...args: any[]) => { mockPublish(...args); return _origUsersPublish(...args); };
+      if (prop === 'publish') return (...args: [string, unknown, any?]) => { mockPublish(...args); return _origUsersPublish(...args); };
       return target[prop];
     },
   }),
@@ -103,15 +103,15 @@ describe('UsersService.syncFromClerk', () => {
     await usersService.syncFromClerk(makeCreatedEvent());
 
     expect(mockUpsert).toHaveBeenCalledTimes(1);
-    expect(mockUpsert.mock.calls[0]![0]).toMatchObject({
+    expect((mockUpsert.mock.calls as any[][])[0]![0]).toMatchObject({
       id: 'user_1',
       email: 'test@example.com',
       name: 'Test User',
     });
 
     expect(mockPublish).toHaveBeenCalledTimes(1);
-    expect(mockPublish.mock.calls[0]![0]).toBe(Topics.USER_SYNCED);
-    expect(mockPublish.mock.calls[0]![1]).toMatchObject({ action: 'created' });
+    expect((mockPublish.mock.calls as any[][])[0]![0]).toBe(Topics.USER_SYNCED);
+    expect((mockPublish.mock.calls as any[][])[0]![1]).toMatchObject({ action: 'created' });
   });
 
   it('user.updated — calls upsert and publishes USER_SYNCED with action=updated', async () => {
@@ -119,16 +119,16 @@ describe('UsersService.syncFromClerk', () => {
 
     expect(mockUpsert).toHaveBeenCalledTimes(1);
     expect(mockPublish).toHaveBeenCalledTimes(1);
-    expect(mockPublish.mock.calls[0]![1]).toMatchObject({ action: 'updated' });
+    expect((mockPublish.mock.calls as any[][])[0]![1]).toMatchObject({ action: 'updated' });
   });
 
   it('user.deleted — calls delete and publishes USER_DELETED', async () => {
     await usersService.syncFromClerk({ type: 'user.deleted', data: { id: 'user_1' } });
 
     expect(mockDelete).toHaveBeenCalledTimes(1);
-    expect(mockDelete.mock.calls[0]![0]).toBe('user_1');
+    expect((mockDelete.mock.calls as any[][])[0]![0]).toBe('user_1');
     expect(mockPublish).toHaveBeenCalledTimes(1);
-    expect(mockPublish.mock.calls[0]![0]).toBe(Topics.USER_DELETED);
+    expect((mockPublish.mock.calls as any[][])[0]![0]).toBe(Topics.USER_DELETED);
   });
 
   it('skips upsert and publish when no primary email found', async () => {

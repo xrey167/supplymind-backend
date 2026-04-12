@@ -5,7 +5,7 @@ import { secureHeaders } from 'hono/secure-headers';
 function createTestApp() {
   const app = new Hono();
   app.use('*', secureHeaders({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: false as any,
     crossOriginEmbedderPolicy: false,
     xFrameOptions: 'DENY',
     strictTransportSecurity: 'max-age=63072000; includeSubDomains',

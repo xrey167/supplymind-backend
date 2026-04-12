@@ -19,7 +19,7 @@ export class EventBatchBuffer<T> {
     const clock = opts.clock ?? { setInterval, clearInterval };
     this.timer = clock.setInterval(() => {
       this.drain().catch(() => {/* errors surfaced via onFlush */});
-    }, opts.flushIntervalMs);
+    }, opts.flushIntervalMs) as unknown as ReturnType<typeof setInterval>;
   }
 
   push(item: T): void {

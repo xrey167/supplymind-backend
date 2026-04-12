@@ -69,4 +69,5 @@ export interface OrchestrationResult {
   status: OrchestrationStatus;
   stepResults: Record<string, StepResult>;
   totalDurationMs: number;
+  error?: string;
 }

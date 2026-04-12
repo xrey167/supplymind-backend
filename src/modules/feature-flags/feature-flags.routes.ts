@@ -1,10 +1,11 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { featureFlagsService } from './feature-flags.service';
 import { setFlagBodySchema, flagsResponseSchema } from './feature-flags.schemas';
 import { hasPermission } from '../../core/security/rbac';
 
-export const FeatureFlagsRoutes = new OpenAPIHono();
+export const FeatureFlagsRoutes = new OpenAPIHono<AppEnv>();
 
 const listFlagsRoute = createRoute({
   method: 'get',

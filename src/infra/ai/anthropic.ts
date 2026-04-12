@@ -4,7 +4,7 @@ import { ok, err } from '../../core/result';
 import { combinedAbortSignal } from '../../core/utils/abortController';
 import { toAnthropicTools, toAnthropicToolChoice } from './tool-format';
 import { captureException } from '../observability/sentry';
-import type { AgentRuntime, RunInput, RunResult, StreamEvent } from './types';
+import type { AgentRuntime, ImageContentBlock, RunInput, RunResult, StreamEvent } from './types';
 import type { Result } from '../../core/result';
 
 export class AnthropicRawRuntime implements AgentRuntime {
@@ -26,17 +26,19 @@ export class AnthropicRawRuntime implements AgentRuntime {
             content: typeof m.content === 'string'
               ? m.content
               : m.content.map((block) => {
-                  if (block.type === 'text') return { type: 'text' as const, text: block.text! };
+                  if (block.type === 'text') return { type: 'text' as const, text: block.text };
                   if (block.type === 'tool_use')
-                    return { type: 'tool_use' as const, id: block.id!, name: block.name!, input: block.input ?? {} };
-                  return {
-                    type: 'tool_result' as const,
-                    tool_use_id: block.toolUseId!,
-                    content: Array.isArray(block.content)
-                      ? block.content.map((b) => ({ type: 'image' as const, source: b.source }))
-                      : (block.content ?? ''),
-                    is_error: block.isError,
-                  };
+                    return { type: 'tool_use' as const, id: block.id, name: block.name, input: block.input ?? {} };
+                  if (block.type === 'tool_result')
+                    return {
+                      type: 'tool_result' as const,
+                      tool_use_id: block.toolUseId,
+                      content: Array.isArray(block.content)
+                        ? block.content.map((b: ImageContentBlock) => ({ type: 'image' as const, source: b.source }))
+                        : (block.content ?? ''),
+                      is_error: block.isError,
+                    };
+                  return { type: 'image' as const, source: block.source };
                 }),
           })),
       };
@@ -48,7 +50,7 @@ export class AnthropicRawRuntime implements AgentRuntime {
         params.temperature = input.temperature;
       }
       if (input.tools?.length) {
-        params.tools = toAnthropicTools(input.tools) as Anthropic.Tool[];
+        params.tools = toAnthropicTools(input.tools) as unknown as Anthropic.Tool[];
       }
       if (input.toolChoice && input.tools?.length) {
         (params as any).tool_choice = toAnthropicToolChoice(input.toolChoice);
@@ -143,7 +145,7 @@ export class AnthropicRawRuntime implements AgentRuntime {
 
       if (input.systemPrompt) params.system = input.systemPrompt;
       if (input.temperature !== undefined) params.temperature = input.temperature;
-      if (input.tools?.length) params.tools = toAnthropicTools(input.tools) as Anthropic.Tool[];
+      if (input.tools?.length) params.tools = toAnthropicTools(input.tools) as unknown as Anthropic.Tool[];
       if (input.toolChoice && input.tools?.length) {
         (params as any).tool_choice = toAnthropicToolChoice(input.toolChoice);
       }

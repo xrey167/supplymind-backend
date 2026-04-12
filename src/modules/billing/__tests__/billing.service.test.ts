@@ -27,7 +27,7 @@ mock.module('stripe', () => ({
 }));
 
 // Mock repo
-const mockGetCustomer = mock(() => Promise.resolve(null));
+const mockGetCustomer = mock(() => Promise.resolve(null as any));
 const mockUpsertCustomer = mock(() => Promise.resolve({ id: 'bc-1', workspaceId: 'ws-1', stripeCustomerId: 'cus_test123', createdAt: new Date() }));
 const mockGetSubscription = mock(() => Promise.resolve(null));
 const mockUpsertSubscription = mock(() => Promise.resolve({ id: 'sub-1' }));

@@ -1,6 +1,6 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
-const mockTrigger = mock(() => Promise.resolve({ acknowledged: true }));
+const mockTrigger = mock((_opts: any) => Promise.resolve({ acknowledged: true }));
 mock.module('@novu/api', () => ({
   Novu: class {
     constructor() {}
@@ -27,7 +27,7 @@ describe('Novu provider', () => {
     await triggerNotification('agent-failure', 'user-1', { agentId: 'a-1' });
     expect(mockTrigger).toHaveBeenCalledTimes(1);
     const call = mockTrigger.mock.calls[0][0];
-    expect(call.name).toBe('agent-failure');
+    expect(call.workflowId).toBe('agent-failure');
     expect(call.to.subscriberId).toBe('user-1');
     expect(call.payload.agentId).toBe('a-1');
   });

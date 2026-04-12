@@ -40,7 +40,7 @@ function buildParamApp() {
   app.onError(errorHandler);
   app.use('/ws/:workspaceId/*', workspaceMiddleware);
   app.get('/ws/:workspaceId/data', (c) =>
-    c.json({ workspaceId: c.get('workspaceId') }),
+    c.json({ workspaceId: (c as any).get('workspaceId') }),
   );
   return app;
 }
@@ -50,7 +50,7 @@ function buildHeaderApp() {
   const app = new Hono();
   app.onError(errorHandler);
   app.use('/data', workspaceMiddleware);
-  app.get('/data', (c) => c.json({ workspaceId: c.get('workspaceId') }));
+  app.get('/data', (c) => c.json({ workspaceId: (c as any).get('workspaceId') }));
   return app;
 }
 
@@ -85,12 +85,12 @@ describe('workspaceMiddleware', () => {
     it('should pass through without error for API key callers', async () => {
       const app = new Hono();
       app.use('/ws/:workspaceId/*', async (c, next) => {
-        c.set('callerId', 'apikey:a2a_k_abc...');
+        (c as any).set('callerId', 'apikey:a2a_k_abc...');
         await next();
       });
       app.use('/ws/:workspaceId/*', workspaceMiddleware);
       app.get('/ws/:workspaceId/data', (c) =>
-        c.json({ workspaceId: c.get('workspaceId') }),
+        c.json({ workspaceId: (c as any).get('workspaceId') }),
       );
       const res = await app.request('/ws/ws-456/data');
       expect(res.status).toBe(200);
@@ -129,12 +129,12 @@ describe('workspaceMiddleware', () => {
       const app = new Hono();
       app.onError(errorHandler);
       app.use('/ws/:workspaceId/*', async (c, next) => {
-        c.set('callerId', 'user-regular-123');
+        (c as any).set('callerId', 'user-regular-123');
         await next();
       });
       app.use('/ws/:workspaceId/*', workspaceMiddleware);
       app.get('/ws/:workspaceId/data', (c) =>
-        c.json({ workspaceId: c.get('workspaceId') }),
+        c.json({ workspaceId: (c as any).get('workspaceId') }),
       );
       const res = await app.request('/ws/ws-789/data');
       expect(res.status).toBe(403);
@@ -145,12 +145,12 @@ describe('workspaceMiddleware', () => {
       const app = new Hono();
       app.onError(errorHandler);
       app.use('/ws/:workspaceId/*', async (c, next) => {
-        c.set('callerId', 'user-member-456');
+        (c as any).set('callerId', 'user-member-456');
         await next();
       });
       app.use('/ws/:workspaceId/*', workspaceMiddleware);
       app.get('/ws/:workspaceId/data', (c) =>
-        c.json({ workspaceId: c.get('workspaceId'), role: c.get('callerRole') }),
+        c.json({ workspaceId: (c as any).get('workspaceId'), role: (c as any).get('callerRole') }),
       );
       const res = await app.request('/ws/ws-789/data');
       expect(res.status).toBe(200);

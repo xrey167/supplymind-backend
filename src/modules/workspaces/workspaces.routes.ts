@@ -1,9 +1,11 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { workspacesService } from './workspaces.service';
 import { createWorkspaceSchema, updateWorkspaceSchema, workspaceIdParamSchema } from './workspaces.schemas';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 
 const createWsRoute = createRoute({
   method: 'post',
@@ -39,10 +41,10 @@ const deleteWsRoute = createRoute({
   method: 'delete',
   path: '/{workspaceId}',
   request: { params: workspaceIdParamSchema },
-  responses: { 204: { description: 'Workspace deleted' } },
+  responses: { 204: { description: 'Workspace deleted' }, 403: errRes('Forbidden') },
 });
 
-export const WorkspacesRoutes = new OpenAPIHono();
+export const WorkspacesRoutes = new OpenAPIHono<AppEnv>();
 
 WorkspacesRoutes.openapi(createWsRoute, async (c) => {
   const body = c.req.valid('json');
@@ -80,5 +82,5 @@ WorkspacesRoutes.openapi(deleteWsRoute, async (c) => {
     return c.json({ error: 'Only workspace owners can delete workspaces' }, 403);
   }
   await workspacesService.delete(workspaceId, callerId);
-  return c.json({ success: true }, 204);
+  return c.body(null, 204);
 });

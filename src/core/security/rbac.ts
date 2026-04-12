@@ -57,7 +57,7 @@ export const PROVIDER_REQUIRED_ROLE: Record<import('../../modules/skills/skills.
 /** Get the required role for a skill, using provider default if not explicitly set */
 export function getRequiredRole(providerType: string, explicitRole?: string): Role {
   if (explicitRole && isValidRole(explicitRole)) return explicitRole;
-  return PROVIDER_REQUIRED_ROLE[providerType] ?? 'admin'; // unknown provider = require admin
+  return (PROVIDER_REQUIRED_ROLE as Record<string, Role>)[providerType] ?? 'admin'; // unknown provider = require admin
 }
 
 /** Map workspace role to RBAC role at the middleware boundary */

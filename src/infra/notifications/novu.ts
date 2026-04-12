@@ -21,7 +21,7 @@ export async function triggerNotification(
     return;
   }
   try {
-    await novu.trigger({ name: workflowId, to: { subscriberId }, payload });
+    await novu.trigger({ workflowId, to: { subscriberId }, payload });
   } catch (err) {
     logger.error({ workflowId, subscriberId, err }, 'Novu trigger failed');
   }

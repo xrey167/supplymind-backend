@@ -62,7 +62,7 @@ const mockGetById = mock(async (id: string) => {
 const mockAgentsService = { getById: mockGetById };
 
 // ---- taskManager mock (DI — no mock.module needed) ----
-const mockSend = mock(async () => {});
+const mockSend = mock(async (_opts: any) => {});
 const mockTaskManager = { send: mockSend } as any;
 
 // ---- logger mock ----

@@ -43,7 +43,7 @@ export class CredentialsRepository {
     const rows = await db.insert(credentials).values({
       workspaceId: input.workspaceId,
       name: input.name,
-      provider: input.provider,
+      provider: input.provider as any,
       encryptedValue: input.encryptedValue,
       iv: input.iv,
       tag: input.tag,

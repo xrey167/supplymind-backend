@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { pluginsService } from './plugins.service';
 import { pluginHealthRepo } from './plugins.health.repo';
@@ -7,22 +8,23 @@ import type { Actor } from './plugins.types';
 import { PluginConflictError } from './plugins.types';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 const idParam = { request: { params: installationIdParamSchema } };
 
 const installRoute = createRoute({ method: 'post', path: '/install', request: { body: { content: { 'application/json': { schema: installPluginSchema } } } }, responses: { 201: { description: 'Installed', ...jsonRes }, 400: { description: 'Error', ...jsonRes } } });
 const listRoute = createRoute({ method: 'get', path: '/', responses: { 200: { description: 'Installations', ...jsonRes } } });
 const getRoute = createRoute({ method: 'get', path: '/{id}', ...idParam, responses: { 200: { description: 'Installation', ...jsonRes }, 404: { description: 'Not found', ...jsonRes } } });
-const configRoute = createRoute({ method: 'patch', path: '/{id}/config', ...idParam, request: { body: { content: { 'application/json': { schema: updateConfigSchema } } } }, responses: { 200: { description: 'Updated', ...jsonRes }, 400: { description: 'Error', ...jsonRes } } });
+const configRoute = createRoute({ method: 'patch', path: '/{id}/config', request: { params: installationIdParamSchema, body: { content: { 'application/json': { schema: updateConfigSchema } } } }, responses: { 200: { description: 'Updated', ...jsonRes }, 400: { description: 'Error', ...jsonRes } } });
 const enableRoute = createRoute({ method: 'post', path: '/{id}/enable', ...idParam, responses: { 200: { description: 'Enabled', ...jsonRes }, 400: { description: 'Error', ...jsonRes } } });
 const disableRoute = createRoute({ method: 'post', path: '/{id}/disable', ...idParam, responses: { 200: { description: 'Disabled', ...jsonRes }, 400: { description: 'Error', ...jsonRes } } });
 const pinRoute = createRoute({ method: 'post', path: '/{id}/pin', request: { params: installationIdParamSchema, body: { content: { 'application/json': { schema: pinVersionSchema } } } }, responses: { 200: { description: 'Pinned', ...jsonRes }, 400: { description: 'Error', ...jsonRes } } });
 const uninstallRoute = createRoute({ method: 'post', path: '/{id}/uninstall', ...idParam, responses: { 204: { description: 'Uninstalled' }, 400: { description: 'Error', ...jsonRes } } });
 const rollbackRoute = createRoute({ method: 'post', path: '/{id}/rollback', ...idParam, responses: { 200: { description: 'Rolled back', ...jsonRes }, 400: { description: 'Error', ...jsonRes }, 409: { description: 'No prior version', ...jsonRes } } });
-const eventsRoute = createRoute({ method: 'get', path: '/{id}/events', ...idParam, responses: { 200: { description: 'Events', ...jsonRes } } });
-const healthRoute = createRoute({ method: 'get', path: '/{id}/health', ...idParam, responses: { 200: { description: 'Health', ...jsonRes } } });
-const healthRunRoute = createRoute({ method: 'post', path: '/{id}/health/run', ...idParam, responses: { 200: { description: 'Health checked', ...jsonRes } } });
+const eventsRoute = createRoute({ method: 'get', path: '/{id}/events', ...idParam, responses: { 200: { description: 'Events', ...jsonRes }, 404: errRes('Not found') } });
+const healthRoute = createRoute({ method: 'get', path: '/{id}/health', ...idParam, responses: { 200: { description: 'Health', ...jsonRes }, 404: errRes('Not found') } });
+const healthRunRoute = createRoute({ method: 'post', path: '/{id}/health/run', ...idParam, responses: { 200: { description: 'Health checked', ...jsonRes }, 400: errRes('Bad request') } });
 
-export const pluginRoutes = new OpenAPIHono();
+export const pluginRoutes = new OpenAPIHono<AppEnv>();
 
 function getActor(c: any): Actor {
   const callerId = c.get('callerId') as string | undefined;
@@ -40,7 +42,7 @@ pluginRoutes.openapi(installRoute, async (c) => {
 
 pluginRoutes.openapi(listRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
-  return c.json(await pluginsService.list(workspaceId));
+  return c.json({ data: await pluginsService.list(workspaceId) });
 });
 
 pluginRoutes.openapi(getRoute, async (c) => {
@@ -109,7 +111,7 @@ pluginRoutes.openapi(eventsRoute, async (c) => {
   const { id } = c.req.valid('param');
   const result = await pluginsService.getEvents(workspaceId, id);
   if (!result.ok) return c.json({ error: result.error.message }, 404);
-  return c.json(result.value);
+  return c.json({ data: result.value });
 });
 
 pluginRoutes.openapi(healthRoute, async (c) => {

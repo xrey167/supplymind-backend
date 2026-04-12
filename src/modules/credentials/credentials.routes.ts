@@ -1,9 +1,11 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { credentialsService } from './credentials.service';
 import { createCredentialSchema, updateCredentialSchema, credentialIdParamSchema, listCredentialsQuerySchema } from './credentials.schemas';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 
 const listRoute = createRoute({
   method: 'get', path: '/',
@@ -14,19 +16,19 @@ const listRoute = createRoute({
 const getByIdRoute = createRoute({
   method: 'get', path: '/{id}',
   request: { params: credentialIdParamSchema },
-  responses: { 200: { description: 'Credential details', ...jsonRes } },
+  responses: { 200: { description: 'Credential details', ...jsonRes }, 404: errRes('Not found') },
 });
 
 const createRoute_ = createRoute({
   method: 'post', path: '/',
   request: { body: { content: { 'application/json': { schema: createCredentialSchema } } } },
-  responses: { 201: { description: 'Credential created', ...jsonRes } },
+  responses: { 201: { description: 'Credential created', ...jsonRes }, 400: errRes('Bad request') },
 });
 
 const updateRoute = createRoute({
   method: 'patch', path: '/{id}',
   request: { params: credentialIdParamSchema, body: { content: { 'application/json': { schema: updateCredentialSchema } } } },
-  responses: { 200: { description: 'Credential updated', ...jsonRes } },
+  responses: { 200: { description: 'Credential updated', ...jsonRes }, 404: errRes('Not found') },
 });
 
 const deleteRoute = createRoute({
@@ -35,11 +37,11 @@ const deleteRoute = createRoute({
   responses: { 200: { description: 'Credential deleted', ...jsonRes } },
 });
 
-export const CredentialsRoutes = new OpenAPIHono();
+export const CredentialsRoutes = new OpenAPIHono<AppEnv>();
 
 CredentialsRoutes.openapi(listRoute, async (c) => {
   const query = c.req.valid('query');
-  const workspaceId = c.get('workspaceId') as string | undefined ?? query.workspaceId;
+  const workspaceId = c.get('workspaceId') || query.workspaceId!;
   const credentials = await credentialsService.list(workspaceId);
   return c.json({ data: credentials });
 });

@@ -24,10 +24,10 @@ const mockUpsertCustomer = mock(() =>
   Promise.resolve({ id: 'bc-1', workspaceId: 'ws-1', stripeCustomerId: 'cus_1', createdAt: new Date() }),
 );
 const mockGetCustomerByStripeId = mock(() =>
-  Promise.resolve({ id: 'bc-1', workspaceId: 'ws-1', stripeCustomerId: 'cus_1' }),
+  Promise.resolve({ id: 'bc-1', workspaceId: 'ws-1', stripeCustomerId: 'cus_1' } as any),
 );
-const mockUpsertSubscription = mock(() => Promise.resolve({ id: 'sub-1' }));
-const mockInsertInvoice = mock(() => Promise.resolve({ id: 'inv-1' }));
+const mockUpsertSubscription = mock((..._args: any[]) => Promise.resolve({ id: 'sub-1' }));
+const mockInsertInvoice = mock((..._args: any[]) => Promise.resolve({ id: 'inv-1' }));
 
 const mockRepo = {
   getCustomer: mock(() => Promise.resolve(null)),

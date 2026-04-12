@@ -84,7 +84,7 @@ describe('TasksService', () => {
   test('send foreground returns completed task', async () => {
     const result = await service.send('agent-1', 'hello', 'ws-1', 'user-1');
     expect(result.ok).toBe(true);
-    if (result.ok) {
+    if (result.ok && 'id' in result.value) {
       expect(result.value.id).toBe('task-1');
       expect(result.value.status.state).toBe('completed');
     }

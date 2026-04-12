@@ -7,7 +7,6 @@ import { BuiltinSkillProvider } from './providers/builtin.provider';
 import { CollaborationSkillProvider } from './providers/collaboration.provider';
 import { WorkflowSkillProvider } from './providers/workflow.provider';
 import { skillsRepo } from './skills.repo';
-import { toolsService } from '../tools/tools.service';
 import { dispatchSkill } from './skills.dispatch';
 import type { Skill, DispatchContext } from './skills.types';
 
@@ -23,19 +22,15 @@ export class SkillsService {
     const globalDefs = await skillsRepo.findGlobal();
     for (const row of globalDefs) {
       if (!row.enabled) continue;
-      const skill = toolsService.toSkill({
+      const skill: Skill = {
         id: row.id,
-        workspaceId: row.workspaceId,
         name: row.name,
         description: row.description,
-        providerType: row.providerType!,
+        providerType: row.providerType! as Skill['providerType'],
         priority: row.priority ?? 0,
         inputSchema: (row.inputSchema as Record<string, unknown>) ?? {},
-        handlerConfig: (row.handlerConfig as Record<string, unknown>) ?? {},
-        enabled: row.enabled ?? true,
-        createdAt: row.createdAt!,
-        updatedAt: row.updatedAt!,
-      });
+        handler: async (args) => ok(args),
+      };
       skillRegistry.register(skill);
     }
   }

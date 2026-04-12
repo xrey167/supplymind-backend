@@ -11,6 +11,15 @@ const defaultCard: AgentCard = {
   skills: [{ id: 'skill-1', name: 'Skill 1', description: 'Test skill' }],
 };
 
+const stubCard: AgentCard = {
+  name: 'Test Agent',
+  description: '',
+  url: 'http://localhost:9000',
+  version: '0.0.0',
+  capabilities: { streaming: false },
+  skills: [],
+};
+
 // Use dependency injection (no mock.module needed for workerRegistry — avoids
 // contaminating worker-registry.test.ts).
 const mockDiscover = mock(async (_url: string, _apiKey?: string): Promise<AgentCard> => defaultCard);
@@ -23,7 +32,7 @@ const mockCreate = mock(async (data: Parameters<typeof import('../agent-registry
   id: 'agent-uuid-1',
   workspaceId: data.workspaceId,
   url: data.url,
-  agentCard: data.agentCard,
+  agentCard: data.agentCard as unknown as AgentCard,
   enabled: true,
   lastDiscoveredAt: new Date(),
   createdAt: new Date(),
@@ -35,7 +44,7 @@ const mockFindByWorkspace = mock(async (workspaceId: string): Promise<Registered
     id: 'agent-uuid-1',
     workspaceId,
     url: 'http://localhost:9000',
-    agentCard: { name: 'Test Agent' },
+    agentCard: stubCard,
     enabled: true,
     lastDiscoveredAt: new Date(),
     createdAt: new Date(),
@@ -49,7 +58,7 @@ const mockFindById = mock(async (id: string): Promise<RegisteredAgent | undefine
   id,
   workspaceId: 'ws-1',
   url: 'http://localhost:9000',
-  agentCard: { name: 'Test Agent' },
+  agentCard: stubCard,
   enabled: true,
   lastDiscoveredAt: new Date(),
   createdAt: new Date(),
@@ -61,7 +70,7 @@ const mockUpdateDiscoveredAt = mock(async (id: string): Promise<RegisteredAgent 
   id,
   workspaceId: 'ws-1',
   url: 'http://localhost:9000',
-  agentCard: { name: 'Test Agent' },
+  agentCard: stubCard,
   enabled: true,
   lastDiscoveredAt: new Date(),
   createdAt: new Date(),
@@ -119,7 +128,7 @@ describe('AgentRegistryService', () => {
         id: 'existing-id',
         workspaceId: 'ws-1',
         url: 'http://localhost:9000',
-        agentCard: {},
+        agentCard: stubCard,
         enabled: true,
         lastDiscoveredAt: new Date(),
         createdAt: new Date(),
@@ -186,7 +195,7 @@ describe('AgentRegistryService', () => {
         id,
         workspaceId: 'ws-other',
         url: 'http://localhost:9000',
-        agentCard: {},
+        agentCard: stubCard,
         enabled: true,
         lastDiscoveredAt: null,
         createdAt: new Date(),

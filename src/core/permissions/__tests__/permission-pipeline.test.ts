@@ -25,7 +25,7 @@ describe('PermissionPipeline', () => {
     const result = await pipeline.check(ctx);
     expect(result.behavior).toBe('deny');
     expect(result.decisionLayer).toBe('deny-all');
-    expect(result.reason).toBe('blocked by policy');
+    expect(result.behavior === 'deny' && result.reason).toBe('blocked by policy');
   });
 
   it('passthrough continues to next layer', async () => {
@@ -45,7 +45,7 @@ describe('PermissionPipeline', () => {
     });
     const result = await pipeline.check(ctx);
     expect(result.behavior).toBe('ask');
-    expect(result.message).toBe('Confirm this action?');
+    expect(result.behavior === 'ask' && result.message).toBe('Confirm this action?');
   });
 
   it('removeLayer removes by name', async () => {

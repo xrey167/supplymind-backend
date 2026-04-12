@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { auditLogsService } from './audit-logs.service';
 import { listAuditLogsQuerySchema } from './audit-logs.schemas';
@@ -19,11 +20,11 @@ const countRoute = createRoute({
   responses: { 200: { description: 'Count audit logs', ...jsonRes } },
 });
 
-export const AuditLogsRoutes = new OpenAPIHono();
+export const AuditLogsRoutes = new OpenAPIHono<AppEnv>();
 
 AuditLogsRoutes.openapi(listRoute, async (c) => {
   const query = c.req.valid('query');
-  const workspaceId = c.get('workspaceId') as string | undefined ?? query.workspaceId;
+  const workspaceId = c.get('workspaceId') || query.workspaceId!;
   const items = await auditLogsService.list({
     workspaceId,
     actorId: query.actorId,
@@ -40,7 +41,7 @@ AuditLogsRoutes.openapi(listRoute, async (c) => {
 
 AuditLogsRoutes.openapi(countRoute, async (c) => {
   const query = c.req.valid('query');
-  const workspaceId = c.get('workspaceId') as string | undefined ?? query.workspaceId;
+  const workspaceId = c.get('workspaceId') || query.workspaceId!;
   const count = await auditLogsService.count({
     workspaceId,
     actorId: query.actorId,

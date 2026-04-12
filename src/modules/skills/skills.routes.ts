@@ -1,10 +1,12 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { skillsService } from './skills.service';
 import { invokeSkillBodySchema, skillNameParamSchema, skillMcpConfigSchema } from './skills.schemas';
-import { Roles } from '../../core/security';
+import { Roles, type Role } from '../../core/security';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 
 const skillIdParamSchema = z.object({ skillId: z.string().min(1) });
 
@@ -16,13 +18,13 @@ const listRoute = createRoute({
 const describeRoute = createRoute({
   method: 'get', path: '/{name}',
   request: { params: skillNameParamSchema },
-  responses: { 200: { description: 'Skill details', ...jsonRes } },
+  responses: { 200: { description: 'Skill details', ...jsonRes }, 404: errRes('Not found') },
 });
 
 const invokeRoute = createRoute({
   method: 'post', path: '/{name}/invoke',
   request: { params: skillNameParamSchema, body: { content: { 'application/json': { schema: invokeSkillBodySchema } } } },
-  responses: { 200: { description: 'Skill result', ...jsonRes } },
+  responses: { 200: { description: 'Skill result', ...jsonRes }, 400: errRes('Bad request') },
 });
 
 const getMcpConfigRoute = createRoute({
@@ -37,10 +39,10 @@ const setMcpConfigRoute = createRoute({
     params: skillIdParamSchema,
     body: { content: { 'application/json': { schema: skillMcpConfigSchema } } },
   },
-  responses: { 200: { description: 'MCP config updated', ...jsonRes }, 400: { description: 'Bad request', ...jsonRes }, 404: { description: 'Skill not found', ...jsonRes } },
+  responses: { 200: { description: 'MCP config updated', ...jsonRes }, 400: { description: 'Bad request', ...jsonRes }, 403: errRes('Forbidden'), 404: { description: 'Skill not found', ...jsonRes } },
 });
 
-export const SkillsRoutes = new OpenAPIHono();
+export const SkillsRoutes = new OpenAPIHono<AppEnv>();
 
 SkillsRoutes.openapi(listRoute, async (c) => {
   const skills = skillsService.listSkills();
@@ -61,7 +63,7 @@ SkillsRoutes.openapi(invokeRoute, async (c) => {
   const context = {
     callerId: c.get('callerId') ?? 'anonymous',
     workspaceId: c.get('workspaceId') ?? 'default',
-    callerRole: c.get('callerRole') ?? Roles.VIEWER,
+    callerRole: (c.get('callerRole') ?? Roles.VIEWER) as Role,
   };
   const result = await skillsService.invokeSkill(name, args, context);
   if (!result.ok) return c.json({ error: result.error.message }, 400);
@@ -79,7 +81,7 @@ SkillsRoutes.openapi(getMcpConfigRoute, async (c) => {
 SkillsRoutes.openapi(setMcpConfigRoute, async (c) => {
   const { skillId } = c.req.valid('param');
   const workspaceId = c.get('workspaceId') ?? 'default';
-  const callerRole = c.get('callerRole') ?? c.get('role');
+  const callerRole = c.get('callerRole');
   const allowedRoles = [Roles.ADMIN, 'owner'];
   if (!callerRole || !allowedRoles.includes(callerRole)) {
     return c.json({ error: 'Insufficient permissions: admin or owner role required to configure skill MCP servers' }, 403);

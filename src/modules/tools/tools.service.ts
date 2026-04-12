@@ -23,7 +23,7 @@ export class ToolsService {
     this.pool = pool ?? mcpClientPool;
   }
 
-  private createHandler(tool: ToolDef): (args: Record<string, unknown>, ctx?: DispatchContext) => Promise<Result<unknown>> {
+  private createHandler(tool: ToolDef): (args: unknown, ctx?: DispatchContext) => Promise<Result<unknown>> {
     switch (tool.providerType) {
       case 'builtin':
         // Builtins are handled by BuiltinSkillProvider — DB records with this type should not overwrite real handlers
@@ -34,7 +34,7 @@ export class ToolsService {
         const { serverName, toolName } = config;
         return async (args) => {
           try {
-            const result = await this.pool.callTool(serverName, toolName, args);
+            const result = await this.pool.callTool(serverName, toolName, args as Record<string, unknown>);
             return ok(result);
           } catch (error) {
             return err(error instanceof Error ? error : new Error(String(error)));
@@ -48,7 +48,7 @@ export class ToolsService {
         return async (args, ctx) => {
           try {
             const result = await enqueueSkill(
-              { skillId: tool.name, args, workspaceId: ctx?.workspaceId ?? 'system', callerId: ctx?.callerId ?? 'tool-service' },
+              { skillId: tool.name, args: args as Record<string, unknown>, workspaceId: ctx?.workspaceId ?? 'system', callerId: ctx?.callerId ?? 'tool-service' },
               { timeout },
             );
             if (result.success) return ok(result.value);
@@ -103,7 +103,7 @@ export class ToolsService {
             const { skillRegistry } = await import('../skills/skills.registry');
             const mappedArgs = config.argsMapping
               ? Object.fromEntries(Object.entries(config.argsMapping).map(([to, from]) => [to, (args as any)[from]]))
-              : args;
+              : args as Record<string, unknown>;
             return await skillRegistry.invoke(config.targetSkillName, mappedArgs, ctx!);
           } catch (error) {
             return err(error instanceof Error ? error : new Error(String(error)));

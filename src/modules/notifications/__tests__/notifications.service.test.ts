@@ -31,7 +31,7 @@ mock.module('../notifications.repo', () => ({
   },
 }));
 
-const mockPrefGet = mock(() => Promise.resolve(null));
+const mockPrefGet = mock(() => Promise.resolve(null as any));
 
 mock.module('../preferences/notification-preferences.repo', () => ({
   notificationPreferencesRepo: {

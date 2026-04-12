@@ -1,5 +1,6 @@
 import { skillRegistry } from '../skills/skills.registry';
 import { executionService } from './execution.service';
+import { ok } from '../../core/result';
 import type { Skill, DispatchContext } from '../skills/skills.types';
 
 const executionSkills: Skill[] = [
@@ -16,13 +17,13 @@ const executionSkills: Skill[] = [
     },
     providerType: 'builtin',
     priority: 50,
-    handler: async (args: unknown, context?: DispatchContext) => {
+    handler: async (args: Record<string, unknown>, context?: DispatchContext) => {
       const { planId } = args as { planId: string };
       const workspaceId = context?.workspaceId ?? 'default';
       const callerId = context?.callerId ?? 'system';
       const result = await executionService.run(workspaceId, planId, callerId);
       if (!result.ok) throw new Error(result.error.message);
-      return result.value;
+      return ok(result.value);
     },
   },
   {
@@ -38,13 +39,13 @@ const executionSkills: Skill[] = [
     },
     providerType: 'builtin',
     priority: 50,
-    handler: async (args: unknown, context?: DispatchContext) => {
+    handler: async (args: Record<string, unknown>, context?: DispatchContext) => {
       const { planId } = args as { planId: string };
       const workspaceId = context?.workspaceId ?? 'default';
       const callerId = context?.callerId ?? 'system';
       const result = await executionService.approve(workspaceId, planId, callerId);
       if (!result.ok) throw new Error(result.error.message);
-      return result.value;
+      return ok(result.value);
     },
   },
 ];

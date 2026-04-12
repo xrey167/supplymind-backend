@@ -1,7 +1,7 @@
 import { describe, it, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
 
 // Use DI — no mock.module needed for taskRepo.
-const mockFindStale = mock(() => Promise.resolve([]));
+const mockFindStale = mock(() => Promise.resolve([] as any[]));
 const mockUpdateStatus = mock(() => Promise.resolve());
 const mockTaskRepo = { findStale: mockFindStale, updateStatus: mockUpdateStatus } as any;
 const mockDeleteExpiredKeys = mock(() => Promise.resolve(0));

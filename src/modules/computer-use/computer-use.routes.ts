@@ -1,10 +1,11 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { computerUseService } from './computer-use.service';
 import { createSessionSchema, runTaskSchema } from './computer-use.schemas';
 import { featureFlagsService } from '../feature-flags/feature-flags.service';
 
-export const computerUseRoutes = new OpenAPIHono();
+export const computerUseRoutes = new OpenAPIHono<AppEnv>();
 
 // POST /sessions — create browser session
 const createSessionRoute = createRoute({
@@ -38,16 +39,15 @@ const listSessionsRoute = createRoute({
   summary: 'List computer use sessions for this workspace',
   responses: {
     200: { content: { 'application/json': { schema: z.object({ sessions: z.array(z.object({ id: z.string(), workspaceId: z.string(), viewportWidth: z.number(), viewportHeight: z.number(), createdAt: z.string() })) }) } }, description: 'Sessions list' },
+    500: { description: 'Error', content: { 'application/json': { schema: z.object({ error: z.string() }) } } },
   },
 });
 
 computerUseRoutes.openapi(listSessionsRoute, (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const result = computerUseService.listSessions(workspaceId);
-  if (!result.ok) {
-    return c.json({ error: result.error.message }, 500);
-  }
-  return c.json({ sessions: result.value.map(s => ({ ...s, createdAt: s.createdAt.toISOString() })) });
+  if (!result.ok) return c.json({ error: 'Internal error' }, 500);
+  return c.json({ sessions: result.value.map(s => ({ ...s, createdAt: s.createdAt.toISOString() })) }, 200);
 });
 
 // DELETE /sessions/:sessionId — destroy session
@@ -60,6 +60,7 @@ const destroySessionRoute = createRoute({
   responses: {
     204: { description: 'Session destroyed' },
     404: { content: { 'application/json': { schema: z.object({ error: z.string() }) } }, description: 'Not found' },
+    500: { description: 'Error', content: { 'application/json': { schema: z.object({ error: z.string() }) } } },
   },
 });
 
@@ -84,6 +85,7 @@ const screenshotRoute = createRoute({
   responses: {
     200: { content: { 'image/png': { schema: z.any() } }, description: 'PNG screenshot' },
     404: { content: { 'application/json': { schema: z.object({ error: z.string() }) } }, description: 'Not found' },
+    500: { description: 'Error', content: { 'application/json': { schema: z.object({ error: z.string() }) } } },
   },
 });
 
@@ -95,7 +97,7 @@ computerUseRoutes.openapi(screenshotRoute, async (c) => {
     const status = (result.error as any).statusCode === 404 ? 404 : 500;
     return c.json({ error: result.error.message }, status as any);
   }
-  return new Response(result.value, { headers: { 'Content-Type': 'image/png' } });
+  return new Response(new Uint8Array(result.value), { headers: { 'Content-Type': 'image/png' } });
 });
 
 // POST /sessions/:sessionId/run — run a task
@@ -124,5 +126,5 @@ computerUseRoutes.openapi(runTaskRoute, async (c) => {
     const status = (result.error as any).statusCode === 404 ? 404 : 500;
     return c.json({ error: result.error.message }, status as any);
   }
-  return c.json(result.value);
+  return c.json(result.value, 200);
 });

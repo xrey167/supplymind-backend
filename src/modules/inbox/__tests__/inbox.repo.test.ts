@@ -83,7 +83,7 @@ describe('InboxRepository', () => {
     });
 
     expect(mockDb.insert).toHaveBeenCalledTimes(1);
-    const valuesCall = mockValues.mock.calls[0]![0];
+    const valuesCall = (mockValues.mock.calls as any[][])[0]![0];
     expect(valuesCall.userId).toBeNull();
     expect(valuesCall.body).toBeNull();
     expect(valuesCall.sourceType).toBeNull();

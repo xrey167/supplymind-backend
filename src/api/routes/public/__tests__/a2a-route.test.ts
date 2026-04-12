@@ -186,7 +186,7 @@ describe('A2A public route', () => {
     });
 
     it('returns JSON-RPC error when gateway returns err', async () => {
-      mockExecute.mockResolvedValue({ ok: false, error: new Error('Task not found') });
+      mockExecute.mockResolvedValue({ ok: false, error: new Error('Task not found') } as any);
       const { body } = await postA2a(jsonRpc('tasks/get', { id: 't1' }));
       expect(body.error.message).toBe('Task not found');
     });
@@ -237,7 +237,7 @@ describe('A2A public route', () => {
     });
 
     it('returns JSON-RPC error on gateway failure', async () => {
-      mockExecute.mockResolvedValue({ ok: false, error: new Error('Agent not found') });
+      mockExecute.mockResolvedValue({ ok: false, error: new Error('Agent not found') } as any);
       const { body } = await postA2a(jsonRpc('tasks/send', { text: 'hi' }));
       expect(body.error.message).toBe('Agent not found');
     });

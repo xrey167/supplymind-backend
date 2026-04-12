@@ -19,12 +19,12 @@ describe('MemoryCache', () => {
 
   test('set and get round-trip', async () => {
     await cache.set('k1', { foo: 'bar' });
-    expect(await cache.get('k1')).toEqual({ foo: 'bar' });
+    expect(await cache.get<{ foo: string }>('k1')).toEqual({ foo: 'bar' });
   });
 
   test('set with TTL expires entry', async () => {
     await cache.set('ttl', 'val', 50);
-    expect(await cache.get('ttl')).toBe('val');
+    expect(await cache.get<string>('ttl')).toBe('val');
     await new Promise((r) => setTimeout(r, 80));
     expect(await cache.get('ttl')).toBeUndefined();
   });
@@ -40,7 +40,7 @@ describe('MemoryCache', () => {
       await cache.set(`key-${i}`, `val-${i}`);
     }
     expect(await cache.get('key-0')).toBeUndefined();
-    expect(await cache.get('key-10')).toBe('val-10');
+    expect(await cache.get<string>('key-10')).toBe('val-10');
   });
 
   test('clear removes all entries', async () => {
@@ -57,6 +57,6 @@ describe('MemoryCache', () => {
     await cache.set('session:1', 'c');
     await cache.clear('user:*');
     expect(await cache.get('user:1')).toBeUndefined();
-    expect(await cache.get('session:1')).toBe('c');
+    expect(await cache.get<string>('session:1')).toBe('c');
   });
 });

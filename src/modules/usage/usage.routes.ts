@@ -1,9 +1,10 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { usageService } from './usage.service';
 import { usageQuerySchema, usageSummaryResponseSchema } from './usage.schemas';
 
-export const usageRoutes = new OpenAPIHono();
+export const usageRoutes = new OpenAPIHono<AppEnv>();
 
 const getUsageRoute = createRoute({
   method: 'get',
@@ -13,6 +14,7 @@ const getUsageRoute = createRoute({
   request: { query: usageQuerySchema },
   responses: {
     200: { content: { 'application/json': { schema: usageSummaryResponseSchema } }, description: 'Usage summary' },
+    401: { description: 'Unauthorized', content: { 'application/json': { schema: z.object({ error: z.string() }) } } },
     500: { content: { 'application/json': { schema: z.object({ error: z.string() }) } }, description: 'Error' },
   },
 });

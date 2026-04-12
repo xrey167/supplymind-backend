@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { promptsService } from './prompts.service';
 import {
@@ -10,6 +11,7 @@ import {
 } from './prompts.schemas';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 
 const listRoute = createRoute({
   method: 'get', path: '/',
@@ -20,19 +22,19 @@ const listRoute = createRoute({
 const getByIdRoute = createRoute({
   method: 'get', path: '/{id}',
   request: { params: promptIdParamSchema },
-  responses: { 200: { description: 'Prompt details', ...jsonRes } },
+  responses: { 200: { description: 'Prompt details', ...jsonRes }, 404: errRes('Not found') },
 });
 
 const createRoute_ = createRoute({
   method: 'post', path: '/',
   request: { body: { content: { 'application/json': { schema: createPromptSchema } } } },
-  responses: { 201: { description: 'Prompt created', ...jsonRes } },
+  responses: { 201: { description: 'Prompt created', ...jsonRes }, 400: errRes('Bad request') },
 });
 
 const updateRoute = createRoute({
   method: 'patch', path: '/{id}',
   request: { params: promptIdParamSchema, body: { content: { 'application/json': { schema: updatePromptSchema } } } },
-  responses: { 200: { description: 'Prompt updated', ...jsonRes } },
+  responses: { 200: { description: 'Prompt updated', ...jsonRes }, 404: errRes('Not found') },
 });
 
 const deleteRoute = createRoute({
@@ -44,10 +46,10 @@ const deleteRoute = createRoute({
 const renderRoute = createRoute({
   method: 'post', path: '/{id}/render',
   request: { params: promptIdParamSchema, body: { content: { 'application/json': { schema: renderPromptSchema } } } },
-  responses: { 200: { description: 'Rendered prompt', ...jsonRes } },
+  responses: { 200: { description: 'Rendered prompt', ...jsonRes }, 404: errRes('Not found') },
 });
 
-export const PromptsRoutes = new OpenAPIHono();
+export const PromptsRoutes = new OpenAPIHono<AppEnv>();
 
 PromptsRoutes.openapi(listRoute, async (c) => {
   const query = c.req.valid('query');

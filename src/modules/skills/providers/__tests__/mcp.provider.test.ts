@@ -6,8 +6,8 @@ import type { McpServerConfig, McpToolManifest } from '../../../../infra/mcp/typ
 // Re-export real McpClientPool via require+proxy to avoid contaminating client-pool.test.ts.
 const _realClientPool = require('../../../../infra/mcp/client-pool');
 
-let mockListTools: (config: McpServerConfig) => Promise<McpToolManifest>;
-let mockCallTool: (configId: string, toolName: string, args: Record<string, unknown>) => Promise<unknown>;
+let mockListTools: any;
+let mockCallTool: any;
 
 mock.module('../../../../infra/mcp/client-pool', () => ({
   ..._realClientPool,

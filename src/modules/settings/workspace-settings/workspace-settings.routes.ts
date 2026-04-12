@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../../core/types';
 import { z } from 'zod';
 import { workspaceSettingsService } from './workspace-settings.service';
 import { updateWorkspaceSettingsSchema, approvalIdParamSchema } from './workspace-settings.schemas';
@@ -7,6 +8,7 @@ import { eventBus } from '../../../events/bus';
 import { Topics } from '../../../events/topics';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 
 const getSettingsRoute = createRoute({
   method: 'get', path: '/',
@@ -22,16 +24,16 @@ const updateSettingsRoute = createRoute({
 const approveRoute = createRoute({
   method: 'post', path: '/tools/approvals/{approvalId}/approve',
   request: { params: approvalIdParamSchema },
-  responses: { 200: { description: 'Approval granted', ...jsonRes } },
+  responses: { 200: { description: 'Approval granted', ...jsonRes }, 404: errRes('Not found') },
 });
 
 const denyRoute = createRoute({
   method: 'post', path: '/tools/approvals/{approvalId}/deny',
   request: { params: approvalIdParamSchema },
-  responses: { 200: { description: 'Approval denied', ...jsonRes } },
+  responses: { 200: { description: 'Approval denied', ...jsonRes }, 404: errRes('Not found') },
 });
 
-export const workspaceSettingsRoutes = new OpenAPIHono();
+export const workspaceSettingsRoutes = new OpenAPIHono<AppEnv>();
 
 workspaceSettingsRoutes.openapi(getSettingsRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;

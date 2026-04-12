@@ -8,7 +8,7 @@ const mockMembersRepo = {
     role: 'member', invitedBy: 'owner-1', joinedAt: new Date(),
   })),
   findMember: mock(async () => null),
-  listMembers: mock(async () => []),
+  listMembers: mock(async () => [] as any[]),
   updateRole: mock(async () => null),
   removeMember: mock(async () => {}),
   countOwners: mock(async () => 1),
@@ -25,8 +25,8 @@ const mockInvitationsRepo = {
       acceptedAt: null, createdAt: new Date(),
     },
   })),
-  findPendingByEmail: mock(async () => null),
-  findByTokenHashForUpdate: mock(async () => null),
+  findPendingByEmail: mock(async () => null as any),
+  findByTokenHashForUpdate: mock(async () => null as any),
   listPending: mock(async () => []),
   accept: mock(async () => {}),
   deleteById: mock(async () => {}),
@@ -35,7 +35,7 @@ const mockInvitationsRepo = {
   deleteByWorkspace: mock(async () => {}),
 };
 
-const mockPublish = mock(() => {});
+const mockPublish = mock((..._args: any[]) => {});
 const mockEventBus = { publish: mockPublish, subscribe: mock(() => 'sub-mock'), unsubscribe: mock(() => {}) };
 
 // tx.execute is called multiple times per transaction — configure per test
@@ -61,7 +61,7 @@ mock.module('../../../events/bus', () => ({
   ..._realBus,
   eventBus: new Proxy(_realBus.eventBus, {
     get(target: any, prop: string | symbol) {
-      if (prop === 'publish') return (...args: any[]) => { mockPublish(...args); return _origMembersPublish(...args); };
+      if (prop === 'publish') return (...args: [string, unknown, any?]) => { mockPublish(...args); return _origMembersPublish(...args); };
       return target[prop];
     },
   }),

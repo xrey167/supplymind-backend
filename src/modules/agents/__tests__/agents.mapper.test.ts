@@ -7,7 +7,7 @@ function makeRow(overrides: Record<string, unknown> = {}) {
     workspaceId: 'ws-1',
     name: 'Test Agent',
     provider: 'anthropic',
-    mode: 'chat',
+    mode: 'raw',
     model: 'claude-3-5-haiku-latest',
     systemPrompt: null,
     temperature: null,
@@ -85,7 +85,7 @@ describe('toAgentConfig', () => {
           workspaceId: 'ws-42',
           name: 'Supply Chain Agent',
           provider: 'openai',
-          mode: 'task',
+          mode: 'agent-sdk',
           model: 'gpt-4o',
           createdAt,
           updatedAt,
@@ -96,7 +96,7 @@ describe('toAgentConfig', () => {
       expect(config.workspaceId).toBe('ws-42');
       expect(config.name).toBe('Supply Chain Agent');
       expect(config.provider).toBe('openai');
-      expect(config.mode).toBe('task');
+      expect(config.mode).toBe('agent-sdk');
       expect(config.model).toBe('gpt-4o');
       expect(config.createdAt).toBe(createdAt);
       expect(config.updatedAt).toBe(updatedAt);

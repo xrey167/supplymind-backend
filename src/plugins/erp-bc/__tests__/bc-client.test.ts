@@ -5,7 +5,7 @@ import { PermanentError, TransientError } from '../sync/sync-errors';
 
 // Mock global fetch
 let mockFetchImpl: (url: string, init?: any) => Promise<Response>;
-globalThis.fetch = (...args: any[]) => mockFetchImpl(...args) as any;
+globalThis.fetch = ((url: string, init?: any) => mockFetchImpl(url, init)) as typeof fetch;
 
 const mockCache: TokenCache = {
   get: async () => JSON.stringify({ accessToken: 'test-token', expiresAt: Date.now() + 3600_000 }),

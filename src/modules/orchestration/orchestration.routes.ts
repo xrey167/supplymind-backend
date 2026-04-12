@@ -1,11 +1,14 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { orchestrationService } from './orchestration.service';
 import { createOrchestrationSchema, orchestrationIdParamSchema } from './orchestration.schemas';
 import { enqueueOrchestration } from '../../infra/queue/bullmq';
 import type { OrchestrationDefinition } from './orchestration.types';
+import { AppError } from '../../core/errors';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 
 const createRoute_ = createRoute({
   method: 'post', path: '/',
@@ -16,13 +19,13 @@ const createRoute_ = createRoute({
 const runRoute = createRoute({
   method: 'post', path: '/{id}/run',
   request: { params: orchestrationIdParamSchema },
-  responses: { 200: { description: 'Orchestration started', ...jsonRes } },
+  responses: { 200: { description: 'Orchestration started', ...jsonRes }, 404: errRes('Not found'), 503: errRes('Service unavailable') },
 });
 
 const getRoute = createRoute({
   method: 'get', path: '/{id}',
   request: { params: orchestrationIdParamSchema },
-  responses: { 200: { description: 'Orchestration details', ...jsonRes } },
+  responses: { 200: { description: 'Orchestration details', ...jsonRes }, 404: errRes('Not found') },
 });
 
 const listRoute = createRoute({
@@ -37,12 +40,12 @@ const cancelRoute = createRoute({
   responses: { 200: { description: 'Cancelled', ...jsonRes }, 400: { description: 'Cannot cancel', ...jsonRes }, 404: { description: 'Not found', ...jsonRes } },
 });
 
-export const orchestrationRoutes = new OpenAPIHono();
+export const orchestrationRoutes = new OpenAPIHono<AppEnv>();
 
 orchestrationRoutes.openapi(createRoute_, async (c) => {
   const body = c.req.valid('json');
   const workspaceId = c.get('workspaceId') as string;
-  const orch = await orchestrationService.create({ workspaceId, ...body });
+  const orch = await orchestrationService.create({ workspaceId, ...body } as Parameters<typeof orchestrationService.create>[0]);
   return c.json(orch, 201);
 });
 
@@ -87,8 +90,8 @@ orchestrationRoutes.openapi(cancelRoute, async (c) => {
   const { id } = c.req.valid('param');
   const result = await orchestrationService.cancel(id, workspaceId);
   if (!result.ok) {
-    const status = result.error.statusCode as 400 | 404;
-    return c.json({ error: result.error.message }, status);
+    const status = (result.error as AppError).statusCode === 404 ? 404 : 400;
+    return c.json({ error: result.error.message }, status as 400 | 404);
   }
   return c.json({ orchestrationId: id, status: 'cancelled' });
 });

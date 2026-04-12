@@ -16,15 +16,15 @@ describe('auditMiddleware', () => {
   it('publishes audit event on request', async () => {
     const app = new Hono();
     app.use('*', async (c, next) => {
-      c.set('callerId', 'user-1');
-      c.set('workspaceId', 'ws-1');
+      (c as any).set('callerId', 'user-1');
+      (c as any).set('workspaceId', 'ws-1');
       return next();
     });
     app.use('*', auditMiddleware);
     app.get('/test', (c) => c.json({ ok: true }));
     await app.request('/test');
     expect(mockPublish).toHaveBeenCalledTimes(1);
-    const [topic, data] = mockPublish.mock.calls[0];
+    const [topic, data] = mockPublish.mock.calls[0] as [string, any];
     expect(topic).toBe('audit.request');
     expect(data.method).toBe('GET');
     expect(data.path).toBe('/test');
@@ -39,7 +39,7 @@ describe('auditMiddleware', () => {
     app.use('*', auditMiddleware);
     app.get('/public', (c) => c.json({ ok: true }));
     await app.request('/public');
-    const [, data] = mockPublish.mock.calls[0];
+    const [, data] = mockPublish.mock.calls[0] as [string, any];
     expect(data.callerId).toBe('anonymous');
     expect(data.workspaceId).toBe('none');
   });

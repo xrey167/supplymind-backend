@@ -1,8 +1,9 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
+import type { AppEnv } from '../../../core/types';
 import { handleStripeWebhook } from '../../../infra/webhooks/stripe';
 import { logger } from '../../../config/logger';
 
-export const stripeWebhookRoutes = new OpenAPIHono();
+export const stripeWebhookRoutes = new OpenAPIHono<AppEnv>();
 
 stripeWebhookRoutes.post('/', async (c) => {
   const signature = c.req.header('stripe-signature');

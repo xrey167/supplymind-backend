@@ -1,15 +1,17 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { executionService } from './execution.service';
 import { createPlanSchema, planIdParamSchema } from './execution.schemas';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 const idParam = { request: { params: planIdParamSchema } };
 
 const createRoute_ = createRoute({
   method: 'post', path: '/',
   request: { body: { content: { 'application/json': { schema: createPlanSchema } } } },
-  responses: { 201: { description: 'Plan created', ...jsonRes }, 400: { description: 'Error', ...jsonRes } },
+  responses: { 201: { description: 'Plan created', ...jsonRes }, 400: { description: 'Error', ...jsonRes }, 401: errRes('Unauthorized') },
 });
 const listRoute = createRoute({
   method: 'get', path: '/',
@@ -24,27 +26,27 @@ const getRoute = createRoute({
 const runRoute = createRoute({
   method: 'post', path: '/{id}/run',
   ...idParam,
-  responses: { 200: { description: 'Submitted', ...jsonRes }, 400: { description: 'Error', ...jsonRes } },
+  responses: { 200: { description: 'Submitted', ...jsonRes }, 400: { description: 'Error', ...jsonRes }, 401: errRes('Unauthorized') },
 });
 const approveRoute = createRoute({
   method: 'post', path: '/{id}/approve',
   ...idParam,
-  responses: { 200: { description: 'Approved', ...jsonRes }, 400: { description: 'Error', ...jsonRes } },
+  responses: { 200: { description: 'Approved', ...jsonRes }, 400: { description: 'Error', ...jsonRes }, 401: errRes('Unauthorized') },
 });
 const runsRoute = createRoute({
   method: 'get', path: '/{id}/runs',
   ...idParam,
-  responses: { 200: { description: 'Runs list', ...jsonRes } },
+  responses: { 200: { description: 'Runs list', ...jsonRes }, 404: errRes('Not found') },
 });
 
-export const executionRoutes = new OpenAPIHono();
+export const executionRoutes = new OpenAPIHono<AppEnv>();
 
 executionRoutes.openapi(createRoute_, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const callerId = c.get('callerId') as string | undefined;
   if (!callerId) return c.json({ error: 'Unauthorized' }, 401);
   const body = c.req.valid('json');
-  const result = await executionService.create(workspaceId, callerId, body);
+  const result = await executionService.create(workspaceId, callerId, body as Parameters<typeof executionService.create>[2]);
   if (!result.ok) return c.json({ error: result.error.message }, 400);
   return c.json(result.value, 201);
 });
@@ -52,7 +54,7 @@ executionRoutes.openapi(createRoute_, async (c) => {
 executionRoutes.openapi(listRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const { limit } = c.req.valid('query');
-  return c.json(await executionService.list(workspaceId, limit));
+  return c.json({ data: await executionService.list(workspaceId, limit) });
 });
 
 executionRoutes.openapi(getRoute, async (c) => {
@@ -88,5 +90,5 @@ executionRoutes.openapi(runsRoute, async (c) => {
   const { id } = c.req.valid('param');
   const result = await executionService.getRuns(workspaceId, id);
   if (!result.ok) return c.json({ error: result.error.message }, 404);
-  return c.json(result.value);
+  return c.json({ data: result.value }, 200);
 });

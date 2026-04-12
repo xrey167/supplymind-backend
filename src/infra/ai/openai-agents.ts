@@ -31,7 +31,7 @@ export class OpenAIAgentSdkRuntime implements AgentRuntime {
         messages.unshift({ role: 'system', content: input.systemPrompt });
       }
 
-      const tools = input.tools ? toOpenAITools(input.tools) : undefined;
+      const tools = input.tools ? toOpenAITools(input.tools) as unknown as OpenAI.ChatCompletionTool[] : undefined;
       const maxIterations = 10;
 
       for (let i = 0; i < maxIterations; i++) {
@@ -52,6 +52,7 @@ export class OpenAIAgentSdkRuntime implements AgentRuntime {
           messages.push(choice.message);
 
           for (const toolCall of choice.message.tool_calls) {
+            if (toolCall.type !== 'function') continue;
             try {
               const args = JSON.parse(toolCall.function.arguments);
               const result = await this.toolExecutor(toolCall.function.name, args);

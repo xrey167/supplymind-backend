@@ -10,7 +10,7 @@ export async function processHealthCheckJob(): Promise<void> {
   await Promise.allSettled(
     installations.map(async (inst) => {
       try {
-        const result = await pluginsService.runHealthCheck(inst.id);
+        const result = await pluginsService.runHealthCheck(inst.workspaceId, inst.id);
         const healthy = result.ok ? 1 : 0;
         appMetrics.pluginHealthGauge.addCallback((obs) => {
           obs.observe(healthy, {

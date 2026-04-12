@@ -24,7 +24,7 @@ let idleCleanupTimer: ReturnType<typeof setInterval> | null = null;
  * Skills loading is critical — if it fails, startup crashes.
  * Redis and MCP are non-critical — if they fail, we warn and continue.
  */
-export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHono): Promise<void> {
+export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHono<any>): Promise<void> {
   // Step 0: Initialize OTel tracing
   const { initOtel } = await import('../infra/observability/otel');
   await initOtel();

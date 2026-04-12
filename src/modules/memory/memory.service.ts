@@ -13,11 +13,11 @@ function daysSince(date: Date | string | null | undefined): number {
 }
 
 function toRecallResult(m: AgentMemory): RecallResult {
-  const updatedAt = m.updatedAt instanceof Date ? m.updatedAt.toISOString() : String(m.updatedAt);
-  const staleDays = daysSince(updatedAt);
+  const updatedAtDate = m.updatedAt instanceof Date ? m.updatedAt : new Date(m.updatedAt);
+  const staleDays = daysSince(updatedAtDate);
   return {
     ...m,
-    updatedAt,
+    updatedAt: updatedAtDate,
     scope: m.agentId ? 'agent' : 'workspace',
     stale: staleDays > STALENESS_THRESHOLD_DAYS,
     staleDays,

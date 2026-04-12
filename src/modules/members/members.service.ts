@@ -59,7 +59,7 @@ class MembersService {
             VALUES (${invitation.workspaceId}, ${userId}, ${invitation.role}, ${invitation.invitedBy})
             RETURNING id, workspace_id, user_id, role, invited_by, joined_at`,
       );
-      const row = memberRows[0]!;
+      const row = memberRows[0] as unknown as Record<string, any>;
 
       // Mark invitation as accepted within the transaction
       await tx.execute(
@@ -86,7 +86,7 @@ class MembersService {
       const memberRows = await tx.execute(
         sql`SELECT id, role FROM workspace_members WHERE workspace_id = ${workspaceId} AND user_id = ${userId}`,
       );
-      const member = memberRows[0];
+      const member = memberRows[0] as unknown as Record<string, any> | undefined;
       if (!member) throw new NotFoundError('Member not found');
       if (member.role === 'owner' && ownerRows.length <= 1) {
         throw new ForbiddenError('Cannot remove the last workspace owner');
@@ -110,7 +110,7 @@ class MembersService {
       const memberRows = await tx.execute(
         sql`SELECT id, role FROM workspace_members WHERE workspace_id = ${workspaceId} AND user_id = ${userId}`,
       );
-      const member = memberRows[0];
+      const member = memberRows[0] as unknown as Record<string, any> | undefined;
       if (!member) throw new NotFoundError('Member not found');
       if (member.role === 'owner' && newRole !== 'owner' && ownerRows.length <= 1) {
         throw new ForbiddenError('Cannot demote the last workspace owner');
@@ -119,7 +119,7 @@ class MembersService {
         sql`UPDATE workspace_members SET role = ${newRole} WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
             RETURNING id, workspace_id, user_id, role, invited_by, joined_at`,
       );
-      const updated = updatedRows[0];
+      const updated = updatedRows[0] as unknown as Record<string, any> | undefined;
       if (!updated) throw new NotFoundError('Member not found');
       eventBus.publish(Topics.MEMBER_ROLE_CHANGED, {
         workspaceId, userId, oldRole: member.role, newRole, changedBy,

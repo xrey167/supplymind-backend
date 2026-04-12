@@ -41,7 +41,7 @@ describe('memory skills', () => {
       metadata: {}, createdAt: new Date(), updatedAt: new Date(),
     }] as any);
     spyOn(memoryRepo, 'delete').mockResolvedValue(true);
-    spyOn(eventBus, 'publish').mockResolvedValue(undefined);
+    spyOn(eventBus, 'publish').mockResolvedValue(undefined as any);
   });
 
   afterEach(() => {

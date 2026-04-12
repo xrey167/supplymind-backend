@@ -188,7 +188,7 @@ describe('McpClient', () => {
 
   it('readResource returns blob content when text is absent', async () => {
     mockSdkReadResource.mockImplementationOnce(async () => ({
-      contents: [{ uri: 'file:///img.png', blob: 'base64encodeddata' }],
+      contents: [{ uri: 'file:///img.png', blob: 'base64encodeddata' }] as any,
     }));
     const client = new McpClient(stdioConfig);
     const text = await client.readResource('file:///img.png');
@@ -208,7 +208,7 @@ describe('McpClient', () => {
           ],
         },
       ],
-    }));
+    }) as any);
     const client = new McpClient(stdioConfig);
     const result = await client.getPrompt('multi', {});
     expect(result).toContain('Hello');

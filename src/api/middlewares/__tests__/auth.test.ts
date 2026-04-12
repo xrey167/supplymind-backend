@@ -40,7 +40,7 @@ function buildApp() {
   app.onError(errorHandler);
   app.use('*', authMiddleware);
   app.get('/test', (c) =>
-    c.json({ callerId: c.get('callerId'), callerRole: c.get('callerRole') }),
+    c.json({ callerId: (c as any).get('callerId'), callerRole: (c as any).get('callerRole') }),
   );
   return app;
 }

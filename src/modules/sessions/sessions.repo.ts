@@ -41,7 +41,7 @@ export const sessionsRepo = {
       role: input.role as any,
       content: input.content,
       toolCallId: input.toolCallId,
-      toolCalls: input.toolCalls,
+      toolCalls: input.toolCalls as any,
       tokenEstimate,
     }).returning();
 
@@ -53,11 +53,13 @@ export const sessionsRepo = {
   },
 
   async getMessages(sessionId: string, opts?: { limit?: number; excludeCompacted?: boolean }): Promise<SessionMessage[]> {
-    let query = db.select().from(sessionMessages).where(eq(sessionMessages.sessionId, sessionId));
-    if (opts?.excludeCompacted) {
-      query = query.where(and(eq(sessionMessages.sessionId, sessionId), eq(sessionMessages.isCompacted, false))) as any;
-    }
-    const rows = await (query as any).orderBy(sessionMessages.createdAt).limit(opts?.limit ?? 1000);
+    const filter = opts?.excludeCompacted
+      ? and(eq(sessionMessages.sessionId, sessionId), eq(sessionMessages.isCompacted, false))
+      : eq(sessionMessages.sessionId, sessionId);
+    const rows = await db.select().from(sessionMessages)
+      .where(filter)
+      .orderBy(sessionMessages.createdAt)
+      .limit(opts?.limit ?? 1000);
     return rows as unknown as SessionMessage[];
   },
 
@@ -98,8 +100,8 @@ export const sessionsRepo = {
       cursorFilter = and(
         baseFilter,
         or(
-          gt(sessionMessages.createdAt, cursorRow.createdAt),
-          and(eq(sessionMessages.createdAt, cursorRow.createdAt), gt(sessionMessages.id, cursorRow.id)),
+          gt(sessionMessages.createdAt, cursorRow.createdAt!),
+          and(eq(sessionMessages.createdAt, cursorRow.createdAt!), gt(sessionMessages.id, cursorRow.id)),
         ),
       ) as any;
     }
@@ -138,7 +140,7 @@ export const sessionsRepo = {
       .set({ isCompacted: true })
       .where(and(
         eq(sessionMessages.sessionId, sessionId),
-        lte(sessionMessages.createdAt, boundary.createdAt),
+        lte(sessionMessages.createdAt, boundary.createdAt!),
       ));
   },
 
@@ -149,7 +151,7 @@ export const sessionsRepo = {
       .where(eq(sessionMessages.sessionId, sessionId))
       .orderBy(desc(sessionMessages.createdAt), desc(sessionMessages.id))
       .limit(1);
-    return row ?? null;
+    return (row as unknown as SessionMessage) ?? null;
   },
 
   async expireIdleSessions(maxIdleMs: number): Promise<number> {

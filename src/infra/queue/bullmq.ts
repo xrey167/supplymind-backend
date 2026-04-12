@@ -1,4 +1,4 @@
-import { Queue, Worker, type Job } from 'bullmq';
+import { Queue, QueueEvents, Worker, type Job } from 'bullmq';
 import Redis from 'ioredis';
 
 const REDIS_URL = Bun.env.REDIS_URL ?? 'redis://localhost:6379';
@@ -81,6 +81,11 @@ export function enqueueOrchestration(data: OrchestrationJobData): Promise<Job<Or
   return orchestrationQueue.add('run', data, { attempts: 1, removeOnComplete: 100, removeOnFail: 200 });
 }
 
+// QueueEvents instance for listening to skill job completions
+const skillQueueEvents = new QueueEvents('skill-execution', {
+  connection: new Redis(REDIS_URL, { maxRetriesPerRequest: null }),
+});
+
 // Enqueue a skill execution and wait for result
 export async function enqueueSkill(data: SkillJobData, opts?: { timeout?: number }): Promise<SkillJobResult> {
   const job = await skillQueue.add('execute', data, {
@@ -88,6 +93,6 @@ export async function enqueueSkill(data: SkillJobData, opts?: { timeout?: number
     removeOnFail: 50,
   });
 
-  const result = await job.waitUntilFinished(skillQueue.events, opts?.timeout ?? 30_000);
+  const result = await job.waitUntilFinished(skillQueueEvents, opts?.timeout ?? 30_000);
   return result;
 }

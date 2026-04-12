@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { authMiddleware } from '../middlewares/auth';
 import { invitationsRepo } from '../../modules/members/invitations.repo';
@@ -14,7 +15,7 @@ const validateTokenRoute = createRoute({
   request: { params: invitationTokenParamSchema },
   responses: {
     200: { description: 'Invitation details', ...jsonRes },
-    404: { description: 'Not found' },
+    404: { description: 'Not found', ...jsonRes },
   },
 });
 
@@ -23,11 +24,11 @@ const acceptRoute = createRoute({
   request: { params: invitationTokenParamSchema },
   responses: {
     200: { description: 'Accepted', ...jsonRes },
-    404: { description: 'Not found' },
+    404: { description: 'Not found', ...jsonRes },
   },
 });
 
-export const invitationRoutes = new OpenAPIHono();
+export const invitationRoutes = new OpenAPIHono<AppEnv>();
 
 invitationRoutes.openapi(validateTokenRoute, async (c) => {
   const { token } = c.req.valid('param');

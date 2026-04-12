@@ -272,8 +272,11 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
       const { collaborate } = await import('../../modules/collaboration/collaboration.engine');
       const { dispatchSkill } = await import('../../modules/skills/skills.dispatch');
       const dispatchCtx = toDispatchCtx(context);
-      const dispatch = (agentId: string, query: string) =>
-        dispatchSkill(agentId, { query }, dispatchCtx);
+      const dispatch = async (agentId: string, args: Record<string, unknown>): Promise<string> => {
+        const r = await dispatchSkill(agentId, args, dispatchCtx);
+        if (!r.ok) throw new Error(r.error instanceof Error ? r.error.message : String(r.error));
+        return typeof r.value === 'string' ? r.value : JSON.stringify(r.value);
+      };
       const result = await collaborate(params as any, dispatch);
       return ok(result);
     }

@@ -18,7 +18,7 @@ export function getClerkClient(): ClerkClient | null {
 
   try {
     const { createClerkClient } = require('@clerk/backend') as typeof import('@clerk/backend');
-    client = createClerkClient({ secretKey: secret });
+    client = createClerkClient({ secretKey: secret }) as unknown as ClerkClient;
     logger.info('Clerk client initialised');
   } catch (err) {
     logger.warn({ err }, 'Failed to initialise Clerk client');

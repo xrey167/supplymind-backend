@@ -27,9 +27,9 @@ const taskRepoUpdateStatusSpy = spyOn(taskRepo, 'updateStatus').mockResolvedValu
 const taskRepoLogToolCallSpy = spyOn(taskRepo, 'logToolCall').mockResolvedValue(undefined as any);
 
 // Mock createRuntime via spyOn so it's properly restored and doesn't bleed
-const mockRun = mock(() => Promise.resolve({ ok: true, value: { content: 'done', stopReason: 'end_turn' } }));
+const mockRun = mock((_input: any) => Promise.resolve({ ok: true, value: { content: 'done', stopReason: 'end_turn' } } as any));
 // mockStream delegates to mockRun so existing test setups on mockRun continue to work
-const mockStream = mock(() => (async function* () {
+const mockStream = mock((_input: any) => (async function* () {
   const result = await (mockRun as any)();
   if (!result.ok) {
     const msg = result.error?.message ?? 'Runtime error';
@@ -52,7 +52,7 @@ const mockRuntime = { run: mockRun, stream: mockStream };
 const runtimeSpy = spyOn(runtimeFactory, 'createRuntime').mockImplementation(() => mockRuntime as any);
 
 // Mock dispatchSkill via spyOn
-const mockDispatchSkill = mock(() => Promise.resolve({ ok: true, value: 'tool-result' }));
+const mockDispatchSkill = mock((_skillId: string, _args: any, _ctx: any) => Promise.resolve({ ok: true as const, value: 'tool-result' }));
 const dispatchSpy = spyOn(skillsDispatch, 'dispatchSkill').mockImplementation(mockDispatchSkill as any);
 
 // Mock skillRegistry.toToolDefinitions via spyOn
@@ -311,7 +311,7 @@ describe('TaskManager', () => {
 
     test('TASK_CANCELED event is emitted on cancel()', async () => {
       const canceledEvents: any[] = [];
-      eventBus.subscribe('task.canceled', (e) => canceledEvents.push(e.data));
+      eventBus.subscribe('task.canceled', (e) => { canceledEvents.push(e.data); });
 
       const task = await taskManager.send({
         message: { role: 'user', parts: [{ kind: 'text' as const, text: 'emit cancel event' }] },
@@ -799,7 +799,7 @@ describe('TaskManager', () => {
 
     test('TASK_ROUND_COMPLETED event includes tokenUsage with actual values from runtime', async () => {
       const roundEvents: any[] = [];
-      eventBus.subscribe('task.round.completed', (e) => roundEvents.push(e.data));
+      eventBus.subscribe('task.round.completed', (e) => { roundEvents.push(e.data); });
 
       mockRun.mockImplementation(async () => ({
         ok: true,
@@ -857,7 +857,7 @@ describe('TaskManager', () => {
 
     test('TASK_ROUND_COMPLETED event is emitted with correct taskId and iterationIndex', async () => {
       const roundEvents: any[] = [];
-      eventBus.subscribe('task.round.completed', (e) => roundEvents.push(e.data));
+      eventBus.subscribe('task.round.completed', (e) => { roundEvents.push(e.data); });
 
       let callCount = 0;
       mockRun.mockImplementation(async () => {
@@ -930,8 +930,8 @@ describe('TaskManager', () => {
     test('publishes TASK_STATUS and TASK_COMPLETED events', async () => {
       const statusEvents: any[] = [];
       const completedEvents: any[] = [];
-      eventBus.subscribe('task.status', (e) => statusEvents.push(e.data));
-      eventBus.subscribe('task.completed', (e) => completedEvents.push(e.data));
+      eventBus.subscribe('task.status', (e) => { statusEvents.push(e.data); });
+      eventBus.subscribe('task.completed', (e) => { completedEvents.push(e.data); });
 
       await taskManager.send({
         message: { role: 'user', parts: [{ kind: 'text' as const, text: 'events' }] },

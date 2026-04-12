@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { tasksService } from './tasks.service';
 import { taskSendSchema, taskIdParamSchema, listTasksQuerySchema, addDependencySchema, dependencyParamSchema } from './tasks.schemas';
@@ -6,11 +7,12 @@ import { taskEventStream } from '../../infra/realtime/sse-stream';
 import { taskRepo } from '../../infra/a2a/task-repo';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 
 const sendRoute = createRoute({
   method: 'post', path: '/',
   request: { body: { content: { 'application/json': { schema: taskSendSchema } } } },
-  responses: { 201: { description: 'Task created', ...jsonRes }, 202: { description: 'Task queued', ...jsonRes } },
+  responses: { 201: { description: 'Task created', ...jsonRes }, 202: { description: 'Task queued', ...jsonRes }, 400: errRes('Bad request') },
 });
 
 const listRoute = createRoute({
@@ -22,34 +24,34 @@ const listRoute = createRoute({
 const getRoute = createRoute({
   method: 'get', path: '/{id}',
   request: { params: taskIdParamSchema },
-  responses: { 200: { description: 'Task details', ...jsonRes } },
+  responses: { 200: { description: 'Task details', ...jsonRes }, 404: errRes('Not found') },
 });
 
 const cancelRoute = createRoute({
   method: 'post', path: '/{id}/cancel',
   request: { params: taskIdParamSchema },
-  responses: { 200: { description: 'Task canceled', ...jsonRes } },
+  responses: { 200: { description: 'Task canceled', ...jsonRes }, 404: errRes('Not found') },
 });
 
 const addDepRoute = createRoute({
   method: 'post', path: '/{id}/dependencies',
   request: { params: taskIdParamSchema, body: { content: { 'application/json': { schema: addDependencySchema } } } },
-  responses: { 201: { description: 'Dependency added', ...jsonRes } },
+  responses: { 201: { description: 'Dependency added', ...jsonRes }, 409: errRes('Conflict') },
 });
 
 const removeDepRoute = createRoute({
   method: 'delete', path: '/{id}/dependencies/{depId}',
   request: { params: dependencyParamSchema },
-  responses: { 204: { description: 'Dependency removed' } },
+  responses: { 204: { description: 'Dependency removed' }, 400: errRes('Bad request') },
 });
 
 const getDepRoute = createRoute({
   method: 'get', path: '/{id}/dependencies',
   request: { params: taskIdParamSchema },
-  responses: { 200: { description: 'Task dependencies', ...jsonRes } },
+  responses: { 200: { description: 'Task dependencies', ...jsonRes }, 500: errRes('Internal error') },
 });
 
-export const TasksRoutes = new OpenAPIHono();
+export const TasksRoutes = new OpenAPIHono<AppEnv>();
 
 /** Normalize an A2ATask-like object to the flat API shape tests expect */
 function normalizeTask(task: { id: string; status: { state: string } | string; [k: string]: unknown }, extras?: Record<string, unknown>) {

@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { apiKeysService } from './api-keys.service';
 import { toApiKeyResponse } from './api-keys.mapper';
@@ -28,7 +29,7 @@ const getRoute = createRoute({
   request: { params: apiKeyParamSchema },
   responses: {
     200: { description: 'API key details', content: { 'application/json': { schema: apiKeyResponseSchema } } },
-    404: { description: 'Not found' },
+    404: { description: 'Not found', content: { 'application/json': { schema: z.object({ error: z.string() }) } } },
   },
 });
 
@@ -39,7 +40,7 @@ const revokeRoute = createRoute({
   request: { params: apiKeyParamSchema },
   responses: {
     200: { description: 'Key revoked', content: { 'application/json': { schema: z.object({ revoked: z.boolean() }) } } },
-    404: { description: 'Not found' },
+    404: { description: 'Not found', content: { 'application/json': { schema: z.object({ error: z.string() }) } } },
   },
 });
 
@@ -50,11 +51,11 @@ const deleteRoute = createRoute({
   request: { params: apiKeyParamSchema },
   responses: {
     200: { description: 'Key deleted', content: { 'application/json': { schema: z.object({ deleted: z.boolean() }) } } },
-    404: { description: 'Not found' },
+    404: { description: 'Not found', content: { 'application/json': { schema: z.object({ error: z.string() }) } } },
   },
 });
 
-export const ApiKeysRoutes = new OpenAPIHono();
+export const ApiKeysRoutes = new OpenAPIHono<AppEnv>();
 
 ApiKeysRoutes.openapi(listRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
@@ -75,7 +76,7 @@ ApiKeysRoutes.openapi(getRoute, async (c) => {
   const { keyId } = c.req.valid('param');
   const key = await apiKeysService.get(keyId, workspaceId);
   if (!key) return c.json({ error: 'API key not found' }, 404);
-  return c.json(toApiKeyResponse(key));
+  return c.json(toApiKeyResponse(key), 200);
 });
 
 ApiKeysRoutes.openapi(revokeRoute, async (c) => {
@@ -84,7 +85,7 @@ ApiKeysRoutes.openapi(revokeRoute, async (c) => {
   const revoked = await apiKeysService.revoke(keyId, workspaceId);
   if (!revoked) return c.json({ error: 'API key not found' }, 404);
   emitApiKeyRevoked(keyId, workspaceId);
-  return c.json({ revoked: true });
+  return c.json({ revoked: true }, 200);
 });
 
 ApiKeysRoutes.openapi(deleteRoute, async (c) => {
@@ -93,5 +94,5 @@ ApiKeysRoutes.openapi(deleteRoute, async (c) => {
   const deleted = await apiKeysService.deleteKey(keyId, workspaceId);
   if (!deleted) return c.json({ error: 'API key not found' }, 404);
   emitApiKeyDeleted(keyId, workspaceId);
-  return c.json({ deleted: true });
+  return c.json({ deleted: true }, 200);
 });

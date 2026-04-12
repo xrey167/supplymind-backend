@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { collaborate } from './collaboration.engine';
 import { dispatchSkill } from '../skills/skills.dispatch';
@@ -23,7 +24,7 @@ const collaborateRoute = createRoute({
   responses: { 200: { description: 'Collaboration result', content: { 'application/json': { schema: z.object({}).passthrough() } } } },
 });
 
-export const CollaborationRoutes = new OpenAPIHono();
+export const CollaborationRoutes = new OpenAPIHono<AppEnv>();
 
 CollaborationRoutes.openapi(collaborateRoute, async (c) => {
   const body = c.req.valid('json');

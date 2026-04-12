@@ -34,7 +34,7 @@ describe('DomainRegistry', () => {
       ],
     };
     registry.register(manifest);
-    await hooks.emit('task_created', { taskId: 'task_1', agentId: 'agent_1' });
+    await hooks.emit('task_created', { taskId: 'task_1', workspaceId: 'ws-1', agentId: 'agent_1' });
     expect(fired).toBe(true);
   });
 

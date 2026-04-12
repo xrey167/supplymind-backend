@@ -28,9 +28,10 @@ export class AnthropicAgentSdkRuntime implements AgentRuntime {
         .map(m => ({
           role: m.role as 'user' | 'assistant',
           content: typeof m.content === 'string' ? m.content : m.content.map(block => {
-            if (block.type === 'text') return { type: 'text' as const, text: block.text! };
-            if (block.type === 'tool_use') return { type: 'tool_use' as const, id: block.id!, name: block.name!, input: block.input ?? {} };
-            return { type: 'tool_result' as const, tool_use_id: block.toolUseId!, content: block.content ?? '' };
+            if (block.type === 'text') return { type: 'text' as const, text: block.text };
+            if (block.type === 'tool_use') return { type: 'tool_use' as const, id: block.id, name: block.name, input: block.input ?? {} };
+            if (block.type === 'tool_result') return { type: 'tool_result' as const, tool_use_id: block.toolUseId, content: typeof block.content === 'string' ? block.content : '' };
+            return { type: 'image' as const, source: block.source };
           }),
         }));
 

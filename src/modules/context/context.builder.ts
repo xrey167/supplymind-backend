@@ -17,7 +17,7 @@ interface WorkspaceContext {
   goals?: string[];
 }
 
-interface PreparedContext {
+export interface PreparedContext {
   systemPrompt: string;
   messages: Message[];
   estimatedTokens: number;

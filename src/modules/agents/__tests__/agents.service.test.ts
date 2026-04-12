@@ -2,10 +2,10 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { AgentsService } from '../agents.service';
 import { Topics } from '../../../events/topics';
 
-const mockFindByWorkspace = mock(() => Promise.resolve([]));
-const mockFindById = mock(() => Promise.resolve(null));
-const mockCreate = mock(() => Promise.resolve(null));
-const mockUpdate = mock(() => Promise.resolve(null));
+const mockFindByWorkspace = mock(() => Promise.resolve([] as any[]));
+const mockFindById = mock(() => Promise.resolve(null as any));
+const mockCreate = mock(() => Promise.resolve(null as any));
+const mockUpdate = mock(() => Promise.resolve(null as any));
 const mockRemove = mock(() => Promise.resolve(undefined));
 
 const mockRepo = {
@@ -16,7 +16,7 @@ const mockRepo = {
   remove: mockRemove,
 } as any;
 
-const mockPublish = mock(() => Promise.resolve());
+const mockPublish = mock((..._args: any[]) => Promise.resolve());
 const mockBus = { publish: mockPublish } as any;
 
 // Minimal DB row shape matching agentConfigs.$inferSelect

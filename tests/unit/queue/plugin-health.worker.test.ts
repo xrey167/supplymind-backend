@@ -33,7 +33,7 @@ describe('plugin-health worker', () => {
   test('processes health check for each enabled installation', async () => {
     await processHealthCheckJob();
     expect(mockList).toHaveBeenCalledTimes(1);
-    expect(mockRunHealthCheck).toHaveBeenCalledWith('inst-1');
+    expect(mockRunHealthCheck).toHaveBeenCalledWith('ws-1', 'inst-1');
   });
 
   test('handles multiple installations', async () => {

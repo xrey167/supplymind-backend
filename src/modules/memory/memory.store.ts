@@ -33,7 +33,7 @@ export class PgVectorMemoryStore implements MemoryStore {
       ORDER BY embedding <=> ${vectorStr}::vector
       LIMIT ${opts.limit}
     `);
-    return (rows.rows as any[]).map((row) => ({
+    return (rows as any[]).map((row) => ({
       id: row.id,
       text: `${row.title}: ${row.content}`,
       score: row.similarity,

@@ -3,7 +3,7 @@ import { ok, err } from '../../../core/result';
 import type { DispatchContext } from '../skills.types';
 
 // Mock skillsService
-const mockGetMcpConfig = mock(async (_wid: string, _sid: string) =>
+const mockGetMcpConfig = mock(async (_wid: string, _sid: string): Promise<any> =>
   ok({ analytics: { type: 'streamable-http' as const, url: 'http://localhost:4000' } })
 );
 
@@ -222,7 +222,8 @@ describe('skill_mcp builtin skill', () => {
       arguments: { q: 'foo', limit: 10 },
     }, ctx);
 
-    const [wsId, skillId, mcpName, , toolName, toolArgs] = mockManagerCallTool.mock.calls[0];
+    const callArgs = mockManagerCallTool.mock.calls[0] as unknown as any[];
+    const [wsId, skillId, mcpName, , toolName, toolArgs] = callArgs;
     expect(wsId).toBe('ws-1');
     expect(skillId).toBe('skill-abc');
     expect(mcpName).toBe('analytics');

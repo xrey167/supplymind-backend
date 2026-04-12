@@ -176,8 +176,8 @@ export class GoogleRawRuntime implements AgentRuntime {
         if (chunk.functionCalls?.length) {
           for (const fc of chunk.functionCalls) {
             const id = nanoid();
-            yield { type: 'tool_call_start', data: { id, name: fc.name } };
-            yield { type: 'tool_call_end', data: { id, name: fc.name, args: fc.args ?? {} } };
+            yield { type: 'tool_call_start', data: { id, name: fc.name ?? '' } };
+            yield { type: 'tool_call_end', data: { id, name: fc.name ?? '', args: fc.args ?? {} } };
           }
         }
       }
@@ -206,12 +206,14 @@ export class GoogleRawRuntime implements AgentRuntime {
               if (block.type === 'text') return { text: block.text ?? '' };
               if (block.type === 'tool_use')
                 return { functionCall: { name: block.name ?? '', args: (block.input ?? {}) as Record<string, unknown> } };
-              return {
-                functionResponse: {
-                  name: block.toolUseId ?? '',
-                  response: { result: block.content ?? '' },
-                },
-              };
+              if (block.type === 'tool_result')
+                return {
+                  functionResponse: {
+                    name: block.toolUseId ?? '',
+                    response: { result: block.content ?? '' },
+                  },
+                };
+              return { text: '' }; // image block — no Google equivalent
             }),
       }));
   }

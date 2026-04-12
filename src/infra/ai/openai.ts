@@ -58,7 +58,7 @@ export class OpenAIRawRuntime implements AgentRuntime {
       };
 
       if (input.temperature !== undefined) params.temperature = input.temperature;
-      if (input.tools?.length) params.tools = toOpenAITools(input.tools);
+      if (input.tools?.length) params.tools = toOpenAITools(input.tools) as unknown as OpenAI.ChatCompletionTool[];
       if (input.toolChoice && input.tools?.length) {
         params.tool_choice = toOpenAIToolChoice(input.toolChoice) as any;
       }
@@ -82,11 +82,13 @@ export class OpenAIRawRuntime implements AgentRuntime {
 
       const message = choice.message;
       const content = message.content ?? '';
-      const toolCalls = message.tool_calls?.map((tc) => ({
-        id: tc.id,
-        name: tc.function.name,
-        args: JSON.parse(tc.function.arguments || '{}'),
-      }));
+      const toolCalls = message.tool_calls
+        ?.filter((tc): tc is OpenAI.ChatCompletionMessageFunctionToolCall => tc.type === 'function')
+        .map((tc) => ({
+          id: tc.id,
+          name: tc.function.name,
+          args: JSON.parse(tc.function.arguments || '{}'),
+        }));
 
       const stopReason: RunResult['stopReason'] =
         choice.finish_reason === 'stop' ? 'end_turn'
@@ -143,7 +145,7 @@ export class OpenAIRawRuntime implements AgentRuntime {
         stream_options: { include_usage: true },
       };
       if (input.temperature !== undefined) params.temperature = input.temperature;
-      if (input.tools?.length) params.tools = toOpenAITools(input.tools);
+      if (input.tools?.length) params.tools = toOpenAITools(input.tools) as unknown as OpenAI.ChatCompletionTool[];
       if (input.toolChoice && input.tools?.length) {
         (params as any).tool_choice = toOpenAIToolChoice(input.toolChoice);
       }
@@ -168,7 +170,7 @@ export class OpenAIRawRuntime implements AgentRuntime {
           for (const tc of delta.tool_calls) {
             if (tc.function?.name) {
               toolCallAccumulators.set(tc.index, { id: tc.id ?? '', name: tc.function.name, argsJson: '' });
-              yield { type: 'tool_call_start', data: { id: tc.id, name: tc.function.name } };
+              yield { type: 'tool_call_start', data: { id: tc.id ?? '', name: tc.function.name } };
             }
             if (tc.function?.arguments) {
               const acc = toolCallAccumulators.get(tc.index);

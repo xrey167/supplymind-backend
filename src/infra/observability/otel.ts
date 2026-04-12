@@ -15,16 +15,18 @@ export async function initOtel(): Promise<void> {
   try {
     const { BasicTracerProvider, BatchSpanProcessor } = await import('@opentelemetry/sdk-trace-base');
     const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http');
-    const { Resource } = await import('@opentelemetry/resources');
+    const { resourceFromAttributes } = await import('@opentelemetry/resources');
     const { ATTR_SERVICE_NAME } = await import('@opentelemetry/semantic-conventions');
 
     const serviceName = Bun.env.OTEL_SERVICE_NAME ?? 'supplymind-backend';
-    const resource = new Resource({ [ATTR_SERVICE_NAME]: serviceName });
+    const resource = resourceFromAttributes({ [ATTR_SERVICE_NAME]: serviceName });
     const exporter = new OTLPTraceExporter({ url: `${endpoint}/v1/traces` });
 
-    provider = new BasicTracerProvider({ resource });
-    provider.addSpanProcessor(new BatchSpanProcessor(exporter));
-    provider.register();
+    provider = new BasicTracerProvider({
+      resource,
+      spanProcessors: [new BatchSpanProcessor(exporter)],
+    });
+    trace.setGlobalTracerProvider(provider);
 
     logger.info({ endpoint, serviceName }, 'OTel: tracing initialized');
   } catch (err) {

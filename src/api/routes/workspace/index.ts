@@ -1,4 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
+import type { AppEnv } from '../../../core/types';
 import { authMiddleware } from '../../middlewares/auth';
 import { workspaceMiddleware } from '../../middlewares/workspace';
 import { auditMiddleware } from '../../middlewares/audit';
@@ -28,7 +29,7 @@ import { PromptsRoutes } from '../../../modules/prompts/prompts.routes';
 import { pluginRoutes } from '../../../modules/plugins/plugins.routes';
 import { executionRoutes } from '../../../modules/execution/execution.routes';
 
-const workspaceRoutes = new OpenAPIHono();
+const workspaceRoutes = new OpenAPIHono<AppEnv>();
 
 // All workspace routes require auth + workspace context + audit + rate limiting
 workspaceRoutes.use('*', authMiddleware);

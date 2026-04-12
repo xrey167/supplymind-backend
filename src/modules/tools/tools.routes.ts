@@ -1,11 +1,14 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { toolsService } from './tools.service';
+import type { CreateToolInput, UpdateToolInput } from './tools.types';
 import { createToolSchema, updateToolSchema, toolIdParamSchema, listToolsQuerySchema } from './tools.schemas';
 import { requireRole } from '../../api/middlewares/auth';
 import { Roles } from '../../core/security/rbac';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 
 const listRoute = createRoute({
   method: 'get', path: '/',
@@ -16,21 +19,21 @@ const listRoute = createRoute({
 const getByIdRoute = createRoute({
   method: 'get', path: '/{id}',
   request: { params: toolIdParamSchema },
-  responses: { 200: { description: 'Tool details', ...jsonRes } },
+  responses: { 200: { description: 'Tool details', ...jsonRes }, 404: errRes('Not found') },
 });
 
 const createRoute_ = createRoute({
   method: 'post', path: '/',
   middleware: [requireRole(Roles.OPERATOR)] as any,
   request: { body: { content: { 'application/json': { schema: createToolSchema } } } },
-  responses: { 201: { description: 'Tool created', ...jsonRes } },
+  responses: { 201: { description: 'Tool created', ...jsonRes }, 400: errRes('Bad request') },
 });
 
 const updateRoute = createRoute({
   method: 'patch', path: '/{id}',
   middleware: [requireRole(Roles.OPERATOR)] as any,
   request: { params: toolIdParamSchema, body: { content: { 'application/json': { schema: updateToolSchema } } } },
-  responses: { 200: { description: 'Tool updated', ...jsonRes } },
+  responses: { 200: { description: 'Tool updated', ...jsonRes }, 404: errRes('Not found') },
 });
 
 const deleteRoute = createRoute({
@@ -40,7 +43,7 @@ const deleteRoute = createRoute({
   responses: { 204: { description: 'Tool deleted' } },
 });
 
-export const ToolsRoutes = new OpenAPIHono();
+export const ToolsRoutes = new OpenAPIHono<AppEnv>();
 
 ToolsRoutes.openapi(listRoute, async (c) => {
   const query = c.req.valid('query');
@@ -57,7 +60,7 @@ ToolsRoutes.openapi(getByIdRoute, async (c) => {
 
 ToolsRoutes.openapi(createRoute_, async (c) => {
   const body = c.req.valid('json');
-  const result = await toolsService.create({ ...body, providerType: body.providerType ?? 'inline' });
+  const result = await toolsService.create({ ...body, providerType: body.providerType ?? 'inline' } as CreateToolInput);
   if (!result.ok) return c.json({ error: result.error.message }, 400);
   return c.json({ data: result.value }, 201);
 });
@@ -65,7 +68,7 @@ ToolsRoutes.openapi(createRoute_, async (c) => {
 ToolsRoutes.openapi(updateRoute, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
-  const result = await toolsService.update(id, body);
+  const result = await toolsService.update(id, body as UpdateToolInput);
   if (!result.ok) return c.json({ error: result.error.message }, 404);
   return c.json({ data: result.value });
 });
@@ -73,5 +76,5 @@ ToolsRoutes.openapi(updateRoute, async (c) => {
 ToolsRoutes.openapi(deleteRoute, async (c) => {
   const { id } = c.req.valid('param');
   await toolsService.remove(id);
-  return c.json({ success: true }, 204);
+  return c.body(null, 204);
 });

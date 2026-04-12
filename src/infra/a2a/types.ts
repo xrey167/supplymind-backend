@@ -82,6 +82,7 @@ export interface TaskSendParams {
   skillId?: string;
   args?: Record<string, unknown>;
   message?: A2AMessage;
+  sessionId?: string;
 }
 
 export interface TaskGetParams {

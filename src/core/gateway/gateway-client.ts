@@ -143,7 +143,7 @@ export class GatewayClient {
     const reg: HookRegistration = {
       id: hookId,
       event,
-      handler,
+      handler: handler as HookHandler,
       provider: opts?.provider ?? `acp:${this.context.callerId}`,
     };
 

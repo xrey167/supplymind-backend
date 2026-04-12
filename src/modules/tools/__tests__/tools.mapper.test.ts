@@ -1,7 +1,10 @@
 import { describe, test, expect } from 'bun:test';
 import { toToolDef } from '../tools.mapper';
+import type { skillDefinitions } from '../../../infra/db/schema';
 
-const makeRow = (overrides?: Partial<any>) => ({
+type SkillRow = typeof skillDefinitions.$inferSelect;
+
+const makeRow = (overrides?: Partial<SkillRow>): SkillRow => ({
   id: 'row-id-1',
   workspaceId: 'ws-abc',
   name: 'sample_tool',
@@ -11,6 +14,7 @@ const makeRow = (overrides?: Partial<any>) => ({
   inputSchema: { type: 'object', properties: { x: { type: 'number' } } },
   handlerConfig: { key: 'value' },
   enabled: true,
+  mcpConfig: {},
   createdAt: new Date('2024-06-01T00:00:00Z'),
   updatedAt: new Date('2024-06-02T00:00:00Z'),
   ...overrides,
@@ -28,7 +32,7 @@ describe('toToolDef', () => {
     expect(def.providerType).toBe('builtin');
     expect(def.priority).toBe(10);
     expect(def.inputSchema).toEqual({ type: 'object', properties: { x: { type: 'number' } } });
-    expect(def.handlerConfig).toEqual({ key: 'value' });
+    expect(def.handlerConfig).toEqual({ key: 'value' } as any);
     expect(def.enabled).toBe(true);
     expect(def.createdAt).toEqual(new Date('2024-06-01T00:00:00Z'));
     expect(def.updatedAt).toEqual(new Date('2024-06-02T00:00:00Z'));
@@ -60,7 +64,7 @@ describe('toToolDef', () => {
   });
 
   test('should map providerType exactly as provided', () => {
-    for (const pt of ['builtin', 'mcp', 'worker', 'inline', 'plugin']) {
+    for (const pt of ['builtin', 'mcp', 'worker', 'inline', 'plugin'] as const) {
       const def = toToolDef(makeRow({ providerType: pt }));
       expect(def.providerType).toBe(pt);
     }

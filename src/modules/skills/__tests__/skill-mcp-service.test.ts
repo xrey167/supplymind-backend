@@ -48,7 +48,7 @@ describe('SkillsService — MCP config', () => {
     });
 
     it('returns err when skill not found', async () => {
-      mockFindById.mockResolvedValueOnce(undefined);
+      mockFindById.mockResolvedValueOnce(undefined as any);
 
       const result = await service.getMcpConfig('ws-1', 'skill-missing');
       expect(result.ok).toBe(false);
@@ -97,7 +97,7 @@ describe('SkillsService — MCP config', () => {
     });
 
     it('returns err when skill not found', async () => {
-      mockFindById.mockResolvedValueOnce(undefined);
+      mockFindById.mockResolvedValueOnce(undefined as any);
 
       const result = await service.setMcpConfig('ws-1', 'skill-missing', VALID_CONFIG);
       expect(result.ok).toBe(false);

@@ -1,7 +1,7 @@
 import { describe, it, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
 
 const mockTotalCost = mock(() => Promise.resolve(0));
-const mockGetTokenBudget = mock(() => Promise.resolve(null));
+const mockGetTokenBudget = mock(() => Promise.resolve(null as any));
 
 mock.module('../usage.repo', () => ({
   usageRepo: {

@@ -52,7 +52,7 @@ describe('InboxService', () => {
   test('list delegates to repo.list', async () => {
     await service.list('user-1', 'ws-1', { unreadOnly: true });
     expect(mockRepo.list).toHaveBeenCalledTimes(1);
-    expect(mockRepo.list.mock.calls[0]).toEqual(['user-1', 'ws-1', { unreadOnly: true }]);
+    expect((mockRepo.list.mock.calls as any[][])[0]).toEqual(['user-1', 'ws-1', { unreadOnly: true }]);
   });
 
   test('markRead delegates to repo.markRead', async () => {
@@ -80,7 +80,8 @@ describe('InboxService', () => {
   test('cleanup calculates cutoff date and delegates to deleteOlderThan', async () => {
     const deleted = await service.cleanup('ws-1', 30);
     expect(mockRepo.deleteOlderThan).toHaveBeenCalledTimes(1);
-    const [wsId, cutoffDate] = mockRepo.deleteOlderThan.mock.calls[0]!;
+    const callArgs = (mockRepo.deleteOlderThan.mock.calls as any[][])[0]!;
+    const [wsId, cutoffDate] = callArgs;
     expect(wsId).toBe('ws-1');
     // Cutoff should be roughly 30 days ago
     const thirtyDaysAgo = new Date();

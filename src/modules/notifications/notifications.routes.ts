@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { notificationsService } from './notifications.service';
 import {
@@ -49,7 +50,7 @@ const updatePreferencesRoute = createRoute({
   responses: { 200: { description: 'Preferences updated', ...jsonRes } },
 });
 
-export const NotificationsRoutes = new OpenAPIHono();
+export const NotificationsRoutes = new OpenAPIHono<AppEnv>();
 
 NotificationsRoutes.openapi(listRoute, async (c) => {
   const userId = c.get('callerId') as string;

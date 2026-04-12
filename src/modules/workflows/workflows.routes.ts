@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { executeWorkflow } from './workflows.engine';
 import { dispatchSkill } from '../skills/skills.dispatch';
@@ -44,16 +45,17 @@ const runWorkflowRoute = createRoute({
 });
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 
 const createTemplateRoute = createRoute({
   method: 'post', path: '/',
   request: { body: { content: { 'application/json': { schema: createWorkflowTemplateSchema } } } },
-  responses: { 201: { description: 'Created', ...jsonRes } },
+  responses: { 201: { description: 'Created', ...jsonRes }, 400: errRes('Bad request') },
 });
 
 const listTemplatesRoute = createRoute({
   method: 'get', path: '/',
-  responses: { 200: { description: 'List', ...jsonRes } },
+  responses: { 200: { description: 'List', ...jsonRes }, 500: errRes('Internal error') },
 });
 
 const getTemplateRoute = createRoute({
@@ -80,7 +82,7 @@ const runTemplateRoute = createRoute({
   responses: { 202: { description: 'Accepted', ...jsonRes }, 404: { description: 'Not found', ...jsonRes } },
 });
 
-export const WorkflowRoutes = new OpenAPIHono();
+export const WorkflowRoutes = new OpenAPIHono<AppEnv>();
 
 WorkflowRoutes.openapi(runWorkflowRoute, async (c) => {
   const body = c.req.valid('json');

@@ -1,9 +1,10 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
+import type { AppEnv } from '../../../core/types';
 import { usersService } from '../../../modules/users/users.service';
 import { logger } from '../../../config/logger';
 import type { ClerkWebhookEvent } from '../../../modules/users/users.types';
 
-export const clerkWebhookRoutes = new OpenAPIHono();
+export const clerkWebhookRoutes = new OpenAPIHono<AppEnv>();
 
 clerkWebhookRoutes.post('/', async (c) => {
   const secret = Bun.env.CLERK_WEBHOOK_SECRET;

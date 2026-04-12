@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { memoryService } from './memory.service';
 import { saveMemorySchema, recallSchema, proposeMemorySchema, memoryIdParamSchema, proposalIdParamSchema, memoryListQuerySchema, rejectProposalSchema } from './memory.schemas';
@@ -47,7 +48,7 @@ const rejectProposalRoute = createRoute({
   responses: { 200: { description: 'Proposal rejected', ...jsonRes } },
 });
 
-export const memoryRoutes = new OpenAPIHono();
+export const memoryRoutes = new OpenAPIHono<AppEnv>();
 
 memoryRoutes.openapi(saveRoute, async (c) => {
   const body = c.req.valid('json');
@@ -60,14 +61,14 @@ memoryRoutes.openapi(recallRoute, async (c) => {
   const body = c.req.valid('json');
   const workspaceId = c.req.param('workspaceId') ?? 'default';
   const memories = await memoryService.recall({ workspaceId, ...body });
-  return c.json(memories);
+  return c.json({ data: memories });
 });
 
 memoryRoutes.openapi(listRoute, async (c) => {
   const workspaceId = c.req.param('workspaceId') ?? 'default';
   const query = c.req.valid('query');
   const memories = await memoryService.list(workspaceId, query.agentId);
-  return c.json(memories);
+  return c.json({ data: memories });
 });
 
 memoryRoutes.openapi(forgetRoute, async (c) => {

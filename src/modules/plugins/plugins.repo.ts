@@ -6,14 +6,14 @@ export interface PluginInstallationRow {
   id: string;
   pluginId: string;
   workspaceId: string;
-  enabled: boolean;
+  status: string;
 }
 
 const installationColumns = {
   id: pluginInstallations.id,
   pluginId: pluginInstallations.pluginId,
   workspaceId: pluginInstallations.workspaceId,
-  enabled: pluginInstallations.enabled,
+  status: pluginInstallations.status,
 };
 
 export const pluginInstallationRepo = {
@@ -21,7 +21,7 @@ export const pluginInstallationRepo = {
     return db
       .select(installationColumns)
       .from(pluginInstallations)
-      .where(eq(pluginInstallations.enabled, true));
+      .where(eq(pluginInstallations.status, 'active'));
   },
 
   async findById(id: string): Promise<PluginInstallationRow | undefined> {

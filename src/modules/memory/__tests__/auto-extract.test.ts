@@ -13,14 +13,14 @@ describe('extractFacts', () => {
     const facts = extractFacts([
       entry('user', 'My name is Alice and I prefer to be called Al'),
     ]);
-    expect(facts.some(f => f.key.includes('name') || f.value.toString().toLowerCase().includes('alice'))).toBe(true);
+    expect(facts.some(f => f.key.includes('name') || String(f.value).toLowerCase().includes('alice'))).toBe(true);
   });
 
   it('extracts language preferences', () => {
     const facts = extractFacts([
       entry('user', 'Please always respond in German'),
     ]);
-    expect(facts.some(f => f.key === 'language_preference' || f.value.toString().includes('German'))).toBe(true);
+    expect(facts.some(f => f.key === 'language_preference' || String(f.value).includes('German'))).toBe(true);
   });
 
   it('extracts timezone mentions', () => {

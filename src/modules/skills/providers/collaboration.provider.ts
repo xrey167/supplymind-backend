@@ -33,7 +33,7 @@ export class CollaborationSkillProvider implements SkillProvider {
         priority: this.priority,
         handler: async (args, context) => {
           try {
-            const req = args as CollaborationRequest;
+            const req = args as unknown as CollaborationRequest;
             // Create a dispatch fn that routes through skill dispatch
             const dispatch = async (skillId: string, skillArgs: Record<string, unknown>): Promise<string> => {
               const result = await dispatchSkill(skillId, skillArgs, {

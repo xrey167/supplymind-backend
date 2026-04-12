@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { membersService } from './members.service';
 import { hasPermission } from '../../core/security/rbac';
@@ -11,6 +12,7 @@ import {
 } from './members.schemas';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 
 function requireAdmin(c: any): void {
   const callerRole = c.get('callerRole') as string;
@@ -59,7 +61,7 @@ const removeMemberRoute = createRoute({
   responses: { 204: { description: 'Member removed' } },
 });
 
-export const MembersRoutes = new OpenAPIHono();
+export const MembersRoutes = new OpenAPIHono<AppEnv>();
 
 MembersRoutes.openapi(listMembersRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
@@ -88,7 +90,7 @@ MembersRoutes.openapi(revokeInvitationRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
   const { id } = c.req.valid('param');
   await membersService.revokeInvitation(workspaceId, id);
-  return c.json({ success: true }, 204);
+  return c.body(null, 204);
 });
 
 MembersRoutes.openapi(updateRoleRoute, async (c) => {
@@ -107,5 +109,5 @@ MembersRoutes.openapi(removeMemberRoute, async (c) => {
   const { userId } = c.req.valid('param');
   if (userId !== callerId) requireAdmin(c);
   await membersService.removeMember(workspaceId, userId, callerId);
-  return c.json({ success: true }, 204);
+  return c.body(null, 204);
 });

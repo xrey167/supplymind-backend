@@ -26,7 +26,7 @@ const mockRecallMemory = {
   stale: false,
   staleDays: 0,
   createdAt: new Date(),
-  updatedAt: new Date().toISOString(),
+  updatedAt: new Date(),
 };
 
 const mockMemoryService = {

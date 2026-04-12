@@ -5,7 +5,7 @@ import { rateLimit, _resetBuckets } from '../rate-limit';
 function createApp(maxRequests: number) {
   const app = new Hono();
   app.use('*', async (c, next) => {
-    c.set('workspaceId', 'ws-test');
+    (c as any).set('workspaceId', 'ws-test');
     return next();
   });
   app.use('*', rateLimit(maxRequests));

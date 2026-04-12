@@ -1,9 +1,12 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { sessionsService } from './sessions.service';
+import type { AddMessageInput } from './sessions.types';
 import { createSessionSchema, addMessageSchema, sessionIdParamSchema, transcriptQuerySchema } from './sessions.schemas';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 
 const createRoute_ = createRoute({
   method: 'post', path: '/',
@@ -14,7 +17,7 @@ const createRoute_ = createRoute({
 const getRoute = createRoute({
   method: 'get', path: '/{id}',
   request: { params: sessionIdParamSchema },
-  responses: { 200: { description: 'Session details', ...jsonRes } },
+  responses: { 200: { description: 'Session details', ...jsonRes }, 404: errRes('Not found') },
 });
 
 const addMessageRoute = createRoute({
@@ -32,7 +35,7 @@ const getMessagesRoute = createRoute({
 const transcriptRoute = createRoute({
   method: 'get', path: '/{id}/transcript',
   request: { params: sessionIdParamSchema, query: transcriptQuerySchema },
-  responses: { 200: { description: 'Session transcript', ...jsonRes } },
+  responses: { 200: { description: 'Session transcript', ...jsonRes }, 404: errRes('Not found') },
 });
 
 const resumeRoute = createRoute({
@@ -47,11 +50,11 @@ const closeRoute = createRoute({
   responses: { 200: { description: 'Session closed', ...jsonRes } },
 });
 
-export const sessionsRoutes = new OpenAPIHono();
+export const sessionsRoutes = new OpenAPIHono<AppEnv>();
 
 sessionsRoutes.openapi(createRoute_, async (c) => {
   const body = c.req.valid('json');
-  const workspaceId = (c.get('workspaceId') as string | undefined) ?? c.req.param('workspaceId');
+  const workspaceId = c.get('workspaceId') || c.req.param('workspaceId')!;
   const session = await sessionsService.create({ workspaceId, ...body });
   return c.json(session, 201);
 });
@@ -66,20 +69,20 @@ sessionsRoutes.openapi(getRoute, async (c) => {
 sessionsRoutes.openapi(addMessageRoute, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
-  const message = await sessionsService.addMessage(id, body);
+  const message = await sessionsService.addMessage(id, body as AddMessageInput);
   return c.json(message, 201);
 });
 
 sessionsRoutes.openapi(getMessagesRoute, async (c) => {
   const { id } = c.req.valid('param');
   const messages = await sessionsService.getMessages(id);
-  return c.json(messages);
+  return c.json({ data: messages });
 });
 
 sessionsRoutes.openapi(transcriptRoute, async (c) => {
   const { id } = c.req.valid('param');
   const query = c.req.valid('query');
-  const workspaceId = c.get('workspaceId') as string | undefined;
+  const workspaceId = c.get('workspaceId');
 
   const session = await sessionsService.get(id);
   if (!session || session.workspaceId !== workspaceId) {

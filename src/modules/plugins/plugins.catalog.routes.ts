@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { pluginCatalogRepo } from './plugins.catalog.repo';
 import { pluginIdParamSchema } from './plugins.schemas';
@@ -17,18 +18,18 @@ const getRoute = createRoute({
   responses: { 200: { description: 'Plugin details', ...jsonRes }, 404: { description: 'Not found', ...jsonRes } },
 });
 
-export const pluginCatalogRoutes = new OpenAPIHono();
+export const pluginCatalogRoutes = new OpenAPIHono<AppEnv>();
 
 pluginCatalogRoutes.use('*', authMiddleware);
 
 pluginCatalogRoutes.openapi(listRoute, async (c) => {
   const plugins = await pluginCatalogRepo.findAll();
-  return c.json(plugins);
+  return c.json({ data: plugins });
 });
 
 pluginCatalogRoutes.openapi(getRoute, async (c) => {
   const { id } = c.req.valid('param');
   const plugin = await pluginCatalogRepo.findById(id);
   if (!plugin) return c.json({ error: 'Plugin not found' }, 404);
-  return c.json(plugin);
+  return c.json({ data: plugin });
 });

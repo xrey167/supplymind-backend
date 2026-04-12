@@ -1,9 +1,11 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { agentsService } from './agents.service';
 import { createAgentSchema, updateAgentSchema, agentIdParamSchema, listAgentsQuerySchema } from './agents.schemas';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
 
 const listRoute = createRoute({
   method: 'get', path: '/',
@@ -14,19 +16,19 @@ const listRoute = createRoute({
 const getByIdRoute = createRoute({
   method: 'get', path: '/{id}',
   request: { params: agentIdParamSchema },
-  responses: { 200: { description: 'Agent details', ...jsonRes } },
+  responses: { 200: { description: 'Agent details', ...jsonRes }, 404: errRes('Not found') },
 });
 
 const createRoute_ = createRoute({
   method: 'post', path: '/',
   request: { body: { content: { 'application/json': { schema: createAgentSchema } } } },
-  responses: { 201: { description: 'Agent created', ...jsonRes } },
+  responses: { 201: { description: 'Agent created', ...jsonRes }, 400: errRes('Bad request') },
 });
 
 const updateRoute = createRoute({
   method: 'patch', path: '/{id}',
   request: { params: agentIdParamSchema, body: { content: { 'application/json': { schema: updateAgentSchema } } } },
-  responses: { 200: { description: 'Agent updated', ...jsonRes } },
+  responses: { 200: { description: 'Agent updated', ...jsonRes }, 404: errRes('Not found') },
 });
 
 const deleteRoute = createRoute({
@@ -35,7 +37,7 @@ const deleteRoute = createRoute({
   responses: { 204: { description: 'Agent deleted' } },
 });
 
-export const AgentsRoutes = new OpenAPIHono();
+export const AgentsRoutes = new OpenAPIHono<AppEnv>();
 
 AgentsRoutes.openapi(listRoute, async (c) => {
   const query = c.req.valid('query');
@@ -68,5 +70,5 @@ AgentsRoutes.openapi(updateRoute, async (c) => {
 AgentsRoutes.openapi(deleteRoute, async (c) => {
   const { id } = c.req.valid('param');
   await agentsService.remove(id);
-  return c.json({ success: true }, 204);
+  return c.body(null, 204);
 });

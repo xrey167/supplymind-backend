@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../core/types';
 import { z } from 'zod';
 import { inboxService } from './inbox.service';
 import { listInboxQuerySchema, inboxIdParamSchema } from './inbox.schemas';
@@ -38,7 +39,7 @@ const unreadCountRoute = createRoute({
   responses: { 200: { description: 'Unread inbox count', ...jsonRes } },
 });
 
-export const InboxRoutes = new OpenAPIHono();
+export const InboxRoutes = new OpenAPIHono<AppEnv>();
 
 InboxRoutes.openapi(listRoute, async (c) => {
   const userId = c.get('callerId') as string;

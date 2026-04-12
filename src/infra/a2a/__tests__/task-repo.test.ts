@@ -94,8 +94,8 @@ describe('taskRepo.findByStatus', () => {
   });
 
   test('preserves artifacts and history from DB row when present', async () => {
-    const artifacts = [{ parts: [{ kind: 'text', text: 'hello' }] }];
-    const history = [{ role: 'agent', parts: [{ kind: 'text', text: 'response' }] }];
+    const artifacts = [{ parts: [{ kind: 'text' as const, text: 'hello' }] }];
+    const history = [{ role: 'agent' as const, parts: [{ kind: 'text' as const, text: 'response' }] }];
     const row = makeRow({ id: 'task-3', status: 'completed', artifacts, history });
     _queryRows = [row];
 

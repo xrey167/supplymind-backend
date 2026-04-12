@@ -1,4 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
+import type { AppEnv } from '../core/types';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
@@ -17,7 +18,7 @@ import { healthService } from '../modules/health/health.service';
 import { pluginCatalogRoutes } from '../modules/plugins/plugins.catalog.routes';
 
 export async function createApp(opts?: { skipSubsystems?: boolean }) {
-  const app = new OpenAPIHono({
+  const app = new OpenAPIHono<AppEnv>({
     defaultHook: (result, c) => {
       if (!result.success) {
         return c.json({
@@ -33,7 +34,7 @@ export async function createApp(opts?: { skipSubsystems?: boolean }) {
 
   // Security headers — all routes
   app.use('*', secureHeaders({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: undefined,
     crossOriginEmbedderPolicy: false,
     xFrameOptions: 'DENY',
     strictTransportSecurity: 'max-age=63072000; includeSubDomains',

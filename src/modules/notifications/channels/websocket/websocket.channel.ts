@@ -8,8 +8,9 @@ import { logger } from '../../../../config/logger';
 export async function deliverWebSocket(notification: Notification): Promise<void> {
   const channel = `workspace:${notification.workspaceId}`;
   wsServer.broadcastToSubscribed(channel, {
-    type: 'notification' as any,
-    notification: {
+    type: 'event',
+    topic: 'notification',
+    data: {
       id: notification.id,
       type: notification.type,
       title: notification.title,
@@ -17,6 +18,7 @@ export async function deliverWebSocket(notification: Notification): Promise<void
       metadata: notification.metadata,
       createdAt: notification.createdAt.toISOString(),
     },
+    timestamp: new Date().toISOString(),
   });
   logger.debug({ notificationId: notification.id, channel }, 'WebSocket notification broadcast');
 }

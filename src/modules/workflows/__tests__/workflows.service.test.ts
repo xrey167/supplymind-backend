@@ -35,6 +35,7 @@ mock.module('../../../infra/queue/bullmq', () => ({
 // ── Import under test (after mocks) ─────────────────────────────────────────
 
 const { workflowsService } = await import('../workflows.service');
+import type { AppError } from '../../../core/errors';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -106,8 +107,8 @@ describe('workflowsService', () => {
       const result = await workflowsService.getById('tmpl-missing', 'ws-1');
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.error.statusCode).toBe(404);
-        expect(result.error.code).toBe('NOT_FOUND');
+        expect((result.error as AppError).statusCode).toBe(404);
+        expect((result.error as AppError).code).toBe('NOT_FOUND');
       }
     });
 
@@ -115,7 +116,7 @@ describe('workflowsService', () => {
       mockGetById.mockImplementation(async () => ({ ...TEMPLATE, workspaceId: 'ws-other' }));
       const result = await workflowsService.getById('tmpl-1', 'ws-1');
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error.statusCode).toBe(404);
+      if (!result.ok) expect((result.error as AppError).statusCode).toBe(404);
     });
   });
 
@@ -134,14 +135,14 @@ describe('workflowsService', () => {
     test('returns NOT_FOUND when row does not exist', async () => {
       const result = await workflowsService.update('tmpl-missing', 'ws-1', { name: 'X' });
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error.statusCode).toBe(404);
+      if (!result.ok) expect((result.error as AppError).statusCode).toBe(404);
     });
 
     test('returns NOT_FOUND when row belongs to a different workspace', async () => {
       mockGetById.mockImplementation(async () => ({ ...TEMPLATE, workspaceId: 'ws-other' }));
       const result = await workflowsService.update('tmpl-1', 'ws-1', { name: 'X' });
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error.statusCode).toBe(404);
+      if (!result.ok) expect((result.error as AppError).statusCode).toBe(404);
     });
 
     test('does not call repo.update when workspace check fails', async () => {
@@ -164,14 +165,14 @@ describe('workflowsService', () => {
     test('returns NOT_FOUND when row does not exist', async () => {
       const result = await workflowsService.delete('tmpl-missing', 'ws-1');
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error.statusCode).toBe(404);
+      if (!result.ok) expect((result.error as AppError).statusCode).toBe(404);
     });
 
     test('returns NOT_FOUND when row belongs to a different workspace', async () => {
       mockGetById.mockImplementation(async () => ({ ...TEMPLATE, workspaceId: 'ws-other' }));
       const result = await workflowsService.delete('tmpl-1', 'ws-1');
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error.statusCode).toBe(404);
+      if (!result.ok) expect((result.error as AppError).statusCode).toBe(404);
     });
 
     test('does not call repo.delete when workspace check fails', async () => {
@@ -194,14 +195,14 @@ describe('workflowsService', () => {
       mockGetById.mockImplementation(async () => null);
       const result = await workflowsService.runTemplate('tmpl-missing', 'ws-1');
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error.statusCode).toBe(404);
+      if (!result.ok) expect((result.error as AppError).statusCode).toBe(404);
     });
 
     test('returns NOT_FOUND when template belongs to a different workspace', async () => {
       mockGetById.mockImplementation(async () => ({ ...TEMPLATE, workspaceId: 'ws-other' }));
       const result = await workflowsService.runTemplate('tmpl-1', 'ws-1');
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error.statusCode).toBe(404);
+      if (!result.ok) expect((result.error as AppError).statusCode).toBe(404);
     });
 
     test('creates orchestration record and enqueues job on success', async () => {
@@ -221,8 +222,8 @@ describe('workflowsService', () => {
       const result = await workflowsService.runTemplate('tmpl-1', 'ws-1');
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.error.statusCode).toBe(503);
-        expect(result.error.code).toBe('QUEUE_UNAVAILABLE');
+        expect((result.error as AppError).statusCode).toBe(503);
+        expect((result.error as AppError).code).toBe('QUEUE_UNAVAILABLE');
       }
     });
 

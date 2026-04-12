@@ -217,7 +217,7 @@ describe('memoryService', () => {
 
     test('should filter out undefined memories from hybrid search results', async () => {
       hybridSearchMock.mockImplementation(async () => [{ id: 'mem-1', score: 0.9 }, { id: 'mem-missing', score: 0.5 }]);
-      repoMocks.get.mockImplementation(async (id: string) => id === 'mem-1' ? mockMemory : undefined);
+      repoMocks.get.mockImplementation(async (id: string) => id === 'mem-1' ? mockMemory : undefined as any);
 
       const svc = makeService();
       const results = await svc.recall({ query: 'test', workspaceId: 'ws-1' });
@@ -443,14 +443,14 @@ describe('memoryService', () => {
     });
 
     test('should throw when proposal does not exist', async () => {
-      repoMocks.getProposal.mockImplementation(async () => undefined);
+      repoMocks.getProposal.mockImplementation(async () => undefined as any);
 
       const svc = makeService();
       await expect(svc.rejectProposal('prop-missing')).rejects.toThrow('Proposal not found: prop-missing');
     });
 
     test('should not call rejectProposal on repo when proposal is not found', async () => {
-      repoMocks.getProposal.mockImplementation(async () => undefined);
+      repoMocks.getProposal.mockImplementation(async () => undefined as any);
 
       const svc = makeService();
       try {

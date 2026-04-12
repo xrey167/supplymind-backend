@@ -1,10 +1,11 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { AppEnv } from '../../../core/types';
 import { z } from 'zod';
 import { buildAgentCard } from '../../../infra/a2a/agent-card';
 import { execute, resolveAuth } from '../../../core/gateway';
 import type { GatewayContext } from '../../../core/gateway';
 
-const publicRoutes = new OpenAPIHono();
+const publicRoutes = new OpenAPIHono<AppEnv>();
 
 // Agent Card discovery (no auth required per A2A spec)
 const agentCardRoute = createRoute({

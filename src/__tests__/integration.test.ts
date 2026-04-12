@@ -14,6 +14,7 @@ describe('Integration', () => {
         published.push(m);
         return 1;
       },
+      quit: async () => 'OK' as const,
     };
     const pubsub = new RedisPubSub(bus, mockRedis);
     pubsub.bridgeToRedis('collaboration.#');
