@@ -96,9 +96,10 @@ export function learningRoutes() {
   });
 
   app.openapi(getProposalRoute, async (c) => {
+    const workspaceId = c.get('workspaceId') as string;
     const { proposalId } = c.req.valid('param');
     try {
-      const proposal = await improvementPipeline.getById(proposalId);
+      const proposal = await improvementPipeline.getById(proposalId, workspaceId);
       if (!proposal) return c.json({ error: 'Proposal not found' }, 404);
       return c.json(proposal);
     } catch (e) {
@@ -107,9 +108,10 @@ export function learningRoutes() {
   });
 
   app.openapi(approveProposalRoute, async (c) => {
+    const workspaceId = c.get('workspaceId') as string;
     const { proposalId } = c.req.valid('param');
     try {
-      await improvementPipeline.approve(proposalId);
+      await improvementPipeline.approve(proposalId, workspaceId);
       return c.json({ success: true });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -119,9 +121,10 @@ export function learningRoutes() {
   });
 
   app.openapi(rejectProposalRoute, async (c) => {
+    const workspaceId = c.get('workspaceId') as string;
     const { proposalId } = c.req.valid('param');
     try {
-      await improvementPipeline.reject(proposalId);
+      await improvementPipeline.reject(proposalId, workspaceId);
       return c.json({ success: true });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -131,9 +134,10 @@ export function learningRoutes() {
   });
 
   app.openapi(rollbackProposalRoute, async (c) => {
+    const workspaceId = c.get('workspaceId') as string;
     const { proposalId } = c.req.valid('param');
     try {
-      await improvementPipeline.rollback(proposalId);
+      await improvementPipeline.rollback(proposalId, workspaceId);
       return c.json({ success: true });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

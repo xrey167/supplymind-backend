@@ -110,8 +110,9 @@ for (const entry of journal.entries) {
 
   if (!stmtFailed) {
     // Record migration as applied
+    const safeTag = tag.replace(/[^a-zA-Z0-9_\-\/]/g, '');
     const record = psql(
-      `INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('${tag}', ${when}) ON CONFLICT DO NOTHING`
+      `INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('${safeTag}', ${when}) ON CONFLICT DO NOTHING`
     );
     if (record.ok) {
       console.log(`  [REC] recorded as applied`);

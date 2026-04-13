@@ -247,6 +247,13 @@ function parseGeneratedSkill(content: string): ParsedSkill | null {
   }
 }
 
+/**
+ * Advisory pre-registration scan for obvious disallowed imports.
+ * This is a best-effort check only — it can be bypassed by obfuscation
+ * (template literals, dynamic eval, globalThis['require'], etc.).
+ * The real enforcement boundary is `runInSandbox` in src/core/security/sandbox.ts,
+ * which provides process-level isolation for generated handler code.
+ */
 function containsDisallowedImports(code: string): boolean {
   const importMatches = code.match(/import\s+.+\s+from\s+['"]([^'"]+)['"]/g) ?? [];
   for (const importLine of importMatches) {

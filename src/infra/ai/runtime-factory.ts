@@ -15,6 +15,12 @@ import { Topics } from '../../events/topics';
 
 export { invalidateDomainContextCache };
 
+// Register once at module initialization — avoids re-subscribing on every withDomainContext call
+eventBus.subscribe(Topics.DOMAIN_KNOWLEDGE_UPDATED, (event) => {
+  const { workspaceId } = event.data as { workspaceId: string };
+  if (workspaceId) invalidateDomainContextCache(workspaceId);
+});
+
 export function withRetryRuntime(runtime: AgentRuntime): AgentRuntime {
   return {
     async run(input: RunInput): Promise<Result<RunResult>> {
@@ -57,11 +63,7 @@ export function withDomainContext(
   runtime: AgentRuntime,
   getWorkspaceId: (input: RunInput) => string | undefined,
 ): AgentRuntime {
-  // Subscribe to domain updates to invalidate the injector cache
-  eventBus.subscribe(Topics.DOMAIN_KNOWLEDGE_UPDATED, (event) => {
-    const { workspaceId } = event.data as { workspaceId: string };
-    if (workspaceId) invalidateDomainContextCache(workspaceId);
-  });
+  // Note: domain cache invalidation subscription is registered at module level above
 
   const injectContext = async (input: RunInput): Promise<RunInput> => {
     const workspaceId = getWorkspaceId(input);
