@@ -78,6 +78,16 @@ export class CredentialsService {
     }
     return deleted;
   }
+
+  async getByProvider(
+    workspaceId: string,
+    provider: import('./credentials.types').CredentialProvider,
+  ): Promise<{ value: string; metadata: Record<string, unknown> } | null> {
+    const row = await credentialsRepo.findByProvider(workspaceId, provider);
+    if (!row) return null;
+    const value = decrypt(row.encryptedValue, row.iv, row.tag, row.workspaceId);
+    return { value, metadata: row.metadata };
+  }
 }
 
 export const credentialsService = new CredentialsService();

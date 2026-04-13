@@ -11,9 +11,15 @@ export type NotificationType =
   | 'collab_approval_resolved'
   | 'alert_fired';
 
-export type NotificationChannel = 'in_app' | 'email' | 'websocket';
+export type NotificationChannel = 'in_app' | 'email' | 'websocket' | 'slack' | 'telegram';
 
 export type NotificationStatus = 'pending' | 'delivered' | 'read' | 'failed';
+
+export interface QuietHours {
+  start: string;  // "HH:MM" 24h, e.g. "22:00"
+  end: string;    // "HH:MM", e.g. "08:00"
+  tz: string;     // IANA timezone, e.g. "UTC"
+}
 
 export interface Notification {
   id: string;
@@ -36,6 +42,7 @@ export interface CreateNotificationInput {
   title: string;
   body?: string;
   metadata?: Record<string, unknown>;
+  recipientEmail?: string;
 }
 
 export interface NotificationFilter {
@@ -52,4 +59,5 @@ export interface NotificationPreference {
   type: string;
   channels: NotificationChannel[];
   muted: boolean;
+  quietHours: QuietHours | null;
 }

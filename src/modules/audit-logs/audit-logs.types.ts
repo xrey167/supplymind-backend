@@ -56,3 +56,12 @@ export interface AuditLogFilter {
   limit?: number;
   offset?: number;
 }
+
+export interface AuditStats {
+  total: number;
+  byAction: Record<string, number>;
+  byResourceType: Record<string, number>;
+  byActor: Array<{ actorId: string; count: number }>;
+  oldestAt: Date | null;
+  newestAt: Date | null;
+}

@@ -392,6 +392,7 @@ export const notificationPreferences = pgTable('notification_preferences', {
   type: text('type').notNull(),
   channels: jsonb('channels').default(['in_app']),
   muted: boolean('muted').default(false),
+  quietHours: jsonb('quiet_hours'),
 }, (t) => [
   uniqueIndex('np_user_workspace_type_idx').on(t.userId, t.workspaceId, t.type),
 ]);
