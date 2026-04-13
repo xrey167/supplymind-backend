@@ -37,15 +37,20 @@ jobs:
           # TaskManager and Learning tests run in separate processes to avoid mock.module
           # cross-contamination: 12 test files mock events/bus globally, which would corrupt
           # the real eventBus that TaskManager tests rely on.
+          # client-pool.test.ts runs separately: bullmq.ts creates a Redis connection at module
+          # load time; ioredis ECONNREFUSED errors can attach to pending promises in other tests
+          # depending on filesystem traversal order, causing spurious failures.
           # Exclude known-broken tests: PluginManager (Redis timeouts) and WorkspaceSettingsService
           # TODO: Remove exclusions once pre-existing failures are fixed (tracked in GitHub Issues)
           bun test $(find src -name '*.test.ts' \
             -not -path '*/learning/__tests__/*' \
             -not -path '*/infra/a2a/__tests__/task-manager.test.ts' \
             -not -path '*/plugins/__tests__/plugin-manifest.test.ts' \
-            -not -path '*/settings/workspace-settings/__tests__/workspace-settings.service.test.ts')
+            -not -path '*/settings/workspace-settings/__tests__/workspace-settings.service.test.ts' \
+            -not -path '*/infra/mcp/__tests__/client-pool.test.ts')
           bun test src/modules/learning/__tests__/
           bun test src/infra/a2a/__tests__/task-manager.test.ts
+          bun test src/infra/mcp/__tests__/client-pool.test.ts
         env:
           CREDENTIALS_ENCRYPTION_KEY: ci-test-key-for-unit-tests-32bytes
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
