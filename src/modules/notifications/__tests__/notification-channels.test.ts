@@ -51,7 +51,9 @@ mock.module('../channels/telegram/telegram.channel', () => ({
 }));
 
 const mockGetByProvider = mock(() => Promise.resolve(null as any));
+const _realCredService = require('../../credentials/credentials.service');
 mock.module('../../credentials/credentials.service', () => ({
+  ..._realCredService,
   credentialsService: { getByProvider: mockGetByProvider },
 }));
 
