@@ -624,6 +624,70 @@ export const syncJobs = pgTable('sync_jobs', {
   index('sj_installation_idx').on(t.installationId),
 ]);
 
+export const webhookDeliveryStatusEnum = pgEnum('webhook_delivery_status', ['received', 'processed', 'duplicate', 'failed']);
+export const alertConditionOperatorEnum = pgEnum('alert_condition_operator', ['eq', 'neq', 'gt', 'lt', 'contains', 'exists']);
+
+export const webhookEndpoints = pgTable('webhook_endpoints', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  name:        text('name').notNull(),
+  description: text('description'),
+  token:       text('token').notNull().unique(),
+  secretHash:  text('secret_hash').notNull(),
+  active:      boolean('active').notNull().default(true),
+  createdBy:   text('created_by').notNull(),
+  createdAt:   timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt:   timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('webhook_endpoints_workspace_idx').on(t.workspaceId),
+]);
+
+export const webhookDeliveries = pgTable('webhook_deliveries', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  endpointId:  uuid('endpoint_id').notNull().references(() => webhookEndpoints.id, { onDelete: 'cascade' }),
+  workspaceId: uuid('workspace_id').notNull(),
+  deliveryKey: text('delivery_key').notNull(),
+  payload:     jsonb('payload').notNull(),
+  headers:     jsonb('headers').notNull().default({}),
+  status:      webhookDeliveryStatusEnum('status').notNull().default('received'),
+  processedAt: timestamp('processed_at', { withTimezone: true }),
+  createdAt:   timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('webhook_deliveries_dedup_idx').on(t.endpointId, t.deliveryKey),
+  index('webhook_deliveries_endpoint_idx').on(t.endpointId),
+]);
+
+export const alertRules = pgTable('alert_rules', {
+  id:              uuid('id').primaryKey().defaultRandom(),
+  workspaceId:     uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  name:            text('name').notNull(),
+  description:     text('description'),
+  eventTopic:      text('event_topic').notNull(),
+  conditions:      jsonb('conditions').notNull().default([]),
+  notifyUserIds:   jsonb('notify_user_ids').notNull().default([]),
+  messageTemplate: text('message_template'),
+  cooldownSeconds: integer('cooldown_seconds').notNull().default(300),
+  enabled:         boolean('enabled').notNull().default(true),
+  createdBy:       text('created_by').notNull(),
+  createdAt:       timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt:       timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('alert_rules_workspace_idx').on(t.workspaceId),
+  index('alert_rules_topic_idx').on(t.eventTopic),
+]);
+
+export const alertRuleFires = pgTable('alert_rule_fires', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  ruleId:      uuid('rule_id').notNull().references(() => alertRules.id, { onDelete: 'cascade' }),
+  workspaceId: uuid('workspace_id').notNull(),
+  eventTopic:  text('event_topic').notNull(),
+  eventData:   jsonb('event_data'),
+  firedAt:     timestamp('fired_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('alert_rule_fires_rule_idx').on(t.ruleId),
+  index('alert_rule_fires_workspace_fired_idx').on(t.workspaceId, t.firedAt),
+]);
+
 export const syncRecords = pgTable('sync_records', {
   id: uuid('id').primaryKey().defaultRandom(),
   jobId: uuid('job_id').notNull().references(() => syncJobs.id),

@@ -99,6 +99,13 @@
       "when": 1776160000000,
       "tag": "0013_collab_intel_fixes",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1776220000000,
+      "tag": "0014_webhooks_alert_rules",
+      "breakpoints": true
     }
   ]
 }

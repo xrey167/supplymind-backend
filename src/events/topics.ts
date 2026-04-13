@@ -136,6 +136,10 @@ export const Topics = {
   COLLAB_INTEL_APPROVAL_CHAIN_CREATED:  'collab-intel.approval.chain.created',
   COLLAB_INTEL_APPROVAL_STEP_RESPONDED: 'collab-intel.approval.step.responded',
   COLLAB_INTEL_APPROVAL_CHAIN_RESOLVED: 'collab-intel.approval.chain.resolved',
+  // Webhooks
+  WEBHOOK_RECEIVED: 'webhook.received',
+  // Alert rules
+  ALERT_RULE_FIRED: 'alert.rule.fired',
 } as const;
 
 export type Topic = typeof Topics[keyof typeof Topics];

@@ -8,7 +8,8 @@ export type NotificationType =
   | 'agent_failure'
   | 'collab_mention'
   | 'collab_approval_requested'
-  | 'collab_approval_resolved';
+  | 'collab_approval_resolved'
+  | 'alert_fired';
 
 export type NotificationChannel = 'in_app' | 'email' | 'websocket';
 
