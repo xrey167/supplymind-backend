@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, asc } from 'drizzle-orm';
+import { eq, and, or, inArray, desc, sql, asc } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import {
   collabBoards,
@@ -58,9 +58,19 @@ async function createBoard(input: CreateBoardInput, tx?: Tx): Promise<CollabBoar
   return toBoard(rows[0]!);
 }
 
-async function listBoards(workspaceId: string): Promise<CollabBoard[]> {
+async function listBoards(workspaceId: string, callerId: string): Promise<CollabBoard[]> {
+  const memberBoardIds = db.select({ boardId: collabBoardMembers.boardId })
+    .from(collabBoardMembers)
+    .where(eq(collabBoardMembers.userId, callerId));
+
   const rows = await db.select().from(collabBoards)
-    .where(eq(collabBoards.workspaceId, workspaceId))
+    .where(and(
+      eq(collabBoards.workspaceId, workspaceId),
+      or(
+        eq(collabBoards.visibility, 'public'),
+        inArray(collabBoards.id, memberBoardIds),
+      ),
+    ))
     .orderBy(desc(collabBoards.createdAt));
   return rows.map(toBoard);
 }
@@ -97,6 +107,13 @@ async function addBoardMember(input: AddBoardMemberInput, tx?: Tx): Promise<Coll
     role: input.role ?? 'viewer',
   }).returning();
   return toBoardMember(rows[0]!);
+}
+
+async function getBoardMember(boardId: string, userId: string): Promise<CollabBoardMember | null> {
+  const rows = await db.select().from(collabBoardMembers)
+    .where(and(eq(collabBoardMembers.boardId, boardId), eq(collabBoardMembers.userId, userId)))
+    .limit(1);
+  return rows[0] ? toBoardMember(rows[0]) : null;
 }
 
 async function removeBoardMember(boardId: string, userId: string): Promise<void> {
@@ -349,6 +366,7 @@ export const collabIntelRepo = {
   deleteBoard,
   // members
   addBoardMember,
+  getBoardMember,
   removeBoardMember,
   listBoardMembers,
   // mentions

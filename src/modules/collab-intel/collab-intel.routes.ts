@@ -27,7 +27,8 @@ collabIntelRoutes.openapi(
   createRoute({ method: 'get', path: '/boards', responses: { 200: { description: 'List boards', ...jsonRes } } }),
   async (c) => {
     const workspaceId = c.get('workspaceId');
-    const boards = await collabIntelService.listBoards(workspaceId);
+    const callerId = c.get('callerId') as string;
+    const boards = await collabIntelService.listBoards(workspaceId, callerId);
     return c.json({ data: boards });
   },
 );
@@ -190,13 +191,14 @@ collabIntelRoutes.openapi(
 collabIntelRoutes.openapi(
   createRoute({ method: 'post', path: '/boards/:boardId/approvals/:chainId/respond', request: { params: ApprovalParamsSchema, body: { content: { 'application/json': { schema: RespondApprovalBodySchema } } } }, responses: { 200: { description: 'Approval response recorded', ...jsonRes } } }),
   async (c) => {
-    const { chainId } = c.req.valid('param');
+    const { chainId, boardId } = c.req.valid('param');
     const workspaceId = c.get('workspaceId');
     const userId = c.get('callerId') as string;
     const body = c.req.valid('json');
     const chain = await collabIntelService.respondApprovalStep(
       { chainId, callerId: userId, ...body },
       workspaceId,
+      boardId,
     );
     return c.json({ data: chain });
   },

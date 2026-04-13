@@ -40,6 +40,9 @@ const mockRepo = {
     updatedAt: new Date(),
   })),
   deleteBoard: mock(async () => {}),
+  getBoardMember: mock(async () => ({
+    id: 'mem-1', boardId: 'board-1', userId: 'user-1', role: 'owner', joinedAt: new Date(),
+  })),
   addBoardMember: mock(async (input: any) => ({
     id: 'mem-1',
     boardId: input.boardId,
@@ -316,6 +319,7 @@ describe('CollabIntelService.respondApprovalStep', () => {
     const updatedChain = await collabIntelService.respondApprovalStep(
       { chainId: 'chain-1', callerId: 'approver-1', decision: 'approved' },
       'ws-1',
+      'board-1',
     );
 
     expect(mockRepo.updateApprovalChainStatus).toHaveBeenCalledWith('chain-1', 'pending', 1);
@@ -335,12 +339,13 @@ describe('CollabIntelService.respondApprovalStep', () => {
     const updatedChain = await collabIntelService.respondApprovalStep(
       { chainId: 'chain-1', callerId: 'approver-1', decision: 'approved' },
       'ws-1',
+      'board-1',
     );
 
     expect(mockRepo.updateApprovalChainStatus).toHaveBeenCalledWith('chain-1', 'approved');
     expect(updatedChain.status).toBe('approved');
     await new Promise((r) => setTimeout(r, 20));
-    expect(mockNotify).toHaveBeenCalledWith(expect.objectContaining({ userId: 'user-creator' }));
+    expect(mockNotify).toHaveBeenCalledWith(expect.objectContaining({ userId: 'user-creator', type: 'collab_approval_resolved' }));
     expect(mockBusPublish).toHaveBeenCalledWith(
       'collab-intel.approval.chain.resolved',
       expect.objectContaining({ status: 'approved' }),
@@ -355,6 +360,7 @@ describe('CollabIntelService.respondApprovalStep', () => {
     const updatedChain = await collabIntelService.respondApprovalStep(
       { chainId: 'chain-1', callerId: 'approver-1', decision: 'rejected', comment: 'Not ready' },
       'ws-1',
+      'board-1',
     );
 
     expect(mockRepo.updateApprovalChainStatus).toHaveBeenCalledWith('chain-1', 'rejected');
@@ -364,6 +370,6 @@ describe('CollabIntelService.respondApprovalStep', () => {
       'collab-intel.approval.chain.resolved',
       expect.objectContaining({ status: 'rejected' }),
     );
-    expect(mockNotify).toHaveBeenCalledWith(expect.objectContaining({ userId: 'user-creator' }));
+    expect(mockNotify).toHaveBeenCalledWith(expect.objectContaining({ userId: 'user-creator', type: 'collab_approval_resolved' }));
   });
 });

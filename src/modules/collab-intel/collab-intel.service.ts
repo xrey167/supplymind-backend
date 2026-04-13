@@ -29,6 +29,19 @@ function logActivity(boardId: string, actorUserId: string, activityType: string,
 }
 
 class CollabIntelService {
+  // ── Auth helper ─────────────────────────────────────────────────────────────
+
+  private async assertBoardAccess(boardId: string, callerId: string, minRole: 'viewer' | 'editor' | 'owner'): Promise<void> {
+    const board = await collabIntelRepo.getBoard(boardId);
+    if (!board) throw new NotFoundError(`Board ${boardId} not found`);
+    const member = await collabIntelRepo.getBoardMember(boardId, callerId);
+    if (!member) throw new ForbiddenError('Not a member of this board');
+    const order = ['viewer', 'editor', 'owner'];
+    if (order.indexOf(member.role) < order.indexOf(minRole)) {
+      throw new ForbiddenError(`Requires ${minRole} or higher role on this board`);
+    }
+  }
+
   // ── Boards ──────────────────────────────────────────────────────────────────
 
   async createBoard(input: CreateBoardInput): Promise<CollabBoard> {
@@ -40,8 +53,8 @@ class CollabIntelService {
     return board;
   }
 
-  async listBoards(workspaceId: string): Promise<CollabBoard[]> {
-    return collabIntelRepo.listBoards(workspaceId);
+  async listBoards(workspaceId: string, callerId: string): Promise<CollabBoard[]> {
+    return collabIntelRepo.listBoards(workspaceId, callerId);
   }
 
   async getBoard(boardId: string): Promise<CollabBoard> {
@@ -51,6 +64,7 @@ class CollabIntelService {
   }
 
   async updateBoard(boardId: string, input: UpdateBoardInput, callerId: string): Promise<CollabBoard> {
+    await this.assertBoardAccess(boardId, callerId, 'editor');
     const board = await collabIntelRepo.updateBoard(boardId, input);
     if (!board) throw new NotFoundError(`Board ${boardId} not found`);
     eventBus.publish(Topics.COLLAB_INTEL_BOARD_UPDATED, { boardId }).catch(() => {});
@@ -59,17 +73,18 @@ class CollabIntelService {
   }
 
   async deleteBoard(boardId: string, callerId: string): Promise<void> {
+    await this.assertBoardAccess(boardId, callerId, 'owner');
     const board = await collabIntelRepo.getBoard(boardId);
     if (!board) throw new NotFoundError(`Board ${boardId} not found`);
     await collabIntelRepo.deleteBoard(boardId);
     eventBus.publish(Topics.COLLAB_INTEL_BOARD_DELETED, { boardId, workspaceId: board.workspaceId }).catch(() => {});
     // Board cascade-deletes all child rows, so no activity log needed
-    void callerId; // used for future auth checks
   }
 
   // ── Board Members ───────────────────────────────────────────────────────────
 
   async addBoardMember(input: AddBoardMemberInput, callerId: string): Promise<CollabBoardMember> {
+    await this.assertBoardAccess(input.boardId, callerId, 'owner');
     const member = await collabIntelRepo.addBoardMember(input);
     eventBus.publish(Topics.COLLAB_INTEL_MEMBER_ADDED, { boardId: input.boardId, userId: input.userId }).catch(() => {});
     logActivity(input.boardId, callerId, 'member_added', { userId: input.userId, role: input.role });
@@ -77,6 +92,7 @@ class CollabIntelService {
   }
 
   async removeBoardMember(boardId: string, userId: string, callerId: string): Promise<void> {
+    await this.assertBoardAccess(boardId, callerId, 'owner');
     await collabIntelRepo.removeBoardMember(boardId, userId);
     eventBus.publish(Topics.COLLAB_INTEL_MEMBER_REMOVED, { boardId, userId }).catch(() => {});
     logActivity(boardId, callerId, 'member_removed', { userId });
@@ -89,6 +105,7 @@ class CollabIntelService {
   // ── Mentions ────────────────────────────────────────────────────────────────
 
   async createMention(input: CreateMentionInput, workspaceId: string): Promise<CollabMention> {
+    await this.assertBoardAccess(input.boardId, input.mentionedByUserId, 'viewer');
     const mention = await collabIntelRepo.createMention(input);
 
     // Notify the mentioned user
@@ -124,6 +141,7 @@ class CollabIntelService {
   // ── Proposals ───────────────────────────────────────────────────────────────
 
   async createProposal(input: CreateProposalInput): Promise<CollabProposal> {
+    await this.assertBoardAccess(input.boardId, input.createdBy, 'viewer');
     const proposal = await collabIntelRepo.createProposal(input);
     eventBus.publish(Topics.COLLAB_INTEL_PROPOSAL_CREATED, { proposalId: proposal.id, boardId: input.boardId }).catch(() => {});
     logActivity(input.boardId, input.createdBy, 'proposal_created', { title: proposal.title });
@@ -135,11 +153,13 @@ class CollabIntelService {
   }
 
   async castVote(input: CastVoteInput, boardId: string): Promise<CollabProposal> {
-    await db.transaction(async (tx) => {
+    await this.assertBoardAccess(boardId, input.userId, 'viewer');
+    const proposal = await db.transaction(async (tx) => {
       await collabIntelRepo.upsertVote(input, tx);
+      const p = await collabIntelRepo.getProposal(input.proposalId, tx);
+      if (!p) throw new NotFoundError(`Proposal ${input.proposalId} not found`);
+      return p;
     });
-    const proposal = await collabIntelRepo.getProposal(input.proposalId);
-    if (!proposal) throw new NotFoundError(`Proposal ${input.proposalId} not found`);
     eventBus.publish(Topics.COLLAB_INTEL_VOTE_CAST, { proposalId: input.proposalId, userId: input.userId, voteType: input.voteType }).catch(() => {});
     logActivity(boardId, input.userId, 'vote_cast', { proposalId: input.proposalId, voteType: input.voteType });
     return proposal;
@@ -148,6 +168,7 @@ class CollabIntelService {
   // ── Approval Chains ─────────────────────────────────────────────────────────
 
   async createApprovalChain(input: CreateApprovalChainInput, workspaceId: string): Promise<{ chain: CollabApprovalChain; steps: CollabApprovalStep[] }> {
+    await this.assertBoardAccess(input.boardId, input.createdBy, 'editor');
     const result = await db.transaction(async (tx) => {
       return collabIntelRepo.createApprovalChain(input, tx);
     });
@@ -187,9 +208,10 @@ class CollabIntelService {
     return collabIntelRepo.listApprovalChains(boardId);
   }
 
-  async respondApprovalStep(input: RespondApprovalInput, workspaceId: string): Promise<CollabApprovalChain> {
+  async respondApprovalStep(input: RespondApprovalInput, workspaceId: string, boardId: string): Promise<CollabApprovalChain> {
     const chain = await collabIntelRepo.getApprovalChain(input.chainId);
     if (!chain) throw new NotFoundError(`Approval chain ${input.chainId} not found`);
+    if (chain.boardId !== boardId) throw new NotFoundError(`Approval chain ${input.chainId} not found`);
     if (chain.status !== 'pending') throw new ForbiddenError(`Chain is already ${chain.status}`);
 
     const steps = await collabIntelRepo.getApprovalSteps(input.chainId);
@@ -218,7 +240,7 @@ class CollabIntelService {
       notificationsService.notify({
         workspaceId,
         userId: chain.createdBy,
-        type: 'collab_approval_requested',
+        type: 'collab_approval_resolved',
         title: `Approval chain rejected: ${chain.title}`,
         body: input.comment,
         metadata: { chainId: chain.id, decision: 'rejected' },
@@ -253,7 +275,7 @@ class CollabIntelService {
         notificationsService.notify({
           workspaceId,
           userId: chain.createdBy,
-          type: 'collab_approval_requested',
+          type: 'collab_approval_resolved',
           title: `Approval chain approved: ${chain.title}`,
           metadata: { chainId: chain.id, decision: 'approved' },
         }).catch(() => {});

@@ -752,6 +752,7 @@ export const mentionStatusEnum = pgEnum('mention_status', ['pending', 'read', 'd
 export const collabProposalStatusEnum = pgEnum('collab_proposal_status', ['open', 'closed', 'accepted', 'rejected']);
 export const voteTypeEnum = pgEnum('vote_type', ['up', 'down']);
 export const approvalStepStatusEnum = pgEnum('approval_step_status', ['pending', 'approved', 'rejected', 'skipped']);
+export const approvalChainStatusEnum = pgEnum('approval_chain_status', ['pending', 'approved', 'rejected', 'cancelled']);
 
 export const collabBoards = pgTable('collab_boards', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -820,7 +821,7 @@ export const collabApprovalChains = pgTable('collab_approval_chains', {
   title: text('title').notNull(),
   description: text('description'),
   createdBy: text('created_by').notNull(),
-  status: text('status').notNull().default('pending'),
+  status: approvalChainStatusEnum('status').notNull().default('pending'),
   currentStep: integer('current_step').default(0).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -7,7 +7,8 @@ export type NotificationType =
   | 'subscription_updated'
   | 'agent_failure'
   | 'collab_mention'
-  | 'collab_approval_requested';
+  | 'collab_approval_requested'
+  | 'collab_approval_resolved';
 
 export type NotificationChannel = 'in_app' | 'email' | 'websocket';
 
