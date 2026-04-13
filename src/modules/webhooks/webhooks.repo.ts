@@ -57,6 +57,12 @@ async function findByToken(token: string): Promise<(WebhookEndpoint & { secretHa
   return { ...toEndpoint(rows[0]), secretHash: rows[0].secretHash };
 }
 
+async function findEndpointOwned(id: string, workspaceId: string): Promise<WebhookEndpoint | null> {
+  const rows = await db.select().from(webhookEndpoints)
+    .where(and(eq(webhookEndpoints.id, id), eq(webhookEndpoints.workspaceId, workspaceId))).limit(1);
+  return rows[0] ? toEndpoint(rows[0]) : null;
+}
+
 async function listEndpoints(workspaceId: string): Promise<WebhookEndpoint[]> {
   const rows = await db.select().from(webhookEndpoints)
     .where(eq(webhookEndpoints.workspaceId, workspaceId))
@@ -107,6 +113,7 @@ async function listDeliveries(endpointId: string, workspaceId: string, limit = 5
 export const webhooksRepo = {
   createEndpoint,
   findByToken,
+  findEndpointOwned,
   listEndpoints,
   deleteEndpoint,
   insertDelivery,

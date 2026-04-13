@@ -31,8 +31,9 @@ alertRulesRoutes.openapi(
 alertRulesRoutes.openapi(
   createRoute({ method: 'get', path: '/:ruleId', request: { params: AlertRuleParamsSchema }, responses: { 200: { description: 'Get rule', ...jsonRes } } }),
   async (c) => {
+    const workspaceId = c.get('workspaceId');
     const { ruleId } = c.req.valid('param');
-    const rule = await alertRulesService.getRule(ruleId);
+    const rule = await alertRulesService.getRule(ruleId, workspaceId);
     return c.json({ data: rule });
   },
 );

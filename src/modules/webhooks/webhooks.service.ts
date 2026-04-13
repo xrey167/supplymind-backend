@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
 import { NotFoundError } from '../../core/errors';
@@ -21,7 +22,9 @@ function verifyHmac(secret: string, rawBody: string, signature: string): boolean
     const hasher = new Bun.CryptoHasher('sha256', secret);
     hasher.update(rawBody);
     const expected = 'sha256=' + hasher.digest('hex');
-    return expected === signature;
+    const a = Buffer.from(expected);
+    const b = Buffer.from(signature);
+    return a.length === b.length && timingSafeEqual(a, b);
   } catch {
     return false;
   }
@@ -57,8 +60,7 @@ class WebhooksService {
   }
 
   async listDeliveries(endpointId: string, workspaceId: string): Promise<WebhookDelivery[]> {
-    const endpoints = await webhooksRepo.listEndpoints(workspaceId);
-    const owned = endpoints.find(e => e.id === endpointId);
+    const owned = await webhooksRepo.findEndpointOwned(endpointId, workspaceId);
     if (!owned) throw new NotFoundError(`Webhook endpoint ${endpointId} not found`);
     return webhooksRepo.listDeliveries(endpointId, workspaceId);
   }

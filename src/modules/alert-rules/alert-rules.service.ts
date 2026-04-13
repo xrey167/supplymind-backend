@@ -48,9 +48,9 @@ class AlertRulesService {
     return alertRulesRepo.listRules(workspaceId);
   }
 
-  async getRule(id: string): Promise<AlertRule> {
+  async getRule(id: string, workspaceId: string): Promise<AlertRule> {
     const rule = await alertRulesRepo.getRule(id);
-    if (!rule) throw new NotFoundError(`Alert rule ${id} not found`);
+    if (!rule || rule.workspaceId !== workspaceId) throw new NotFoundError(`Alert rule ${id} not found`);
     return rule;
   }
 
