@@ -9,7 +9,7 @@
 
 import { db } from '../../infra/db/client';
 import { improvementProposals } from '../../infra/db/schema';
-import { eq, and, gte } from 'drizzle-orm';
+import { eq, and, gte, count } from 'drizzle-orm';
 import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
 import { logger } from '../../config/logger';
@@ -160,6 +160,22 @@ export class ImprovementPipeline {
       .from(improvementProposals)
       .where(and(eq(improvementProposals.workspaceId, workspaceId), eq(improvementProposals.status, 'pending')))
       .orderBy(improvementProposals.createdAt);
+  }
+
+  /** Count proposals auto-applied in the past 24 hours for this workspace. */
+  async countAutoAppliedToday(workspaceId: string): Promise<number> {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const rows = await db
+      .select({ count: count() })
+      .from(improvementProposals)
+      .where(
+        and(
+          eq(improvementProposals.workspaceId, workspaceId),
+          eq(improvementProposals.status, 'auto_applied'),
+          gte(improvementProposals.autoAppliedAt, since),
+        ),
+      );
+    return rows[0]?.count ?? 0;
   }
 
   private async applyChange(proposal: ProposalRow): Promise<void> {
