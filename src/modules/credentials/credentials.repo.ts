@@ -34,7 +34,7 @@ export class CredentialsRepository {
   async create(input: {
     workspaceId: string;
     name: string;
-    provider: string;
+    provider: CredentialProvider;
     encryptedValue: string;
     iv: string;
     tag: string;
@@ -43,7 +43,7 @@ export class CredentialsRepository {
     const rows = await db.insert(credentials).values({
       workspaceId: input.workspaceId,
       name: input.name,
-      provider: input.provider as any,
+      provider: input.provider,
       encryptedValue: input.encryptedValue,
       iv: input.iv,
       tag: input.tag,
@@ -83,7 +83,7 @@ export class CredentialsRepository {
 
   async findByProvider(workspaceId: string, provider: CredentialProvider): Promise<CredentialRow | null> {
     const rows = await db.select().from(credentials)
-      .where(and(eq(credentials.workspaceId, workspaceId), eq(credentials.provider, provider as any)))
+      .where(and(eq(credentials.workspaceId, workspaceId), eq(credentials.provider, provider)))
       .limit(1);
     return rows[0] ? toCredentialRow(rows[0]) : null;
   }

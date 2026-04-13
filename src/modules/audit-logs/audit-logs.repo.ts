@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, gte, lte } from 'drizzle-orm';
+import { eq, and, desc, sql, gte, lte, lt } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { auditLogs } from '../../infra/db/schema';
 import type { AuditLog, AuditStats, CreateAuditLogInput, AuditLogFilter } from './audit-logs.types';
@@ -56,40 +56,47 @@ export class AuditLogsRepository {
   }
 
   async getStats(workspaceId: string): Promise<AuditStats> {
-    const rows = await db.select().from(auditLogs)
-      .where(eq(auditLogs.workspaceId, workspaceId));
+    const where = eq(auditLogs.workspaceId, workspaceId);
 
-    const byAction: Record<string, number> = {};
-    const byResourceType: Record<string, number> = {};
-    const byActor: Record<string, number> = {};
-    let oldestAt: Date | null = null;
-    let newestAt: Date | null = null;
+    const [summaryRows, byActionRows, byResourceTypeRows, byActorRows] = await Promise.all([
+      db.select({
+        total: sql<number>`count(*)`,
+        oldestAt: sql<string | null>`min(${auditLogs.createdAt})`,
+        newestAt: sql<string | null>`max(${auditLogs.createdAt})`,
+      }).from(auditLogs).where(where),
 
-    for (const row of rows) {
-      byAction[row.action] = (byAction[row.action] ?? 0) + 1;
-      byResourceType[row.resourceType as string] = (byResourceType[row.resourceType as string] ?? 0) + 1;
-      byActor[row.actorId] = (byActor[row.actorId] ?? 0) + 1;
-      const ts = row.createdAt as Date;
-      if (!oldestAt || ts < oldestAt) oldestAt = ts;
-      if (!newestAt || ts > newestAt) newestAt = ts;
-    }
+      db.select({
+        action: auditLogs.action,
+        count: sql<number>`count(*)`,
+      }).from(auditLogs).where(where).groupBy(auditLogs.action),
 
+      db.select({
+        resourceType: auditLogs.resourceType,
+        count: sql<number>`count(*)`,
+      }).from(auditLogs).where(where).groupBy(auditLogs.resourceType),
+
+      db.select({
+        actorId: auditLogs.actorId,
+        count: sql<number>`count(*)`,
+      }).from(auditLogs).where(where).groupBy(auditLogs.actorId)
+        .orderBy(desc(sql`count(*)`)).limit(20),
+    ]);
+
+    const summary = summaryRows[0];
     return {
-      total: rows.length,
-      byAction,
-      byResourceType,
-      byActor: Object.entries(byActor)
-        .map(([actorId, count]) => ({ actorId, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 20),
-      oldestAt,
-      newestAt,
+      total: Number(summary?.total ?? 0),
+      byAction: Object.fromEntries(byActionRows.map(r => [r.action, Number(r.count)])),
+      byResourceType: Object.fromEntries(byResourceTypeRows.map(r => [r.resourceType as string, Number(r.count)])),
+      byActor: byActorRows.map(r => ({ actorId: r.actorId, count: Number(r.count) })),
+      oldestAt: summary?.oldestAt ? new Date(summary.oldestAt) : null,
+      newestAt: summary?.newestAt ? new Date(summary.newestAt) : null,
     };
   }
 
+  // Use lt (strictly less than) so records created at exactly the cutoff are retained.
   async deleteOlderThan(cutoff: Date): Promise<number> {
     const result = await db.delete(auditLogs)
-      .where(lte(auditLogs.createdAt, cutoff))
+      .where(lt(auditLogs.createdAt, cutoff))
       .returning({ id: auditLogs.id });
     return result.length;
   }

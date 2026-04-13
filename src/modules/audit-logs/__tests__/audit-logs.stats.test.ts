@@ -1,17 +1,31 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
-import type { AuditLog } from '../audit-logs.types';
 
-// Mutable store so each test can set what db returns — no schema or drizzle-orm mocks needed
-// since the mock db intercepts the whole query chain before drizzle operates on it.
-let _rows: any[] = [];
+// Thenable query chain — handles queries with or without .groupBy()/.orderBy()/.limit()
+function makeChain(data: any[]): any {
+  const chain: any = {
+    from: () => chain,
+    where: () => chain,
+    groupBy: () => chain,
+    orderBy: () => chain,
+    limit: () => Promise.resolve(data),
+    then: (resolve: (v: any) => any, reject?: (e: any) => any) =>
+      Promise.resolve(data).then(resolve, reject),
+    catch: (reject: (e: any) => any) => Promise.resolve(data).catch(reject),
+  };
+  return chain;
+}
+
+// getStats issues 4 parallel db.select() calls; each call pops the next queued result
+let _selectQueue: any[][] = [];
 let _deleteCount = 0;
 
 mock.module('../../../infra/db/client', () => ({
   db: {
-    select: () => ({ from: () => ({ where: () => Promise.resolve(_rows) }) }),
+    select: () => makeChain(_selectQueue.shift() ?? []),
     delete: () => ({
       where: () => ({
-        returning: () => Promise.resolve(Array.from({ length: _deleteCount }, (_, i) => ({ id: `l${i}` }))),
+        returning: () =>
+          Promise.resolve(Array.from({ length: _deleteCount }, (_, i) => ({ id: `l${i}` }))),
       }),
     }),
   },
@@ -19,30 +33,27 @@ mock.module('../../../infra/db/client', () => ({
 
 const { AuditLogsRepository } = await import('../audit-logs.repo');
 
-const makeLog = (overrides: Partial<AuditLog> = {}): AuditLog => ({
-  id: 'l1',
-  workspaceId: 'ws-1',
-  actorId: 'user-1',
-  actorType: 'user',
-  action: 'create',
-  resourceType: 'agent',
-  resourceId: null,
-  metadata: {},
-  ipAddress: null,
-  createdAt: new Date('2026-01-01T10:00:00Z'),
-  ...overrides,
-});
-
 describe('AuditLogsRepository.getStats', () => {
   let repo: InstanceType<typeof AuditLogsRepository>;
 
   beforeEach(() => {
     repo = new AuditLogsRepository();
-    _rows = [];
+    _selectQueue = [];
     _deleteCount = 0;
   });
 
+  function queueStats(
+    summary: any[],
+    byAction: any[],
+    byResourceType: any[],
+    byActor: any[],
+  ) {
+    // Promise.all order: summary, byAction, byResourceType, byActor
+    _selectQueue = [summary, byAction, byResourceType, byActor];
+  }
+
   test('empty workspace returns zero stats', async () => {
+    queueStats([], [], [], []);
     const result = await repo.getStats('ws-1');
     expect(result.total).toBe(0);
     expect(result.byAction).toEqual({});
@@ -55,11 +66,12 @@ describe('AuditLogsRepository.getStats', () => {
   test('aggregates counts correctly', async () => {
     const old = new Date('2026-01-01T00:00:00Z');
     const now = new Date('2026-01-15T12:00:00Z');
-    _rows = [
-      makeLog({ actorId: 'u1', action: 'create', resourceType: 'agent', createdAt: old }),
-      makeLog({ actorId: 'u1', action: 'update', resourceType: 'agent', createdAt: now }),
-      makeLog({ actorId: 'u2', action: 'create', resourceType: 'credential', createdAt: now }),
-    ];
+    queueStats(
+      [{ total: '3', oldestAt: old.toISOString(), newestAt: now.toISOString() }],
+      [{ action: 'create', count: '2' }, { action: 'update', count: '1' }],
+      [{ resourceType: 'agent', count: '2' }, { resourceType: 'credential', count: '1' }],
+      [{ actorId: 'u1', count: '2' }, { actorId: 'u2', count: '1' }],
+    );
 
     const result = await repo.getStats('ws-1');
     expect(result.total).toBe(3);
@@ -73,13 +85,13 @@ describe('AuditLogsRepository.getStats', () => {
     expect(result.newestAt).toEqual(now);
   });
 
-  test('byActor sorted descending by count', async () => {
-    _rows = [
-      makeLog({ actorId: 'a', action: 'create', resourceType: 'agent' }),
-      makeLog({ actorId: 'b', action: 'create', resourceType: 'agent' }),
-      makeLog({ actorId: 'b', action: 'update', resourceType: 'agent' }),
-      makeLog({ actorId: 'b', action: 'delete', resourceType: 'agent' }),
-    ];
+  test('byActor returned in SQL-sorted order (count desc)', async () => {
+    queueStats(
+      [{ total: '4', oldestAt: null, newestAt: null }],
+      [],
+      [],
+      [{ actorId: 'b', count: '3' }, { actorId: 'a', count: '1' }],
+    );
 
     const result = await repo.getStats('ws-1');
     expect(result.byActor[0]!.actorId).toBe('b');

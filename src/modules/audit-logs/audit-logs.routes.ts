@@ -9,7 +9,10 @@ const jsonRes = { content: { 'application/json': { schema: z.object({}).passthro
 const statsRoute = createRoute({
   method: 'get',
   path: '/stats',
-  responses: { 200: { description: 'Audit log statistics', ...jsonRes } },
+  responses: {
+    200: { description: 'Audit log statistics', ...jsonRes },
+    500: { description: 'Internal server error', ...jsonRes },
+  },
 });
 
 const listRoute = createRoute({

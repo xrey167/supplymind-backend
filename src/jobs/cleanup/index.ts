@@ -60,7 +60,8 @@ export async function runCleanup(tr: Pick<typeof taskRepo, 'findStale' | 'update
 
   // Prune old audit logs (default 90 days, configurable via AUDIT_LOG_RETENTION_DAYS)
   try {
-    const retentionDays = Number(process.env.AUDIT_LOG_RETENTION_DAYS ?? 90);
+    const raw = Number(process.env.AUDIT_LOG_RETENTION_DAYS);
+    const retentionDays = Number.isFinite(raw) && raw > 0 ? raw : 90;
     const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
     const { auditLogsRepo } = await import('../../modules/audit-logs/audit-logs.repo');
     const deleted = await auditLogsRepo.deleteOlderThan(cutoff);
