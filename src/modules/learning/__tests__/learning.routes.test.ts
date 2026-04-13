@@ -161,6 +161,7 @@ describe('learning.routes', () => {
       const body = await res.json();
       expect(body.id).toBe(VALID_UUID);
       expect(body.proposalType).toBe('skill_weight');
+      expect(mockGetById).toHaveBeenCalledWith(VALID_UUID, WORKSPACE_ID);
     });
 
     it('returns 404 when proposal not found', async () => {
@@ -194,7 +195,7 @@ describe('learning.routes', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.success).toBe(true);
-      expect(mockApprove).toHaveBeenCalledWith(VALID_UUID);
+      expect(mockApprove).toHaveBeenCalledWith(VALID_UUID, WORKSPACE_ID);
     });
 
     it('returns 404 when proposal not found', async () => {
@@ -239,7 +240,21 @@ describe('learning.routes', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.success).toBe(true);
-      expect(mockReject).toHaveBeenCalledWith(VALID_UUID);
+      expect(mockReject).toHaveBeenCalledWith(VALID_UUID, WORKSPACE_ID);
+    });
+
+    it('returns 404 when service throws not found', async () => {
+      mockReject.mockImplementation(() => {
+        throw new Error(`Proposal ${VALID_UUID} not found`);
+      });
+
+      const res = await app.request(`/learning/proposals/${VALID_UUID}/reject`, {
+        method: 'POST',
+      });
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toContain('not found');
     });
 
     it('returns 404 when proposal not found', async () => {
@@ -270,7 +285,21 @@ describe('learning.routes', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.success).toBe(true);
-      expect(mockRollback).toHaveBeenCalledWith(VALID_UUID);
+      expect(mockRollback).toHaveBeenCalledWith(VALID_UUID, WORKSPACE_ID);
+    });
+
+    it('returns 404 when service throws not found', async () => {
+      mockRollback.mockImplementation(() => {
+        throw new Error(`Proposal ${VALID_UUID} not found`);
+      });
+
+      const res = await app.request(`/learning/proposals/${VALID_UUID}/rollback`, {
+        method: 'POST',
+      });
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toContain('not found');
     });
 
     it('returns 400 when proposal cannot be rolled back', async () => {

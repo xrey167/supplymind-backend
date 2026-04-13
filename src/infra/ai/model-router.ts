@@ -6,6 +6,17 @@ export { IntentTier };
 // Per-workspace domain keyword cache (invalidated on DOMAIN_KNOWLEDGE_UPDATED)
 const domainKeywordCache = new Map<string, { keywords: DomainKeywords; expiresAt: number }>();
 const DOMAIN_CACHE_TTL_MS = 5 * 60 * 1000;
+const DOMAIN_CACHE_MAX_SIZE = 500;
+
+/** LRU eviction: when at capacity, delete the oldest (first-inserted) entry. */
+export function setCacheWithLRU(key: string, value: { keywords: DomainKeywords; expiresAt: number }): void {
+  if (domainKeywordCache.size >= DOMAIN_CACHE_MAX_SIZE) {
+    // Delete the first (oldest) entry
+    const firstKey = domainKeywordCache.keys().next().value;
+    if (firstKey !== undefined) domainKeywordCache.delete(firstKey);
+  }
+  domainKeywordCache.set(key, value);
+}
 
 export function invalidateDomainRouterCache(workspaceId: string): void {
   domainKeywordCache.delete(workspaceId);

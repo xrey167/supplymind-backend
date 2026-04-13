@@ -66,7 +66,7 @@ mock.module('../../../config/logger', () => ({
   logger: { warn: mock(), info: mock(), error: mock(), debug: mock() },
 }));
 mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mockPublish },
+  eventBus: { publish: mockPublish, subscribe: mock(() => 'sub-id') },
 }));
 
 // ---------------------------------------------------------------------------

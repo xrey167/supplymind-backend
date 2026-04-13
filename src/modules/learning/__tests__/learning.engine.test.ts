@@ -61,11 +61,13 @@ mock.module('../analyzers/memory-analyzer', () => ({
 
 const mockPipelineCreate = mock(async (_proposal: any) => PROPOSAL_ID);
 const mockPipelineAutoApply = mock(async (_id: string) => undefined);
+const mockCountAutoAppliedToday = mock(async (_wsId: string) => 0);
 
 mock.module('../improvement-pipeline', () => ({
   improvementPipeline: {
     create: mockPipelineCreate,
     autoApply: mockPipelineAutoApply,
+    countAutoAppliedToday: mockCountAutoAppliedToday,
   },
 }));
 
@@ -164,6 +166,7 @@ describe('LearningEngine', () => {
     mockAnalyzeMemoryQuality.mockClear();
     mockPipelineCreate.mockClear();
     mockPipelineAutoApply.mockClear();
+    mockCountAutoAppliedToday.mockClear();
     mockCanAutoApply.mockClear();
     mockGetTierConfig.mockClear();
     mockIsEnabled.mockClear();
@@ -175,6 +178,7 @@ describe('LearningEngine', () => {
     mockAnalyzeMemoryQuality.mockResolvedValue([memoryProposal]);
     mockPipelineCreate.mockResolvedValue(PROPOSAL_ID);
     mockPipelineAutoApply.mockResolvedValue(undefined);
+    mockCountAutoAppliedToday.mockResolvedValue(0);
     mockCanAutoApply.mockResolvedValue(false);
     mockIsEnabled.mockResolvedValue(false);
     mockGetTierConfig.mockResolvedValue({
@@ -352,6 +356,99 @@ describe('LearningEngine', () => {
 
       // First proposal failed, other 2 succeeded
       expect(result.proposed).toBe(2);
+    });
+
+    test('stops auto-applying when maxDailyAutoChanges limit is reached', async () => {
+      // Allow all proposal types to auto-apply
+      mockCanAutoApply.mockResolvedValue(true);
+
+      // Tier allows 2 auto-changes per day
+      mockGetTierConfig.mockResolvedValue({
+        tier: 'learner',
+        autoApply: {
+          skillWeights: true,
+          memoryThresholds: true,
+          modelRouting: true,
+          promptOptimization: false,
+          newSkills: false,
+          workflowGeneration: false,
+        },
+        guards: { maxDailyAutoChanges: 2, maxCostBudgetUSD: 10 },
+      });
+
+      // Already at the limit
+      mockCountAutoAppliedToday.mockResolvedValue(2);
+
+      const result = await engine.runCycleForWorkspace(WORKSPACE_ID);
+
+      // No proposals should be auto-applied (limit already reached)
+      expect(mockPipelineAutoApply).not.toHaveBeenCalled();
+      expect(result.applied).toBe(0);
+
+      // All 3 proposals should instead be queued for human review
+      const createdCalls = mockPublish.mock.calls.filter(
+        (c: any[]) => c[0] === 'learning.proposal.created',
+      );
+      expect(createdCalls.length).toBe(3);
+    });
+
+    test('auto-applies up to the limit then queues the rest', async () => {
+      // Allow all proposal types to auto-apply
+      mockCanAutoApply.mockResolvedValue(true);
+
+      // Tier allows 2 auto-changes per day
+      mockGetTierConfig.mockResolvedValue({
+        tier: 'learner',
+        autoApply: {
+          skillWeights: true,
+          memoryThresholds: true,
+          modelRouting: true,
+          promptOptimization: false,
+          newSkills: false,
+          workflowGeneration: false,
+        },
+        guards: { maxDailyAutoChanges: 2, maxCostBudgetUSD: 10 },
+      });
+
+      // 0 applied so far today — budget allows 2 more
+      mockCountAutoAppliedToday.mockResolvedValue(0);
+
+      // 3 proposals come in
+      const result = await engine.runCycleForWorkspace(WORKSPACE_ID);
+
+      // Only 2 should be auto-applied; 3rd queued for review
+      expect(mockPipelineAutoApply).toHaveBeenCalledTimes(2);
+      expect(result.applied).toBe(2);
+
+      const createdCalls = mockPublish.mock.calls.filter(
+        (c: any[]) => c[0] === 'learning.proposal.created',
+      );
+      // 1 proposal queued for review (3rd one hit the limit)
+      expect(createdCalls.length).toBe(1);
+    });
+
+    test('observer tier (maxDailyAutoChanges=0) does not auto-apply', async () => {
+      // Even if canAutoApply somehow returns true, maxDailyAutoChanges=0 means
+      // the guard is bypassed via the maxAutoChanges > 0 check (guard only fires
+      // when maxAutoChanges > 0). For observer, canAutoApply returns false anyway.
+      mockCanAutoApply.mockResolvedValue(false);
+      mockGetTierConfig.mockResolvedValue({
+        tier: 'observer',
+        autoApply: {
+          skillWeights: false,
+          memoryThresholds: false,
+          modelRouting: false,
+          promptOptimization: false,
+          newSkills: false,
+          workflowGeneration: false,
+        },
+        guards: { maxDailyAutoChanges: 0, maxCostBudgetUSD: 0 },
+      });
+
+      const result = await engine.runCycleForWorkspace(WORKSPACE_ID);
+
+      expect(mockPipelineAutoApply).not.toHaveBeenCalled();
+      expect(result.applied).toBe(0);
     });
   });
 });

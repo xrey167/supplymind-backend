@@ -72,6 +72,10 @@ export class LearningEngine {
       allProposals.push(...generativeProposals);
     }
 
+    // Get existing auto-applied count for today (used for maxDailyAutoChanges check)
+    let autoAppliedToday = await improvementPipeline.countAutoAppliedToday(workspaceId);
+    const maxAutoChanges = tierConfig.guards.maxDailyAutoChanges;
+
     let proposed = 0;
     let applied = 0;
 
@@ -83,8 +87,24 @@ export class LearningEngine {
         proposed++;
 
         if (canAutoApply) {
-          await improvementPipeline.autoApply(id);
-          applied++;
+          // Enforce daily auto-change limit
+          if (maxAutoChanges > 0 && autoAppliedToday >= maxAutoChanges) {
+            // Over budget — emit as pending for human review instead
+            await eventBus.publish(Topics.LEARNING_PROPOSAL_CREATED, {
+              proposalId: id,
+              workspaceId,
+              proposalType: proposal.proposalType,
+              changeType: proposal.changeType,
+            }, { source: 'learning-engine' });
+            logger.info(
+              { workspaceId, proposalId: id, maxAutoChanges, autoAppliedToday },
+              'Auto-apply skipped: daily limit reached, queued for human review',
+            );
+          } else {
+            await improvementPipeline.autoApply(id);
+            applied++;
+            autoAppliedToday++;
+          }
         } else {
           // Emit so the frontend can surface pending proposals
           await eventBus.publish(Topics.LEARNING_PROPOSAL_CREATED, {
