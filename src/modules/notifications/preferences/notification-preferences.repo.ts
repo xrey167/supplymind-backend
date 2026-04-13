@@ -1,7 +1,7 @@
 import { eq, and } from 'drizzle-orm';
 import { db } from '../../../infra/db/client';
 import { notificationPreferences } from '../../../infra/db/schema';
-import type { NotificationChannel } from '../notifications.types';
+import type { NotificationChannel, QuietHours } from '../notifications.types';
 
 export interface UpsertPreferenceInput {
   userId: string;
@@ -9,6 +9,7 @@ export interface UpsertPreferenceInput {
   type: string;
   channels: NotificationChannel[];
   muted: boolean;
+  quietHours?: QuietHours | null;
 }
 
 export class NotificationPreferencesRepository {
@@ -25,6 +26,10 @@ export class NotificationPreferencesRepository {
     return rows[0] ?? null;
   }
 
+  async getGlobal(userId: string, workspaceId: string) {
+    return this.get(userId, workspaceId, '__global__');
+  }
+
   async upsert(input: UpsertPreferenceInput) {
     const rows = await db.insert(notificationPreferences)
       .values({
@@ -33,6 +38,7 @@ export class NotificationPreferencesRepository {
         type: input.type,
         channels: input.channels,
         muted: input.muted,
+        quietHours: input.quietHours ?? null,
       })
       .onConflictDoUpdate({
         target: [
@@ -43,6 +49,7 @@ export class NotificationPreferencesRepository {
         set: {
           channels: input.channels,
           muted: input.muted,
+          quietHours: input.quietHours ?? null,
         },
       })
       .returning();

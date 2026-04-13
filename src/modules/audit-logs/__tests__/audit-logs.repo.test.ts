@@ -50,20 +50,6 @@ mock.module('../../../infra/db/client', () => ({
   },
 }));
 
-mock.module('../../../infra/db/schema', () => ({
-  auditLogs: {
-    id: 'id',
-    workspaceId: 'workspace_id',
-    actorId: 'actor_id',
-    actorType: 'actor_type',
-    action: 'action',
-    resourceType: 'resource_type',
-    resourceId: 'resource_id',
-    metadata: 'metadata',
-    ipAddress: 'ip_address',
-    createdAt: 'created_at',
-  },
-}));
 
 const { AuditLogsRepository } = await import('../audit-logs.repo');
 

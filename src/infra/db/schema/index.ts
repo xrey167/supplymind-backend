@@ -392,6 +392,7 @@ export const notificationPreferences = pgTable('notification_preferences', {
   type: text('type').notNull(),
   channels: jsonb('channels').default(['in_app']),
   muted: boolean('muted').default(false),
+  quietHours: jsonb('quiet_hours'),
 }, (t) => [
   uniqueIndex('np_user_workspace_type_idx').on(t.userId, t.workspaceId, t.type),
 ]);
@@ -409,7 +410,7 @@ export const userSettings = pgTable('user_settings', {
 ]);
 
 // Credentials (encrypted API keys for AI providers / MCP servers)
-export const credentialProviderEnum = pgEnum('credential_provider', ['anthropic', 'openai', 'google', 'custom']);
+export const credentialProviderEnum = pgEnum('credential_provider', ['anthropic', 'openai', 'google', 'custom', 'slack', 'telegram']);
 
 export const credentials = pgTable('credentials', {
   id: uuid('id').primaryKey().defaultRandom(),

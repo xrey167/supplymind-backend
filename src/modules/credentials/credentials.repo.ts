@@ -1,7 +1,7 @@
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { credentials } from '../../infra/db/schema';
-import type { Credential, CredentialRow } from './credentials.types';
+import type { Credential, CredentialProvider, CredentialRow } from './credentials.types';
 
 function toCredential(row: any): Credential {
   return {
@@ -34,7 +34,7 @@ export class CredentialsRepository {
   async create(input: {
     workspaceId: string;
     name: string;
-    provider: string;
+    provider: CredentialProvider;
     encryptedValue: string;
     iv: string;
     tag: string;
@@ -43,7 +43,7 @@ export class CredentialsRepository {
     const rows = await db.insert(credentials).values({
       workspaceId: input.workspaceId,
       name: input.name,
-      provider: input.provider as any,
+      provider: input.provider,
       encryptedValue: input.encryptedValue,
       iv: input.iv,
       tag: input.tag,
@@ -79,6 +79,13 @@ export class CredentialsRepository {
   async remove(id: string): Promise<boolean> {
     const rows = await db.delete(credentials).where(eq(credentials.id, id)).returning();
     return rows.length > 0;
+  }
+
+  async findByProvider(workspaceId: string, provider: CredentialProvider): Promise<CredentialRow | null> {
+    const rows = await db.select().from(credentials)
+      .where(and(eq(credentials.workspaceId, workspaceId), eq(credentials.provider, provider)))
+      .limit(1);
+    return rows[0] ? toCredentialRow(rows[0]) : null;
   }
 }
 

@@ -1,6 +1,6 @@
 import { logger } from '../../config/logger';
 import { auditLogsRepo } from './audit-logs.repo';
-import type { AuditLog, CreateAuditLogInput, AuditLogFilter } from './audit-logs.types';
+import type { AuditLog, AuditStats, CreateAuditLogInput, AuditLogFilter } from './audit-logs.types';
 
 export class AuditLogsService {
   /**
@@ -19,6 +19,10 @@ export class AuditLogsService {
 
   async count(filter: AuditLogFilter): Promise<number> {
     return auditLogsRepo.count(filter);
+  }
+
+  async stats(workspaceId: string): Promise<AuditStats> {
+    return auditLogsRepo.getStats(workspaceId);
   }
 }
 

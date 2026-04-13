@@ -58,6 +58,18 @@ export async function runCleanup(tr: Pick<typeof taskRepo, 'findStale' | 'update
     logger.error({ err }, 'Cleanup: expired invitations step failed');
   }
 
+  // Prune old audit logs (default 90 days, configurable via AUDIT_LOG_RETENTION_DAYS)
+  try {
+    const raw = Number(process.env.AUDIT_LOG_RETENTION_DAYS);
+    const retentionDays = Number.isFinite(raw) && raw > 0 ? raw : 90;
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+    const { auditLogsRepo } = await import('../../modules/audit-logs/audit-logs.repo');
+    const deleted = await auditLogsRepo.deleteOlderThan(cutoff);
+    if (deleted > 0) logger.info({ count: deleted, retentionDays }, 'Cleanup: pruned old audit logs');
+  } catch (err) {
+    logger.error({ err }, 'Cleanup: audit log retention step failed');
+  }
+
   // Hard-delete soft-deleted workspaces past 30-day grace period
   try {
     const { workspacesRepo } = await import('../../modules/workspaces/workspaces.repo');

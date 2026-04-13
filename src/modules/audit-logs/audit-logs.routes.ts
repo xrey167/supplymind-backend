@@ -6,6 +6,15 @@ import { listAuditLogsQuerySchema } from './audit-logs.schemas';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
 
+const statsRoute = createRoute({
+  method: 'get',
+  path: '/stats',
+  responses: {
+    200: { description: 'Audit log statistics', ...jsonRes },
+    500: { description: 'Internal server error', ...jsonRes },
+  },
+});
+
 const listRoute = createRoute({
   method: 'get',
   path: '/',
@@ -21,6 +30,12 @@ const countRoute = createRoute({
 });
 
 export const AuditLogsRoutes = new OpenAPIHono<AppEnv>();
+
+AuditLogsRoutes.openapi(statsRoute, async (c) => {
+  const workspaceId = c.get('workspaceId');
+  const stats = await auditLogsService.stats(workspaceId);
+  return c.json({ data: stats });
+});
 
 AuditLogsRoutes.openapi(listRoute, async (c) => {
   const query = c.req.valid('query');

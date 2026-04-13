@@ -32,10 +32,12 @@ mock.module('../notifications.repo', () => ({
 }));
 
 const mockPrefGet = mock(() => Promise.resolve(null as any));
+const mockPrefGetGlobal = mock(() => Promise.resolve(null as any));
 
 mock.module('../preferences/notification-preferences.repo', () => ({
   notificationPreferencesRepo: {
     get: mockPrefGet,
+    getGlobal: mockPrefGetGlobal,
   },
 }));
 
@@ -105,12 +107,14 @@ describe('NotificationsService', () => {
     mockMarkAllRead.mockClear();
     mockGetUnreadCount.mockClear();
     mockPrefGet.mockClear();
+    mockPrefGetGlobal.mockClear();
     mockDeliverInApp.mockClear();
     mockDeliverWebSocket.mockClear();
     mockPublish.mockClear();
 
     // Defaults
     mockPrefGet.mockResolvedValue(null);
+    mockPrefGetGlobal.mockResolvedValue(null);
     mockCreate.mockResolvedValue(fakeNotification);
   });
 
