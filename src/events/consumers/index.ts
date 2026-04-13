@@ -6,11 +6,13 @@ import { enqueueAgentRun } from '../../infra/queue/bullmq';
 import { initMemoryExtractionHandler } from './memory-extraction.handler';
 import { initNotificationHandler } from './notification.handler';
 import { initAuditLogHandler } from './audit-log.handler';
+import { initAlertRulesHandler } from './alert-rules.handler';
 
 export function initEventConsumers() {
   initMemoryExtractionHandler();
   initNotificationHandler();
   initAuditLogHandler();
+  initAlertRulesHandler();
   eventBus.subscribe(Topics.SKILL_INVOKED, (event) => {
     const data = event.data as any;
     logger.info({ skill: data.name, durationMs: data.durationMs, success: data.success }, 'Skill invoked');

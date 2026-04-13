@@ -28,6 +28,8 @@ import { InboxRoutes } from '../../../modules/inbox/inbox.routes';
 import { PromptsRoutes } from '../../../modules/prompts/prompts.routes';
 import { pluginRoutes } from '../../../modules/plugins/plugins.routes';
 import { executionRoutes } from '../../../modules/execution/execution.routes';
+import { webhooksRoutes } from '../../../modules/webhooks/webhooks.routes';
+import { alertRulesRoutes } from '../../../modules/alert-rules/alert-rules.routes';
 
 const workspaceRoutes = new OpenAPIHono<AppEnv>();
 
@@ -62,5 +64,7 @@ workspaceRoutes.route('/inbox', InboxRoutes);
 workspaceRoutes.route('/prompts', PromptsRoutes);
 workspaceRoutes.route('/plugins', pluginRoutes);
 workspaceRoutes.route('/plans', executionRoutes);
+workspaceRoutes.route('/webhooks', webhooksRoutes);
+workspaceRoutes.route('/alert-rules', alertRulesRoutes);
 
 export { workspaceRoutes };

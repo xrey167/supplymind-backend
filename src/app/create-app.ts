@@ -11,6 +11,7 @@ import { workspaceRoutes } from '../api/routes/workspace';
 import { handleMcpRequest } from '../infra/mcp/server';
 import { clerkWebhookRoutes } from '../api/routes/webhooks/clerk';
 import { stripeWebhookRoutes } from '../api/routes/webhooks/stripe';
+import { webhookIngestRoute } from '../api/routes/webhooks-ingest';
 import { WorkspacesRoutes } from '../modules/workspaces';
 import { invitationRoutes } from '../api/routes/invitations';
 import { initSubsystems, destroySubsystems } from './bootstrap';
@@ -74,6 +75,7 @@ export async function createApp(opts?: { skipSubsystems?: boolean }) {
 
   app.route('/webhooks/clerk', clerkWebhookRoutes);
   app.route('/webhooks/stripe', stripeWebhookRoutes);
+  app.route('/webhooks/ingest', webhookIngestRoute);
   // Auth guard for workspace-management routes (top-level, not workspace-scoped)
   app.use('/api/v1/workspace-management', authMiddleware);
   app.use('/api/v1/workspace-management/*', authMiddleware);

@@ -110,6 +110,10 @@ export const Topics = {
   // User sync
   USER_SYNCED: 'user.synced',
   USER_DELETED: 'user.deleted',
+  // Webhooks
+  WEBHOOK_RECEIVED: 'webhook.received',
+  // Alert rules
+  ALERT_RULE_FIRED: 'alert.rule.fired',
 } as const;
 
 export type Topic = typeof Topics[keyof typeof Topics];

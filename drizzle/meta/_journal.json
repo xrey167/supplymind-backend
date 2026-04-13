@@ -71,6 +71,41 @@
       "when": 1775590000000,
       "tag": "0009_plugin_platform_core",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1775940367676,
+      "tag": "0010_sad_tarot",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1776056322477,
+      "tag": "0011_loving_smiling_tiger",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1776076311356,
+      "tag": "0012_calm_hulk",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1776160000000,
+      "tag": "0013_collab_intel_fixes",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1776220000000,
+      "tag": "0014_webhooks_alert_rules",
+      "breakpoints": true
     }
   ]
 }
