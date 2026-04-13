@@ -1,7 +1,7 @@
 import { eventBus } from '../bus';
 import { alertRulesRepo } from '../../modules/alert-rules/alert-rules.repo';
 import { alertRulesService, evalCondition } from '../../modules/alert-rules/alert-rules.service';
-import { logger } from '../../core/logger';
+import { logger } from '../../config/logger';
 
 export function initAlertRulesHandler(): void {
   eventBus.subscribe('*', async (event) => {
