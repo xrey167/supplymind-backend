@@ -9,7 +9,7 @@
 
 import { db } from '../../infra/db/client';
 import { improvementProposals } from '../../infra/db/schema';
-import { eq, and, gte } from 'drizzle-orm';
+import { eq, and, gte, count } from 'drizzle-orm';
 import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
 import { logger } from '../../config/logger';
@@ -73,11 +73,11 @@ export class ImprovementPipeline {
   }
 
   /** Human approval path. */
-  async approve(proposalId: string): Promise<void> {
+  async approve(proposalId: string, workspaceId: string): Promise<void> {
     const rows = await db
       .select()
       .from(improvementProposals)
-      .where(eq(improvementProposals.id, proposalId))
+      .where(and(eq(improvementProposals.id, proposalId), eq(improvementProposals.workspaceId, workspaceId)))
       .limit(1);
 
     if (rows.length === 0) throw new Error(`Proposal ${proposalId} not found`);
@@ -103,33 +103,34 @@ export class ImprovementPipeline {
   }
 
   /** Human rejection. */
-  async reject(proposalId: string): Promise<void> {
+  async reject(proposalId: string, workspaceId: string): Promise<void> {
+    const rows = await db
+      .select()
+      .from(improvementProposals)
+      .where(and(eq(improvementProposals.id, proposalId), eq(improvementProposals.workspaceId, workspaceId)))
+      .limit(1);
+
+    if (rows.length === 0) throw new Error(`Proposal ${proposalId} not found`);
+    const proposal = rows[0]!;
+
     await db
       .update(improvementProposals)
       .set({ status: 'rejected', rejectedAt: new Date() })
       .where(eq(improvementProposals.id, proposalId));
 
-    const rows = await db
-      .select({ workspaceId: improvementProposals.workspaceId, proposalType: improvementProposals.proposalType })
-      .from(improvementProposals)
-      .where(eq(improvementProposals.id, proposalId))
-      .limit(1);
-
-    if (rows[0]) {
-      await eventBus.publish(Topics.LEARNING_PROPOSAL_REJECTED, {
-        proposalId,
-        workspaceId: rows[0].workspaceId,
-        proposalType: rows[0].proposalType,
-      }, { source: 'improvement-pipeline' });
-    }
+    await eventBus.publish(Topics.LEARNING_PROPOSAL_REJECTED, {
+      proposalId,
+      workspaceId: proposal.workspaceId,
+      proposalType: proposal.proposalType,
+    }, { source: 'improvement-pipeline' });
   }
 
   /** Rollback an applied proposal. */
-  async rollback(proposalId: string): Promise<void> {
+  async rollback(proposalId: string, workspaceId: string): Promise<void> {
     const rows = await db
       .select()
       .from(improvementProposals)
-      .where(eq(improvementProposals.id, proposalId))
+      .where(and(eq(improvementProposals.id, proposalId), eq(improvementProposals.workspaceId, workspaceId)))
       .limit(1);
 
     if (rows.length === 0) throw new Error(`Proposal ${proposalId} not found`);
@@ -157,8 +158,24 @@ export class ImprovementPipeline {
     return db
       .select()
       .from(improvementProposals)
-      .where(eq(improvementProposals.workspaceId, workspaceId))
+      .where(and(eq(improvementProposals.workspaceId, workspaceId), eq(improvementProposals.status, 'pending')))
       .orderBy(improvementProposals.createdAt);
+  }
+
+  /** Count proposals auto-applied in the past 24 hours for this workspace. */
+  async countAutoAppliedToday(workspaceId: string): Promise<number> {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const rows = await db
+      .select({ count: count() })
+      .from(improvementProposals)
+      .where(
+        and(
+          eq(improvementProposals.workspaceId, workspaceId),
+          eq(improvementProposals.status, 'auto_applied'),
+          gte(improvementProposals.autoAppliedAt, since),
+        ),
+      );
+    return rows[0]?.count ?? 0;
   }
 
   private async applyChange(proposal: ProposalRow): Promise<void> {
@@ -298,9 +315,9 @@ export class ImprovementPipeline {
     }
   }
 
-  async getById(proposalId: string): Promise<ProposalRow | null> {
+  async getById(proposalId: string, workspaceId: string): Promise<ProposalRow | null> {
     const rows = await db.select().from(improvementProposals)
-      .where(eq(improvementProposals.id, proposalId)).limit(1);
+      .where(and(eq(improvementProposals.id, proposalId), eq(improvementProposals.workspaceId, workspaceId))).limit(1);
     return rows[0] ?? null;
   }
 

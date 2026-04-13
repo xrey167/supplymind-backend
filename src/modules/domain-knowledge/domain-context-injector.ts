@@ -49,7 +49,7 @@ export async function buildDomainContext(
     }
   }
 
-  const cacheKey = `${workspaceId}:${simpleHash(promptText)}`;
+  const cacheKey = `${workspaceId}:${tokenBudget}:${simpleHash(promptText)}`;
   const cached = cache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.context;

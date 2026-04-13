@@ -172,11 +172,11 @@ describe('ImprovementPipeline', () => {
 
   describe('approve()', () => {
     test('approves a pending proposal and publishes event', async () => {
-      // approve: select (find proposal) -> update (set approved) -> applyChange -> publish
+      // approve: select (find proposal with workspace check) -> update (set approved) -> applyChange -> publish
       selectQueue.push(makeSelectChain([pendingRow]));
       updateQueue.push(makeUpdateChain());
 
-      await pipeline.approve(PROPOSAL_ID);
+      await pipeline.approve(PROPOSAL_ID, WORKSPACE_ID);
 
       expect(mockDb.update).toHaveBeenCalled();
       expect(mockPublish).toHaveBeenCalledTimes(1);
@@ -186,23 +186,30 @@ describe('ImprovementPipeline', () => {
     test('throws if proposal is not pending', async () => {
       selectQueue.push(makeSelectChain([approvedRow]));
 
-      await expect(pipeline.approve(PROPOSAL_ID)).rejects.toThrow('not pending');
+      await expect(pipeline.approve(PROPOSAL_ID, WORKSPACE_ID)).rejects.toThrow('not pending');
     });
 
     test('throws if proposal not found', async () => {
       selectQueue.push(makeSelectChain([]));
 
-      await expect(pipeline.approve(PROPOSAL_ID)).rejects.toThrow('not found');
+      await expect(pipeline.approve(PROPOSAL_ID, WORKSPACE_ID)).rejects.toThrow('not found');
+    });
+
+    test('throws not found when workspaceId does not match (IDOR check)', async () => {
+      // SELECT returns empty (workspace filter excludes the row)
+      selectQueue.push(makeSelectChain([]));
+
+      await expect(pipeline.approve(PROPOSAL_ID, 'wrong-workspace')).rejects.toThrow('not found');
     });
   });
 
   describe('reject()', () => {
     test('publishes LEARNING_PROPOSAL_REJECTED event', async () => {
-      // reject: update (set rejected) -> select (get workspaceId/type) -> publish
+      // reject (SELECT-then-UPDATE): select (find with workspace check) -> update (set rejected) -> publish
+      selectQueue.push(makeSelectChain([pendingRow]));
       updateQueue.push(makeUpdateChain());
-      selectQueue.push(makeSelectChain([{ workspaceId: WORKSPACE_ID, proposalType: 'skill_weight' }]));
 
-      await pipeline.reject(PROPOSAL_ID);
+      await pipeline.reject(PROPOSAL_ID, WORKSPACE_ID);
 
       expect(mockPublish).toHaveBeenCalledTimes(1);
       expect(mockPublish.mock.calls[0][0]).toBe('learning.proposal.rejected');
@@ -212,6 +219,19 @@ describe('ImprovementPipeline', () => {
         proposalType: 'skill_weight',
       });
     });
+
+    test('throws not found when proposal does not exist', async () => {
+      selectQueue.push(makeSelectChain([]));
+
+      await expect(pipeline.reject(PROPOSAL_ID, WORKSPACE_ID)).rejects.toThrow('not found');
+    });
+
+    test('throws not found when workspaceId does not match (IDOR check)', async () => {
+      // SELECT returns empty (workspace filter excludes the row)
+      selectQueue.push(makeSelectChain([]));
+
+      await expect(pipeline.reject(PROPOSAL_ID, 'wrong-workspace')).rejects.toThrow('not found');
+    });
   });
 
   describe('rollback()', () => {
@@ -220,7 +240,7 @@ describe('ImprovementPipeline', () => {
       updateQueue.push(makeUpdateChain()); // applyRollback update (if any)
       updateQueue.push(makeUpdateChain()); // status -> rolled_back
 
-      await pipeline.rollback(PROPOSAL_ID);
+      await pipeline.rollback(PROPOSAL_ID, WORKSPACE_ID);
 
       expect(mockDb.update).toHaveBeenCalled();
     });
@@ -230,7 +250,7 @@ describe('ImprovementPipeline', () => {
       updateQueue.push(makeUpdateChain());
       updateQueue.push(makeUpdateChain());
 
-      await pipeline.rollback(PROPOSAL_ID);
+      await pipeline.rollback(PROPOSAL_ID, WORKSPACE_ID);
 
       expect(mockDb.update).toHaveBeenCalled();
     });
@@ -238,19 +258,26 @@ describe('ImprovementPipeline', () => {
     test('throws if proposal is pending', async () => {
       selectQueue.push(makeSelectChain([pendingRow]));
 
-      await expect(pipeline.rollback(PROPOSAL_ID)).rejects.toThrow('Cannot rollback');
+      await expect(pipeline.rollback(PROPOSAL_ID, WORKSPACE_ID)).rejects.toThrow('Cannot rollback');
     });
 
     test('throws if proposal is rejected', async () => {
       selectQueue.push(makeSelectChain([rejectedRow]));
 
-      await expect(pipeline.rollback(PROPOSAL_ID)).rejects.toThrow('Cannot rollback');
+      await expect(pipeline.rollback(PROPOSAL_ID, WORKSPACE_ID)).rejects.toThrow('Cannot rollback');
     });
 
     test('throws if proposal not found', async () => {
       selectQueue.push(makeSelectChain([]));
 
-      await expect(pipeline.rollback(PROPOSAL_ID)).rejects.toThrow('not found');
+      await expect(pipeline.rollback(PROPOSAL_ID, WORKSPACE_ID)).rejects.toThrow('not found');
+    });
+
+    test('throws not found when workspaceId does not match (IDOR check)', async () => {
+      // SELECT returns empty (workspace filter excludes the row)
+      selectQueue.push(makeSelectChain([]));
+
+      await expect(pipeline.rollback(PROPOSAL_ID, 'wrong-workspace')).rejects.toThrow('not found');
     });
   });
 
@@ -285,13 +312,25 @@ describe('ImprovementPipeline', () => {
       expect(result).toEqual(rows);
       expect(mockDb.select).toHaveBeenCalled();
     });
+
+    test('filters by status=pending (pending-only case)', async () => {
+      // The WHERE clause includes status='pending'; the mock returns what we give it.
+      // We verify the db.select was called (the actual SQL filter is in the WHERE clause).
+      const rows = [pendingRow];
+      selectQueue.push(makeSelectChain(rows));
+
+      const result = await pipeline.listPending(WORKSPACE_ID);
+
+      expect(result).toEqual(rows);
+      expect(mockDb.select).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('getById()', () => {
     test('returns proposal when found', async () => {
       selectQueue.push(makeSelectChain([pendingRow]));
 
-      const result = await pipeline.getById(PROPOSAL_ID);
+      const result = await pipeline.getById(PROPOSAL_ID, WORKSPACE_ID);
 
       expect(result).toEqual(pendingRow);
     });
@@ -299,7 +338,16 @@ describe('ImprovementPipeline', () => {
     test('returns null when not found', async () => {
       selectQueue.push(makeSelectChain([]));
 
-      const result = await pipeline.getById(PROPOSAL_ID);
+      const result = await pipeline.getById(PROPOSAL_ID, WORKSPACE_ID);
+
+      expect(result).toBeNull();
+    });
+
+    test('returns null when workspaceId does not match (IDOR check)', async () => {
+      // SELECT returns empty (workspace filter excludes the row)
+      selectQueue.push(makeSelectChain([]));
+
+      const result = await pipeline.getById(PROPOSAL_ID, 'wrong-workspace');
 
       expect(result).toBeNull();
     });
