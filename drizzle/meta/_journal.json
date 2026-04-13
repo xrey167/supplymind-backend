@@ -85,6 +85,20 @@
       "when": 1776056322477,
       "tag": "0011_loving_smiling_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1776076311356,
+      "tag": "0012_calm_hulk",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1776160000000,
+      "tag": "0013_collab_intel_fixes",
+      "breakpoints": true
     }
   ]
 }

@@ -743,3 +743,112 @@ export const skillPerformanceMetrics = pgTable('skill_performance_metrics', {
 }, (t) => [
   index('spm_workspace_skill_window_idx').on(t.workspaceId, t.skillId, t.windowStart),
 ]);
+
+// ── Collaborative Intelligence ────────────────────────────────────────────────
+
+export const boardVisibilityEnum = pgEnum('board_visibility', ['public', 'private']);
+export const mentionStatusEnum = pgEnum('mention_status', ['pending', 'read', 'dismissed']);
+// prefixed to avoid clash with existing proposalStatusEnum (used by memory proposals)
+export const collabProposalStatusEnum = pgEnum('collab_proposal_status', ['open', 'closed', 'accepted', 'rejected']);
+export const voteTypeEnum = pgEnum('vote_type', ['up', 'down']);
+export const approvalStepStatusEnum = pgEnum('approval_step_status', ['pending', 'approved', 'rejected', 'skipped']);
+export const approvalChainStatusEnum = pgEnum('approval_chain_status', ['pending', 'approved', 'rejected', 'cancelled']);
+
+export const collabBoards = pgTable('collab_boards', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  visibility: boardVisibilityEnum('visibility').default('public').notNull(),
+  createdBy: text('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('cb_workspace_idx').on(t.workspaceId),
+]);
+
+export const collabBoardMembers = pgTable('collab_board_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  boardId: uuid('board_id').notNull().references(() => collabBoards.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull(),
+  role: text('role').notNull().default('viewer'),
+  joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('cbm_board_user_idx').on(t.boardId, t.userId),
+]);
+
+export const collabMentions = pgTable('collab_mentions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  boardId: uuid('board_id').notNull().references(() => collabBoards.id, { onDelete: 'cascade' }),
+  mentionedUserId: text('mentioned_user_id').notNull(),
+  mentionedByUserId: text('mentioned_by_user_id').notNull(),
+  contextText: text('context_text').notNull(),
+  status: mentionStatusEnum('status').default('pending').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('cm_board_mentioned_idx').on(t.boardId, t.mentionedUserId),
+]);
+
+export const collabProposals = pgTable('collab_proposals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  boardId: uuid('board_id').notNull().references(() => collabBoards.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  createdBy: text('created_by').notNull(),
+  status: collabProposalStatusEnum('status').default('open').notNull(),
+  upVotes: integer('up_votes').default(0).notNull(),
+  downVotes: integer('down_votes').default(0).notNull(),
+  votingEndsAt: timestamp('voting_ends_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('cp_board_idx').on(t.boardId),
+]);
+
+export const collabVotes = pgTable('collab_votes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  proposalId: uuid('proposal_id').notNull().references(() => collabProposals.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull(),
+  voteType: voteTypeEnum('vote_type').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('cv_proposal_user_idx').on(t.proposalId, t.userId),
+]);
+
+export const collabApprovalChains = pgTable('collab_approval_chains', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  boardId: uuid('board_id').notNull().references(() => collabBoards.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  description: text('description'),
+  createdBy: text('created_by').notNull(),
+  status: approvalChainStatusEnum('status').notNull().default('pending'),
+  currentStep: integer('current_step').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('cac_board_idx').on(t.boardId),
+]);
+
+export const collabApprovalSteps = pgTable('collab_approval_steps', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  chainId: uuid('chain_id').notNull().references(() => collabApprovalChains.id, { onDelete: 'cascade' }),
+  stepIndex: integer('step_index').notNull(),
+  approverUserId: text('approver_user_id').notNull(),
+  status: approvalStepStatusEnum('status').default('pending').notNull(),
+  comment: text('comment'),
+  respondedAt: timestamp('responded_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('cas_chain_idx').on(t.chainId, t.stepIndex),
+]);
+
+export const collabActivities = pgTable('collab_activities', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  boardId: uuid('board_id').notNull().references(() => collabBoards.id, { onDelete: 'cascade' }),
+  actorUserId: text('actor_user_id').notNull(),
+  activityType: text('activity_type').notNull(),
+  metadata: jsonb('metadata'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('ca_board_created_idx').on(t.boardId, t.createdAt),
+]);
