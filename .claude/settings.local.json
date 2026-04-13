@@ -77,7 +77,12 @@
       "Bash(grep -r \"\\\\.set.*sql\\\\`\" /c/Users/Xrey/SupplyMindAI/backend/.worktrees/ai-native/src --include=\"*.ts\" -B 2 -A 2)",
       "Bash(npx tsc:*)",
       "Bash(ls *.md CLAUDE.md README.md AGENTS.md docs/)",
-      "Bash(ls -la *.md)"
+      "Bash(ls -la *.md)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(xargs head:*)",
+      "Bash(chmod +x /c/Users/Xrey/AppData/Roaming/Python/Python311/Scripts/semgrep)",
+      "Bash(semgrep --version)"
     ]
   }
 }
