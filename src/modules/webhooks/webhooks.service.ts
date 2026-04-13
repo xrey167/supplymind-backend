@@ -86,14 +86,16 @@ class WebhooksService {
 
     if (!inserted) return { accepted: true, duplicate: true };
 
+    // Mark processed before publishing so the delivery status is accurate if the event
+    // is consumed synchronously (e.g. in tests or in-process consumers).
+    await webhooksRepo.markDeliveryProcessed(inserted.id);
+
     eventBus.publish(Topics.WEBHOOK_RECEIVED, {
       workspaceId: endpoint.workspaceId,
       endpointId: endpoint.id,
       deliveryId: inserted.id,
       payload: input.payload,
     }).catch(() => {});
-
-    await webhooksRepo.markDeliveryProcessed(inserted.id);
     return { accepted: true, duplicate: false };
   }
 }

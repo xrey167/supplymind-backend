@@ -83,7 +83,8 @@ async function deleteRule(id: string, workspaceId: string): Promise<void> {
     .where(and(eq(alertRules.id, id), eq(alertRules.workspaceId, workspaceId)));
 }
 
-// Returns rules whose eventTopic exactly matches or is a prefix of the given topic
+// Returns rules whose eventTopic exactly matches the incoming topic, or whose
+// eventTopic is a prefix of the incoming topic (e.g. stored 'task.' matches incoming 'task.error')
 async function getEnabledRulesForTopic(topic: string): Promise<AlertRule[]> {
   const rows = await db.select().from(alertRules)
     .where(and(
@@ -116,6 +117,34 @@ async function recordFire(ruleId: string, workspaceId: string, eventTopic: strin
   return toFire(rows[0]!);
 }
 
+// Atomically checks cooldown and records a fire under a row-level lock.
+// Returns the new fire record, or null if the rule is still within its cooldown window.
+// Using SELECT FOR UPDATE prevents concurrent workers from both passing the cooldown check.
+async function fireWithCooldownCheck(
+  ruleId: string,
+  workspaceId: string,
+  eventTopic: string,
+  eventData: Record<string, unknown>,
+  cooldownSeconds: number,
+): Promise<AlertRuleFire | null> {
+  return db.transaction(async (tx) => {
+    // Lock the rule row — concurrent callers for the same rule will queue here
+    await tx.execute(sql`SELECT id FROM alert_rules WHERE id = ${ruleId} FOR UPDATE`);
+
+    const cutoff = new Date(Date.now() - cooldownSeconds * 1000);
+    const recent = await tx.select().from(alertRuleFires)
+      .where(and(eq(alertRuleFires.ruleId, ruleId), gte(alertRuleFires.firedAt, cutoff)))
+      .limit(1);
+
+    if (recent.length > 0) return null; // still in cooldown
+
+    const rows = await tx.insert(alertRuleFires).values({
+      ruleId, workspaceId, eventTopic, eventData,
+    }).returning();
+    return toFire(rows[0]!);
+  });
+}
+
 async function listFires(ruleId: string, limit = 50): Promise<AlertRuleFire[]> {
   const rows = await db.select().from(alertRuleFires)
     .where(eq(alertRuleFires.ruleId, ruleId))
@@ -131,7 +160,6 @@ export const alertRulesRepo = {
   updateRule,
   deleteRule,
   getEnabledRulesForTopic,
-  getLastFireInCooldown,
-  recordFire,
+  fireWithCooldownCheck,
   listFires,
 };

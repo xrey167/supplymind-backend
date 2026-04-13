@@ -78,12 +78,13 @@ class AlertRulesService {
     return alertRulesRepo.listFires(ruleId);
   }
 
-  // Called by the event consumer for each matching rule
+  // Called by the event consumer for each matching rule.
+  // Uses a DB transaction with SELECT FOR UPDATE to prevent duplicate fires under concurrent workers.
   async fire(rule: AlertRule, eventTopic: string, data: Record<string, unknown>): Promise<void> {
-    const lastFire = await alertRulesRepo.getLastFireInCooldown(rule.id, rule.cooldownSeconds);
-    if (lastFire) return; // still in cooldown
-
-    await alertRulesRepo.recordFire(rule.id, rule.workspaceId, eventTopic, data);
+    const fired = await alertRulesRepo.fireWithCooldownCheck(
+      rule.id, rule.workspaceId, eventTopic, data, rule.cooldownSeconds,
+    );
+    if (!fired) return; // still in cooldown
 
     const body = applyTemplate(rule.messageTemplate, data);
 

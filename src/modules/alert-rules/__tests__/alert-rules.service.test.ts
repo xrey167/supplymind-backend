@@ -27,8 +27,8 @@ const mockRepo = {
   updateRule: mock(async (_id: string, input: any) => ({ ...baseRule, ...input })),
   deleteRule: mock(async () => {}),
   getEnabledRulesForTopic: mock(async () => [baseRule]),
-  getLastFireInCooldown: mock(async () => null),
-  recordFire: mock(async () => ({ id: 'fire-1', ruleId: 'rule-1', workspaceId: 'ws-1', eventTopic: 'task.error', eventData: null, firedAt: new Date() })),
+  // Atomically checks cooldown and records fire; null = in cooldown
+  fireWithCooldownCheck: mock(async () => ({ id: 'fire-1', ruleId: 'rule-1', workspaceId: 'ws-1', eventTopic: 'task.error', eventData: null, firedAt: new Date() })),
   listFires: mock(async () => []),
 };
 
@@ -51,8 +51,7 @@ function clearMocks() {
   (Object.values(mockRepo) as ReturnType<typeof mock>[]).forEach(m => m.mockReset());
   // Restore default implementations after reset
   mockRepo.getRule.mockImplementation(async () => baseRule);
-  mockRepo.getLastFireInCooldown.mockImplementation(async () => null);
-  mockRepo.recordFire.mockImplementation(async () => ({ id: 'fire-1', ruleId: 'rule-1', workspaceId: 'ws-1', eventTopic: 'task.error', eventData: null, firedAt: new Date() }));
+  mockRepo.fireWithCooldownCheck.mockImplementation(async () => ({ id: 'fire-1', ruleId: 'rule-1', workspaceId: 'ws-1', eventTopic: 'task.error', eventData: null, firedAt: new Date() }));
   mockRepo.listRules.mockImplementation(async () => []);
   mockRepo.listFires.mockImplementation(async () => []);
   mockRepo.updateRule.mockImplementation(async (_id: string, input: any) => ({ ...baseRule, ...input }));
@@ -104,41 +103,36 @@ describe('evalCondition', () => {
 });
 
 describe('AlertRulesService.fire', () => {
-  it('conditions match + no cooldown → records fire and sends notification', async () => {
+  it('no cooldown → records fire and sends notification', async () => {
     await alertRulesService.fire(baseRule, 'task.error', { workspaceId: 'ws-1', taskId: 't-1' });
 
-    expect(mockRepo.recordFire).toHaveBeenCalledWith('rule-1', 'ws-1', 'task.error', expect.any(Object));
+    expect(mockRepo.fireWithCooldownCheck).toHaveBeenCalledWith(
+      'rule-1', 'ws-1', 'task.error', expect.any(Object), 300,
+    );
     await new Promise(r => setTimeout(r, 10));
     expect(mockNotify).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'alert_fired', userId: 'user-1', workspaceId: 'ws-1' }),
     );
   });
 
-  it('within cooldown window → skips fire and notification', async () => {
-    mockRepo.getLastFireInCooldown.mockImplementation(async () => ({
-      id: 'fire-0', ruleId: 'rule-1', workspaceId: 'ws-1',
-      eventTopic: 'task.error', eventData: null, firedAt: new Date(),
-    }));
+  it('within cooldown window → skips notification', async () => {
+    // fireWithCooldownCheck returns null when the rule is still in cooldown
+    mockRepo.fireWithCooldownCheck.mockImplementation(async () => null);
 
     await alertRulesService.fire(baseRule, 'task.error', { workspaceId: 'ws-1' });
 
-    expect(mockRepo.recordFire).not.toHaveBeenCalled();
     expect(mockNotify).not.toHaveBeenCalled();
   });
 
-  it('conditions do not match → skips fire', async () => {
+  it('service.fire does not re-evaluate conditions (handler pre-filters)', async () => {
+    // Conditions are checked by the event handler before calling service.fire —
+    // service.fire itself always attempts to fire (cooldown check only).
     const ruleWithCondition = {
       ...baseRule,
       conditions: [{ field: 'level', operator: 'gt' as const, value: 10 }],
     };
-
-    // Call fire directly — the condition check happens in the handler before calling fire
-    // But the service.fire() itself does NOT re-check conditions — that's the handler's job.
-    // Here we test the handler flow via evalCondition + service.fire together.
-    // For service.fire isolation: just verify it still fires (no condition check in service.fire).
     await alertRulesService.fire(ruleWithCondition, 'task.error', { workspaceId: 'ws-1', level: 1 });
-    // service.fire doesn't evaluate conditions — it relies on caller (handler) to pre-filter
-    expect(mockRepo.recordFire).toHaveBeenCalledTimes(1);
+    expect(mockRepo.fireWithCooldownCheck).toHaveBeenCalledTimes(1);
   });
 });
 
