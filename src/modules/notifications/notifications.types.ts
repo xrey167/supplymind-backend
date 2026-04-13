@@ -5,7 +5,9 @@ export type NotificationType =
   | 'budget_exceeded'
   | 'member_joined'
   | 'subscription_updated'
-  | 'agent_failure';
+  | 'agent_failure'
+  | 'collab_mention'
+  | 'collab_approval_requested';
 
 export type NotificationChannel = 'in_app' | 'email' | 'websocket';
 
