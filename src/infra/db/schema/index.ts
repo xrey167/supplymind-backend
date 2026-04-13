@@ -125,7 +125,7 @@ export const sessionStatusEnum = pgEnum('session_status', ['created', 'active', 
 export const messageRoleEnum = pgEnum('message_role', ['user', 'assistant', 'system', 'tool']);
 export const memoryTypeEnum = pgEnum('memory_type', ['domain', 'feedback', 'pattern', 'reference']);
 export const memorySourceEnum = pgEnum('memory_source', ['explicit', 'proposed', 'approved']);
-export const proposalStatusEnum = pgEnum('proposal_status', ['pending', 'approved', 'rejected', 'rolled_back']);
+export const proposalStatusEnum = pgEnum('proposal_status', ['pending', 'approved', 'auto_applied', 'rejected', 'rolled_back']);
 export const orchestrationStatusEnum = pgEnum('orchestration_status', ['submitted', 'running', 'paused', 'completed', 'failed', 'cancelled']);
 export const workspaceRoleEnum = pgEnum('workspace_role', ['owner', 'admin', 'member', 'viewer']);
 
@@ -697,7 +697,7 @@ export const improvementProposals = pgTable('improvement_proposals', {
   beforeValue: jsonb('before_value'),
   afterValue: jsonb('after_value'),
   confidence: real('confidence').notNull().default(0.5),
-  status: text('status').notNull().default('pending'),  // pending | auto_applied | approved | rejected | rolled_back
+  status: proposalStatusEnum('status').notNull().default('pending'),
   rollbackData: jsonb('rollback_data'),
   autoAppliedAt: timestamp('auto_applied_at', { withTimezone: true }),
   approvedAt: timestamp('approved_at', { withTimezone: true }),
