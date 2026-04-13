@@ -42,11 +42,25 @@ export async function seedWorkspace(opts: {
 
 /**
  * Truncate tables (cascade) to clean state between suites.
+ * Retries on deadlock (40P01) up to 3 times with backoff, since background
+ * async operations (learning observers, audit log writers) may hold locks.
  */
 export async function truncateTables(...tableNames: string[]): Promise<void> {
   if (tableNames.length === 0) return;
   const list = tableNames.map(t => `"${t}"`).join(', ');
-  await testDb.execute(sql.raw(`TRUNCATE TABLE ${list} CASCADE`));
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await testDb.execute(sql.raw(`TRUNCATE TABLE ${list} CASCADE`));
+      return;
+    } catch (err: any) {
+      const isDeadlock = err?.cause?.code === '40P01' || err?.message?.includes('deadlock');
+      if (attempt < 2 && isDeadlock) {
+        await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 /** Close the test DB connection (no-op: connection closes on process exit) */

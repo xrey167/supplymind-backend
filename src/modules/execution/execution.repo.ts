@@ -1,6 +1,6 @@
 import { db } from '../../infra/db/client';
 import { executionPlans, executionRuns } from '../../infra/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import type {
   ExecutionPlanRow,
   ExecutionRunRow,
@@ -84,6 +84,15 @@ export const executionRepo = {
     return db.select().from(executionRuns)
       .where(eq(executionRuns.planId, planId))
       .orderBy(desc(executionRuns.startedAt)) as unknown as Promise<ExecutionRunRow[]>;
+  },
+
+  async listPlansByStatus(workspaceId: string, status: ExecutionPlanStatus): Promise<ExecutionPlanRow[]> {
+    return db.select().from(executionPlans)
+      .where(and(
+        eq(executionPlans.workspaceId, workspaceId),
+        eq(executionPlans.status, status),
+      ))
+      .orderBy(desc(executionPlans.createdAt)) as unknown as Promise<ExecutionPlanRow[]>;
   },
 
   async updateRunStatus(id: string, status: string, orchestrationId?: string): Promise<void> {

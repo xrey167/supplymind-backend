@@ -206,13 +206,13 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
     // ------------------------------------------------------------------
     case 'memory.approve': {
       const { memoryService } = await import('../../modules/memory/memory.service');
-      await memoryService.approveProposal(params.proposalId as string);
+      await memoryService.approveProposal(params.proposalId as string, context.workspaceId);
       return ok({ proposalId: params.proposalId, approved: true });
     }
 
     case 'memory.reject': {
       const { memoryService } = await import('../../modules/memory/memory.service');
-      await memoryService.rejectProposal(params.proposalId as string, params.reason as string | undefined);
+      await memoryService.rejectProposal(params.proposalId as string, context.workspaceId, params.reason as string | undefined);
       return ok({ proposalId: params.proposalId, rejected: true });
     }
 

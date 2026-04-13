@@ -9,6 +9,8 @@ describe('memory extraction handler', () => {
   let mockFindRawById: ReturnType<typeof mock>;
   let mockPropose: ReturnType<typeof mock>;
 
+  let mockRecall: ReturnType<typeof mock>;
+
   beforeEach(() => {
     bus = new EventBus();
     handlers = new Map();
@@ -19,12 +21,13 @@ describe('memory extraction handler', () => {
 
     mockFindRawById = mock(async () => null);
     mockPropose = mock(async () => ({ id: 'p-1' }));
+    mockRecall = mock(async () => []);
 
     _resetMemoryExtractionHandler();
   });
 
   it('subscribes to TASK_COMPLETED', () => {
-    initMemoryExtractionHandler(bus, { findRawById: mockFindRawById } as any, { propose: mockPropose } as any);
+    initMemoryExtractionHandler(bus, { findRawById: mockFindRawById } as any, { propose: mockPropose, recall: mockRecall } as any);
     expect(handlers.has('task.completed')).toBe(true);
   });
 
@@ -40,7 +43,7 @@ describe('memory extraction handler', () => {
       ],
     });
 
-    initMemoryExtractionHandler(bus, { findRawById: mockFindRawById } as any, { propose: mockPropose } as any);
+    initMemoryExtractionHandler(bus, { findRawById: mockFindRawById } as any, { propose: mockPropose, recall: mockRecall } as any);
     const handler = handlers.get('task.completed')!;
     await handler({ data: { taskId: 'task-1' } });
 
@@ -56,7 +59,7 @@ describe('memory extraction handler', () => {
   });
 
   it('skips when task not found', async () => {
-    initMemoryExtractionHandler(bus, { findRawById: mockFindRawById } as any, { propose: mockPropose } as any);
+    initMemoryExtractionHandler(bus, { findRawById: mockFindRawById } as any, { propose: mockPropose, recall: mockRecall } as any);
     const handler = handlers.get('task.completed')!;
     await handler({ data: { taskId: 'task-missing' } });
 
@@ -72,10 +75,77 @@ describe('memory extraction handler', () => {
       history: [],
     });
 
-    initMemoryExtractionHandler(bus, { findRawById: mockFindRawById } as any, { propose: mockPropose } as any);
+    initMemoryExtractionHandler(bus, { findRawById: mockFindRawById } as any, { propose: mockPropose, recall: mockRecall } as any);
     const handler = handlers.get('task.completed')!;
     await handler({ data: { taskId: 'task-2' } });
 
     expect(mockPropose).not.toHaveBeenCalled();
+  });
+
+  it('includes conflict info in evidence when existing memory conflicts', async () => {
+    mockRecall.mockResolvedValue([
+      { id: 'mem-old', title: 'user_name', content: 'Bob', confidence: 0.9 },
+    ]);
+    mockFindRawById.mockResolvedValueOnce({
+      id: 'task-3',
+      workspaceId: 'ws-1',
+      agentId: 'agent-1',
+      sessionId: 'sess-1',
+      history: [
+        { role: 'user', parts: [{ kind: 'text', text: 'my name is Alex' }] },
+      ],
+    });
+
+    initMemoryExtractionHandler(bus, { findRawById: mockFindRawById } as any, { propose: mockPropose, recall: mockRecall } as any);
+    const handler = handlers.get('task.completed')!;
+    await handler({ data: { taskId: 'task-3' } });
+
+    expect(mockPropose).toHaveBeenCalledTimes(1);
+    const evidence = (mockPropose.mock.calls[0][0] as any).evidence as string;
+    expect(evidence).toContain('CONFLICT');
+    expect(evidence).toContain('Bob');
+    expect(evidence).toContain('Alex');
+  });
+
+  it('does not flag conflict when values match', async () => {
+    mockRecall.mockResolvedValue([
+      { id: 'mem-old', title: 'user_name', content: 'Alex', confidence: 0.9 },
+    ]);
+    mockFindRawById.mockResolvedValueOnce({
+      id: 'task-4',
+      workspaceId: 'ws-1',
+      agentId: 'agent-1',
+      sessionId: null,
+      history: [
+        { role: 'user', parts: [{ kind: 'text', text: 'my name is Alex' }] },
+      ],
+    });
+
+    initMemoryExtractionHandler(bus, { findRawById: mockFindRawById } as any, { propose: mockPropose, recall: mockRecall } as any);
+    const handler = handlers.get('task.completed')!;
+    await handler({ data: { taskId: 'task-4' } });
+
+    expect(mockPropose).toHaveBeenCalledTimes(1);
+    const evidence = (mockPropose.mock.calls[0][0] as any).evidence as string;
+    expect(evidence).not.toContain('CONFLICT');
+  });
+
+  it('still proposes when recall fails', async () => {
+    mockRecall.mockRejectedValue(new Error('search down'));
+    mockFindRawById.mockResolvedValueOnce({
+      id: 'task-5',
+      workspaceId: 'ws-1',
+      agentId: 'agent-1',
+      sessionId: null,
+      history: [
+        { role: 'user', parts: [{ kind: 'text', text: 'my name is Alex' }] },
+      ],
+    });
+
+    initMemoryExtractionHandler(bus, { findRawById: mockFindRawById } as any, { propose: mockPropose, recall: mockRecall } as any);
+    const handler = handlers.get('task.completed')!;
+    await handler({ data: { taskId: 'task-5' } });
+
+    expect(mockPropose).toHaveBeenCalledTimes(1);
   });
 });

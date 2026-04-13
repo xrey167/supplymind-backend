@@ -48,6 +48,7 @@ export const Topics = {
   MEMORY_PROPOSAL: 'memory.proposal',
   MEMORY_APPROVED: 'memory.approved',
   MEMORY_REJECTED: 'memory.rejected',
+  MEMORY_ROLLED_BACK: 'memory.rolled_back',
   // Orchestration
   ORCHESTRATION_STARTED: 'orchestration.started',
   ORCHESTRATION_STEP_COMPLETED: 'orchestration.step.completed',
@@ -110,6 +111,31 @@ export const Topics = {
   // User sync
   USER_SYNCED: 'user.synced',
   USER_DELETED: 'user.deleted',
+  // Domain Knowledge
+  DOMAIN_KNOWLEDGE_SEEDED: 'domain.knowledge.seeded',
+  DOMAIN_KNOWLEDGE_UPDATED: 'domain.knowledge.updated',
+  DOMAIN_CONTEXT_INJECTED: 'domain.context.injected',
+  // Learning & Adaptation
+  LEARNING_OBSERVATION_RECORDED: 'learning.observation.recorded',
+  LEARNING_PROPOSAL_CREATED: 'learning.proposal.created',
+  LEARNING_PROPOSAL_APPLIED: 'learning.proposal.applied',
+  LEARNING_PROPOSAL_APPROVED: 'learning.proposal.approved',
+  LEARNING_PROPOSAL_REJECTED: 'learning.proposal.rejected',
+  ADAPTATION_AGENT_CYCLE_COMPLETED: 'learning.adaptation_agent.cycle_completed',
+  SKILL_PERFORMANCE_RECORDED: 'learning.skill.performance_recorded',
+  // Collab Intel
+  COLLAB_INTEL_BOARD_CREATED:           'collab-intel.board.created',
+  COLLAB_INTEL_BOARD_UPDATED:           'collab-intel.board.updated',
+  COLLAB_INTEL_BOARD_DELETED:           'collab-intel.board.deleted',
+  COLLAB_INTEL_MEMBER_ADDED:            'collab-intel.member.added',
+  COLLAB_INTEL_MEMBER_REMOVED:          'collab-intel.member.removed',
+  COLLAB_INTEL_MENTION_CREATED:         'collab-intel.mention.created',
+  COLLAB_INTEL_PROPOSAL_CREATED:        'collab-intel.proposal.created',
+  COLLAB_INTEL_PROPOSAL_CLOSED:         'collab-intel.proposal.closed',
+  COLLAB_INTEL_VOTE_CAST:               'collab-intel.vote.cast',
+  COLLAB_INTEL_APPROVAL_CHAIN_CREATED:  'collab-intel.approval.chain.created',
+  COLLAB_INTEL_APPROVAL_STEP_RESPONDED: 'collab-intel.approval.step.responded',
+  COLLAB_INTEL_APPROVAL_CHAIN_RESOLVED: 'collab-intel.approval.chain.resolved',
   // Webhooks
   WEBHOOK_RECEIVED: 'webhook.received',
   // Alert rules

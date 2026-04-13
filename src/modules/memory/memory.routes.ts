@@ -52,20 +52,20 @@ export const memoryRoutes = new OpenAPIHono<AppEnv>();
 
 memoryRoutes.openapi(saveRoute, async (c) => {
   const body = c.req.valid('json');
-  const workspaceId = c.req.param('workspaceId') ?? 'default';
+  const workspaceId = c.get('workspaceId') as string;
   const memory = await memoryService.save({ workspaceId, ...body });
   return c.json(memory, 201);
 });
 
 memoryRoutes.openapi(recallRoute, async (c) => {
   const body = c.req.valid('json');
-  const workspaceId = c.req.param('workspaceId') ?? 'default';
+  const workspaceId = c.get('workspaceId') as string;
   const memories = await memoryService.recall({ workspaceId, ...body });
   return c.json({ data: memories });
 });
 
 memoryRoutes.openapi(listRoute, async (c) => {
-  const workspaceId = c.req.param('workspaceId') ?? 'default';
+  const workspaceId = c.get('workspaceId') as string;
   const query = c.req.valid('query');
   const memories = await memoryService.list(workspaceId, query.agentId);
   return c.json({ data: memories });
@@ -80,20 +80,22 @@ memoryRoutes.openapi(forgetRoute, async (c) => {
 
 memoryRoutes.openapi(proposeRoute, async (c) => {
   const body = c.req.valid('json');
-  const workspaceId = c.req.param('workspaceId') ?? 'default';
+  const workspaceId = c.get('workspaceId') as string;
   const proposal = await memoryService.propose({ workspaceId, ...body });
   return c.json(proposal, 201);
 });
 
 memoryRoutes.openapi(approveProposalRoute, async (c) => {
   const { id } = c.req.valid('param');
-  const memory = await memoryService.approveProposal(id);
+  const workspaceId = c.get('workspaceId') as string;
+  const memory = await memoryService.approveProposal(id, workspaceId);
   return c.json(memory);
 });
 
 memoryRoutes.openapi(rejectProposalRoute, async (c) => {
   const { id } = c.req.valid('param');
+  const workspaceId = c.get('workspaceId') as string;
   const { reason } = c.req.valid('json');
-  await memoryService.rejectProposal(id, reason);
+  await memoryService.rejectProposal(id, workspaceId, reason);
   return c.json({ ok: true });
 });

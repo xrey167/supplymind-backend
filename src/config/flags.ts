@@ -19,4 +19,5 @@ export const DEFAULT_FLAGS: Record<string, FlagValue> = {
   'intent_gate.llm_fallback': false,
   'erp_bc.enabled': false,
   'erp_bc.write_actions.enabled': false,
+  'learning.generativeExtension': false,
 };

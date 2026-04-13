@@ -1,6 +1,6 @@
 import { memoryRepo as defaultMemoryRepo } from './memory.repo';
 import { logger } from '../../config/logger';
-import { emitMemorySaved, emitMemoryProposal, emitMemoryApproved, emitMemoryRejected } from './memory.events';
+import { emitMemorySaved, emitMemoryProposal, emitMemoryApproved, emitMemoryRejected, emitMemoryRolledBack } from './memory.events';
 import type { AgentMemory, MemoryProposal, RecallResult, SaveMemoryInput, ProposeMemoryInput, RecallInput } from './memory.types';
 
 const STALENESS_THRESHOLD_DAYS = 30;
@@ -79,17 +79,43 @@ export class MemoryService {
     return proposal;
   }
 
-  async approveProposal(proposalId: string): Promise<AgentMemory> {
+  async listProposals(workspaceId: string, status?: string): Promise<MemoryProposal[]> {
+    return this.repo.listProposals(workspaceId, status);
+  }
+
+  async approveProposal(proposalId: string, workspaceId: string): Promise<AgentMemory> {
+    const proposal = await this.repo.getProposalWithWorkspaceCheck(proposalId, workspaceId);
+    if (!proposal) throw new Error(`Proposal not found: ${proposalId}`);
     const memory = await this.repo.approveProposal(proposalId);
+    // Generate embedding async (best-effort) — same as save()
+    try {
+      const { getEmbeddingProvider } = await import('./memory.embedding');
+      const { PgVectorMemoryStore } = await import('./memory.store');
+      const provider = getEmbeddingProvider();
+      const embedding = await provider.embed(`${memory.title}: ${memory.content}`);
+      const store = new PgVectorMemoryStore();
+      await store.upsert(memory.id, memory.content, embedding, memory.metadata);
+    } catch (err) {
+      logger.error({ memoryId: memory.id, workspaceId, error: err instanceof Error ? err.message : String(err) }, 'Embedding generation failed on approval, memory saved without vector');
+    }
     emitMemoryApproved(memory.id, proposalId, memory.workspaceId);
     return memory;
   }
 
-  async rejectProposal(proposalId: string, reason?: string): Promise<void> {
-    const proposal = await this.repo.getProposal(proposalId);
+  async rejectProposal(proposalId: string, workspaceId: string, reason?: string): Promise<void> {
+    const proposal = await this.repo.getProposalWithWorkspaceCheck(proposalId, workspaceId);
     if (!proposal) throw new Error(`Proposal not found: ${proposalId}`);
     await this.repo.rejectProposal(proposalId, reason);
-    emitMemoryRejected(proposalId, proposal.workspaceId, reason);
+    emitMemoryRejected(proposalId, workspaceId, reason);
+  }
+
+  async rollbackApproval(proposalId: string, workspaceId: string): Promise<void> {
+    const proposal = await this.repo.getProposalWithWorkspaceCheck(proposalId, workspaceId);
+    if (!proposal) throw new Error(`Proposal not found: ${proposalId}`);
+    if (proposal.status !== 'approved') throw new Error(`Proposal is not approved: ${proposalId} (status: ${proposal.status})`);
+    await this.repo.deleteMemoryByProposalId(proposalId);
+    await this.repo.updateProposalStatus(proposalId, 'rolled_back');
+    emitMemoryRolledBack(proposalId, workspaceId);
   }
 }
 

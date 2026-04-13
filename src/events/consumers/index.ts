@@ -7,9 +7,19 @@ import { initMemoryExtractionHandler } from './memory-extraction.handler';
 import { initNotificationHandler } from './notification.handler';
 import { initAuditLogHandler } from './audit-log.handler';
 import { initAlertRulesHandler } from './alert-rules.handler';
+import { initDomainExtractionHandler } from '../../modules/domain-knowledge/domain-extractor';
+import { initSkillObserver } from '../../modules/learning/observers/skill-observer';
+import { initMemoryObserver } from '../../modules/learning/observers/memory-observer';
+import { initTaskObserver } from '../../modules/learning/observers/task-observer';
+import { initDomainObserver } from '../../modules/learning/observers/domain-observer';
 
 export function initEventConsumers() {
   initMemoryExtractionHandler();
+  initDomainExtractionHandler();
+  initSkillObserver();
+  initMemoryObserver();
+  initTaskObserver();
+  initDomainObserver();
   initNotificationHandler();
   initAuditLogHandler();
   initAlertRulesHandler();

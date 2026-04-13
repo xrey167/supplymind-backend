@@ -30,6 +30,9 @@ import { pluginRoutes } from '../../../modules/plugins/plugins.routes';
 import { executionRoutes } from '../../../modules/execution/execution.routes';
 import { webhooksRoutes } from '../../../modules/webhooks/webhooks.routes';
 import { alertRulesRoutes } from '../../../modules/alert-rules/alert-rules.routes';
+import { learningRoutes } from '../../../modules/learning/learning.routes';
+import { approvalsRoutes } from '../../../modules/approvals/approvals.routes';
+import { collabIntelRoutes } from '../../../modules/collab-intel';
 
 const workspaceRoutes = new OpenAPIHono<AppEnv>();
 
@@ -66,5 +69,8 @@ workspaceRoutes.route('/plugins', pluginRoutes);
 workspaceRoutes.route('/plans', executionRoutes);
 workspaceRoutes.route('/webhooks', webhooksRoutes);
 workspaceRoutes.route('/alert-rules', alertRulesRoutes);
+workspaceRoutes.route('/learning', learningRoutes());
+workspaceRoutes.route('/approvals', approvalsRoutes);
+workspaceRoutes.route('/collab-intel', collabIntelRoutes);
 
 export { workspaceRoutes };
