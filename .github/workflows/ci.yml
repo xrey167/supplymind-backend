@@ -84,7 +84,10 @@ jobs:
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/supplymind_test
       - name: Run integration tests
-        run: bun test tests/integration/
+        run: |
+          for f in $(find tests/integration -name '*.test.ts' | sort); do
+            bun test "$f" || exit 1
+          done
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/supplymind_test
           CREDENTIALS_ENCRYPTION_KEY: ci-test-key-for-integration-32bytes
