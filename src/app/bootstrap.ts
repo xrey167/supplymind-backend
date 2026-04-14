@@ -174,6 +174,15 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
     logger.error({ err }, 'Failed to start orchestration workers — all orchestration execution is disabled');
   }
 
+  // Step 11.5: Start mission BullMQ workers (non-critical)
+  try {
+    const { startMissionWorkers } = await import('../jobs/missions/index');
+    startMissionWorkers();
+    logger.info('Mission workers started');
+  } catch (err) {
+    logger.error({ err }, 'Failed to start mission workers — mission execution is disabled');
+  }
+
   // Step 12: Register repeatable job schedulers
   try {
     const { cleanupQueue, syncQueue, notificationQueue } = await import('../infra/queue/bullmq');

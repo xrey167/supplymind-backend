@@ -28,7 +28,12 @@ export type GatewayOp =
   | 'plan.create'
   | 'plan.run'
   | 'plan.approve'
-  | 'plan.get';
+  | 'plan.get'
+  | 'mission.create'
+  | 'mission.start'
+  | 'mission.get'
+  | 'mission.list'
+  | 'mission.cancel';
 
 // ---------------------------------------------------------------------------
 // Streaming events — protocol-agnostic, each transport adapter projects these
