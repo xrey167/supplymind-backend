@@ -102,15 +102,3 @@ export async function enqueueSkill(data: SkillJobData, opts?: { timeout?: number
   const result = await job.waitUntilFinished(skillQueueEvents, opts?.timeout ?? 30_000);
   return result;
 }
-
-// Mission execution queue
-export interface MissionJobData {
-  missionId: string;
-  workspaceId: string;
-}
-
-export const missionQueue = new Queue<MissionJobData>('mission-run', { connection });
-
-export function enqueueMission(data: MissionJobData): Promise<Job<MissionJobData>> {
-  return missionQueue.add('run', data, { attempts: 1, removeOnComplete: 100, removeOnFail: 50 });
-}

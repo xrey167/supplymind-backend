@@ -1,6 +1,6 @@
 import { Worker } from 'bullmq';
 import Redis from 'ioredis';
-import type { MissionJobData } from '../../infra/queue/bullmq';
+import type { MissionJobData } from '../../plugins/mission-kernel';
 import { processMissionJob } from '../../modules/missions/missions.job';
 import { logger } from '../../config/logger';
 

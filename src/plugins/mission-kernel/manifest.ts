@@ -1,7 +1,7 @@
 import { Worker } from 'bullmq';
 import { processMissionJob } from '../../modules/missions/missions.job';
 import { logger } from '../../config/logger';
-import type { MissionJobData } from '../../infra/queue/bullmq';
+import type { MissionJobData } from './queue';
 import type { PluginManifest } from '../../modules/plugins/plugin-manifest';
 import { MissionTopics } from './topics';
 
