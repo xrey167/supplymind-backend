@@ -35,6 +35,21 @@ mock.module('../gate-audit.repo', () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Mock orchestration.events — track emitGateResolved calls
+// ---------------------------------------------------------------------------
+const mockEmitGateResolved = mock((_orchId: string, _stepId: string, _outcome: string, _wsId: string): void => undefined);
+
+mock.module('../../../modules/orchestration/orchestration.events', () => ({
+  emitGateResolved: mockEmitGateResolved,
+  emitGateWaiting: mock(() => {}),
+  emitOrchestrationStarted: mock(() => {}),
+  emitStepCompleted: mock(() => {}),
+  emitOrchestrationCompleted: mock(() => {}),
+  emitOrchestrationFailed: mock(() => {}),
+  emitOrchestrationCancelled: mock(() => {}),
+}));
+
+// ---------------------------------------------------------------------------
 // Import module AFTER mocks are registered
 // ---------------------------------------------------------------------------
 const {
@@ -58,11 +73,13 @@ function resetMocks() {
   mockSet.mockReset();
   mockScan.mockReset();
   mockAuditInsert.mockReset();
+  mockEmitGateResolved.mockReset();
   // Re-install default implementations after reset
   mockGet.mockImplementation(async (_key: string): Promise<string | null> => null);
   mockSet.mockImplementation(async (..._args: unknown[]): Promise<'OK'> => 'OK');
   mockScan.mockImplementation(async (_cursor: string, ..._args: unknown[]): Promise<[string, string[]]> => ['0', []]);
   mockAuditInsert.mockImplementation(async (_record: unknown): Promise<void> => undefined);
+  mockEmitGateResolved.mockImplementation((_orchId: string, _stepId: string, _outcome: string, _wsId: string): void => undefined);
 }
 
 // ---------------------------------------------------------------------------
@@ -473,6 +490,75 @@ describe('orchestration-gates', () => {
       expect(rec.decidedBy).toBe('system');
       expect(rec.workspaceId).toBe('ws-recover');
       expect(rec.prompt).toBe('recover?');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // emitGateResolved integration — verifies all three termination paths
+  // -------------------------------------------------------------------------
+  describe('emitGateResolved calls', () => {
+    it('resolveGate calls emitGateResolved with outcome:approved', async () => {
+      const promise = createGateRequest('orch-emit-ap', 'step-1', 'ws-emit', 5000, 'emit approved');
+      resolveGate('orch-emit-ap', 'step-1', 'ws-emit', true, 'user-emit');
+      await promise;
+      await flush();
+
+      const call = mockEmitGateResolved.mock.calls.find(
+        (c) => c[0] === 'orch-emit-ap' && c[2] === 'approved',
+      );
+      expect(call).toBeDefined();
+      expect(call![1]).toBe('step-1');
+      expect(call![3]).toBe('ws-emit');
+    });
+
+    it('resolveGate calls emitGateResolved with outcome:rejected', async () => {
+      const promise = createGateRequest('orch-emit-rj', 'step-1', 'ws-emit', 5000, 'emit rejected');
+      resolveGate('orch-emit-rj', 'step-1', 'ws-emit', false, 'user-emit');
+      await promise;
+      await flush();
+
+      const call = mockEmitGateResolved.mock.calls.find(
+        (c) => c[0] === 'orch-emit-rj' && c[2] === 'rejected',
+      );
+      expect(call).toBeDefined();
+      expect(call![3]).toBe('ws-emit');
+    });
+
+    it('timeout path calls emitGateResolved with outcome:timeout', async () => {
+      const promise = createGateRequest('orch-emit-to', 'step-1', 'ws-emit', 1, 'emit timeout');
+
+      await new Promise<void>((r) => setTimeout(r, 20));
+      await promise;
+      await flush();
+
+      const call = mockEmitGateResolved.mock.calls.find(
+        (c) => c[0] === 'orch-emit-to' && c[2] === 'timeout',
+      );
+      expect(call).toBeDefined();
+      expect(call![1]).toBe('step-1');
+      expect(call![3]).toBe('ws-emit');
+    });
+
+    it('recoverPendingGates calls emitGateResolved with outcome:timeout for each recovered gate', async () => {
+      const pendingMeta = JSON.stringify({
+        orchestrationId: 'orch-emit-rec', stepId: 'step-1', workspaceId: 'ws-emit-rec',
+        prompt: 'recover emit?', createdAt: new Date().toISOString(),
+        timeoutAt: new Date(Date.now() + 5000).toISOString(),
+        status: 'pending',
+      });
+
+      mockScan.mockImplementationOnce(async () => ['0', ['gate:orch-emit-rec:step-1']] as [string, string[]]);
+      mockGet.mockImplementationOnce(async () => pendingMeta);
+
+      await recoverPendingGates();
+      await flush();
+
+      const call = mockEmitGateResolved.mock.calls.find(
+        (c) => c[0] === 'orch-emit-rec' && c[2] === 'timeout',
+      );
+      expect(call).toBeDefined();
+      expect(call![1]).toBe('step-1');
+      expect(call![3]).toBe('ws-emit-rec');
     });
   });
 });

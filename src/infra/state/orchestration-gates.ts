@@ -2,6 +2,7 @@
 import { logger } from '../../config/logger';
 import { getSharedRedisClient } from '../redis/client';
 import { gateAuditRepo } from './gate-audit.repo';
+import { emitGateResolved } from '../../modules/orchestration/orchestration.events';
 
 /** Lazily access the shared Redis client — avoids a top-level import that would
  *  fail in unit tests where Redis is mocked after module load. */
@@ -85,6 +86,9 @@ export function createGateRequest(
         decidedBy: 'system',
         prompt,
       }).catch((err: unknown) => logger.warn({ err }, 'Failed to write gate audit timeout record'));
+
+      // Emit real-time event (fire-and-forget — emitGateResolved catches its own errors)
+      emitGateResolved(orchestrationId, stepId, 'timeout', workspaceId);
     }, timeoutMs);
 
     pendingGates.set(key, { resolve, timer, workspaceId, orchestrationId, stepId, prompt });
@@ -157,6 +161,9 @@ export function resolveGate(
     prompt: pending.prompt,
   }).catch((err: unknown) => logger.warn({ err }, 'Failed to write gate audit record'));
 
+  // Emit real-time event (fire-and-forget — emitGateResolved catches its own errors)
+  emitGateResolved(orchestrationId, stepId, approved ? 'approved' : 'rejected', pending.workspaceId);
+
   return true;
 }
 
@@ -201,6 +208,9 @@ export async function recoverPendingGates(): Promise<void> {
         decidedBy: 'system',
         prompt: typeof parsed.prompt === 'string' ? parsed.prompt : undefined,
       }).catch(() => {});
+
+      // Emit real-time event (fire-and-forget — emitGateResolved catches its own errors)
+      emitGateResolved(recOrchId, recStepId, 'timeout', recWsId);
     }
   } while (cursor !== '0');
 }
