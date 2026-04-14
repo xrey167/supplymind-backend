@@ -33,10 +33,22 @@ export const Topics = {
   WORKFLOW_STEP_COMPLETED: 'workflow.step.completed',
   WORKFLOW_COMPLETED: 'workflow.completed',
   WORKFLOW_FAILED: 'workflow.failed',
-  // TODO: Domain events — deferred (build general base first)
-  // DOMAIN_ENTITY_CREATED: 'ontology.entity.created',
-  // TODO: Supply chain alerts — deferred
-  // SC_ALERT_CRITICAL: 'supply-chain.alert.critical',
+  // Supply chain — domain events
+  SUPPLY_CHAIN_ORDER_CREATED: 'supply_chain.order.created',
+  SUPPLY_CHAIN_ORDER_UPDATED: 'supply_chain.order.updated',
+  SUPPLY_CHAIN_ORDER_CANCELLED: 'supply_chain.order.cancelled',
+  SUPPLY_CHAIN_SHIPMENT_DISPATCHED: 'supply_chain.shipment.dispatched',
+  SUPPLY_CHAIN_SHIPMENT_DELAYED: 'supply_chain.shipment.delayed',
+  SUPPLY_CHAIN_SHIPMENT_DELIVERED: 'supply_chain.shipment.delivered',
+  SUPPLY_CHAIN_INVENTORY_LOW_STOCK: 'supply_chain.inventory.low_stock',
+  SUPPLY_CHAIN_INVENTORY_UPDATED: 'supply_chain.inventory.updated',
+  // Supply chain — alerts
+  SUPPLY_CHAIN_ALERT_LOW_STOCK: 'supply_chain.alert.low_stock',
+  SUPPLY_CHAIN_ALERT_SUPPLIER_RISK: 'supply_chain.alert.supplier_risk',
+  SUPPLY_CHAIN_ALERT_PRICE_CHANGE: 'supply_chain.alert.price_change',
+  SUPPLY_CHAIN_ALERT_SHIPMENT_DELAY: 'supply_chain.alert.shipment_delay',
+  SUPPLY_CHAIN_SYNC_COMPLETED: 'supply_chain.sync.completed',
+  SUPPLY_CHAIN_SYNC_FAILED: 'supply_chain.sync.failed',
   // Sessions
   SESSION_CREATED: 'session.created',
   SESSION_PAUSED: 'session.paused',
