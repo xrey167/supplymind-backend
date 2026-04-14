@@ -11,7 +11,7 @@ import { logger } from '../../config/logger';
  * Lua script contract:
  *   KEYS[1] = rate limit key (e.g. "rl:ws-abc123")
  *   ARGV    = [maxTokens, refillIntervalMs, nowMs, ttlSeconds]  (all strings)
- *   Returns = [allowed (1|0), remainingTokens]
+ *   Returns = [allowed (1|0), remainingTokens, lastRefillMs]
  */
 const RATE_LIMIT_SCRIPT = `
 local raw = redis.call('GET', KEYS[1])
@@ -25,15 +25,16 @@ else
   lastRefill = tonumber(ARGV[3])
 end
 local elapsed = tonumber(ARGV[3]) - lastRefill
-local refilled = math.floor(elapsed / tonumber(ARGV[2])) * tonumber(ARGV[1])
+local intervals = math.floor(elapsed / tonumber(ARGV[2]))
+local refilled = intervals * tonumber(ARGV[1])
 if refilled > 0 then
   tokens = math.min(tonumber(ARGV[1]), tokens + refilled)
-  lastRefill = tonumber(ARGV[3])
+  lastRefill = lastRefill + intervals * tonumber(ARGV[2])
 end
 local allowed = tokens > 0
 if allowed then tokens = tokens - 1 end
 redis.call('SET', KEYS[1], cjson.encode({tokens=tokens, lastRefill=lastRefill}), 'EX', ARGV[4])
-return {allowed and 1 or 0, tokens}
+return {allowed and 1 or 0, tokens, lastRefill}
 `;
 
 type RedisWithRateCheck = Redis & {
@@ -43,24 +44,24 @@ type RedisWithRateCheck = Redis & {
     refillMs: string,
     now: string,
     ttl: string,
-  ): Promise<[number, number]>;
+  ): Promise<[number, number, number]>;
 };
 
-// Module-level flag so defineCommand is only registered once regardless of
-// which client instance getSharedRedisClient() returns.
-let rateLimitCommandDefined = false;
+// Per-client-instance Set so defineCommand is re-registered after a Redis
+// reconnect (new client instance), without registering it twice on the same client.
+const definedClients = new WeakSet<object>();
 
 function getRedis(): RedisWithRateCheck {
   // Lazy require() avoids establishing a Redis connection at module load time,
   // which would break tests that mock the client.
   const { getSharedRedisClient } = require('../../infra/redis/client');
   const client = getSharedRedisClient() as RedisWithRateCheck;
-  if (!rateLimitCommandDefined) {
+  if (!definedClients.has(client)) {
     client.defineCommand('rateLimitCheck', {
       numberOfKeys: 1,
       lua: RATE_LIMIT_SCRIPT,
     });
-    rateLimitCommandDefined = true;
+    definedClients.add(client);
   }
   return client;
 }
@@ -68,9 +69,10 @@ function getRedis(): RedisWithRateCheck {
 const DEFAULT_MAX_TOKENS = 200;
 const DEFAULT_REFILL_INTERVAL_MS = 60_000; // 1 minute
 
-/** @internal — resets the defineCommand registration flag so tests using fresh mock clients get a clean slate. */
+/** @internal — clears the defineCommand registration for the current client so tests using fresh mock clients get a clean slate. */
 export function _resetBuckets(): void {
-  rateLimitCommandDefined = false;
+  const { getSharedRedisClient } = require('../../infra/redis/client');
+  definedClients.delete(getSharedRedisClient());
 }
 
 /**
@@ -91,10 +93,11 @@ export function rateLimit(
     // Fail-open defaults: if Redis throws, we treat the request as allowed.
     let allowed = true;
     let remaining = maxRequests - 1;
+    let lastRefillMs: number | undefined;
 
     try {
       const redis = getRedis();
-      const [allowedFlag, remainingTokens] = await redis.rateLimitCheck(
+      const [allowedFlag, remainingTokens, refillMs] = await redis.rateLimitCheck(
         key,
         String(maxRequests),
         String(refillIntervalMs),
@@ -103,6 +106,7 @@ export function rateLimit(
       );
       allowed = allowedFlag === 1;
       remaining = remainingTokens;
+      lastRefillMs = refillMs;
     } catch (err) {
       logger.warn({ err, key }, 'Rate limiter Redis error — failing open');
     }
@@ -110,7 +114,10 @@ export function rateLimit(
     c.header('X-RateLimit-Limit', String(maxRequests));
 
     if (!allowed) {
-      const retryAfterSec = Math.max(1, Math.ceil(refillIntervalMs / 1000));
+      const retryAfterMs = lastRefillMs != null
+        ? lastRefillMs + refillIntervalMs - Date.now()
+        : refillIntervalMs;
+      const retryAfterSec = Math.max(1, Math.ceil(retryAfterMs / 1000));
       c.header('Retry-After', String(retryAfterSec));
       c.header('X-RateLimit-Remaining', '0');
       logger.warn({ key, maxRequests }, 'Rate limit exceeded');

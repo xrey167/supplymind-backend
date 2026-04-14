@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 // ---------------------------------------------------------------------------
 // Mock the Redis client BEFORE importing rate-limit so getRedis() uses it
 // ---------------------------------------------------------------------------
-const mockRateLimitCheck = mock(() => Promise.resolve([1, 9] as [number, number]));
+const mockRateLimitCheck = mock(() => Promise.resolve([1, 9, Date.now() - 1000] as [number, number, number]));
 const mockDefineCommand = mock(() => {});
 
 mock.module('../../../infra/redis/client', () => ({
@@ -43,7 +43,7 @@ describe('rateLimit middleware (Redis-backed)', () => {
   });
 
   it('allows requests when Redis returns allowed=1', async () => {
-    mockRateLimitCheck.mockResolvedValueOnce([1, 9]);
+    mockRateLimitCheck.mockResolvedValueOnce([1, 9, Date.now() - 1000]);
     const app = createApp(10);
     const res = await app.request('/test');
     expect(res.status).toBe(200);
@@ -52,7 +52,7 @@ describe('rateLimit middleware (Redis-backed)', () => {
   });
 
   it('returns 429 when Redis returns allowed=0', async () => {
-    mockRateLimitCheck.mockResolvedValueOnce([0, 0]);
+    mockRateLimitCheck.mockResolvedValueOnce([0, 0, Date.now() - 30000]);
     const app = createApp(10);
     const res = await app.request('/test');
     expect(res.status).toBe(429);
@@ -72,7 +72,7 @@ describe('rateLimit middleware (Redis-backed)', () => {
   });
 
   it('sets X-RateLimit headers on success', async () => {
-    mockRateLimitCheck.mockResolvedValueOnce([1, 4]);
+    mockRateLimitCheck.mockResolvedValueOnce([1, 4, Date.now() - 1000]);
     const app = createApp(5);
     const res = await app.request('/test');
     expect(res.headers.get('X-RateLimit-Limit')).toBe('5');
@@ -80,7 +80,7 @@ describe('rateLimit middleware (Redis-backed)', () => {
   });
 
   it('calls rateLimitCheck with correct key format', async () => {
-    mockRateLimitCheck.mockResolvedValueOnce([1, 199]);
+    mockRateLimitCheck.mockResolvedValueOnce([1, 199, Date.now() - 100]);
     const app = createApp(200);
     await app.request('/test');
     // The workspaceId is set to 'ws-test' in createApp; key must be 'rl:ws-test'

@@ -76,7 +76,7 @@ export class NotificationsRepository {
 
   async markDelivered(id: string): Promise<boolean> {
     const rows = await db.update(notifications)
-      .set({ status: 'delivered', lastAttemptedAt: new Date() })
+      .set({ status: 'delivered', lastAttemptedAt: new Date(), attemptCount: sql`${notifications.attemptCount} + 1` })
       .where(eq(notifications.id, id))
       .returning({ id: notifications.id });
     return rows.length > 0;
@@ -95,6 +95,8 @@ export class NotificationsRepository {
   }
 
   async listFailed(limit = 50): Promise<(typeof notifications.$inferSelect)[]> {
+    // TODO: replace single global cap with per-workspace sub-queries (round-robin
+    // across workspaces) so a high-failure workspace can't starve others.
     return db.select()
       .from(notifications)
       .where(

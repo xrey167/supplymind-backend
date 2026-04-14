@@ -145,6 +145,13 @@ export class NotificationsService {
       }
     }
 
+    if (!skipOutbound && outbound.length > 0 && attempted === 0) {
+      logger.debug(
+        { notificationId: notification.id, outbound },
+        'All outbound channels skipped (missing credentials/recipient)',
+      );
+    }
+
     // Mark delivered when nothing was actually attempted (in_app only, all skipped,
     // or quiet hours) or at least one channel succeeded; mark failed only when
     // every attempted delivery errored.
