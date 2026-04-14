@@ -205,6 +205,9 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
   }
 
   // Step 12.5: Register plugin contributions (topics, roles, permission layers, workers)
+  // contribConnection is declared outside the try so the catch block can close it if startWorkers
+  // throws after the connection is created (avoids a Redis connection leak on partial failure).
+  let contribConnection: import('ioredis').default | null = null;
   try {
     const { CONTRIBUTION_PLUGINS } = await import('../plugins/registry');
     const { pluginContributionRegistry } = await import('../modules/plugins/plugin-contribution-registry');
@@ -231,13 +234,15 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
 
     // Start contributed workers
     const Redis = (await import('ioredis')).default;
-    const contribConnection = new Redis(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null } as any);
+    contribConnection = new Redis(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null } as any);
     const contribWorkers = pluginContributionRegistry.startWorkers(contribConnection);
     (globalThis as any).__pluginContribWorkers = { workers: contribWorkers, registry: pluginContributionRegistry, connection: contribConnection };
+    contribConnection = null; // ownership transferred to globalThis.__pluginContribWorkers
 
     logger.info({ workerCount: contribWorkers.length }, 'Step 12.5: Plugin contributions applied');
   } catch (err) {
     logger.warn({ err }, 'Step 12.5: Plugin contributions failed — non-critical');
+    await contribConnection?.quit().catch(() => {});
   }
 
   // Step 13.5: Bootstrap ERP sync cron schedules from DB (non-critical, fire-and-forget)
