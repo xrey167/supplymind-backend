@@ -62,10 +62,17 @@ export function getRequiredRole(providerType: string, explicitRole?: string): Ro
 
 /** Map workspace role to RBAC role at the middleware boundary */
 const WORKSPACE_ROLE_MAP: Record<string, Role> = {
+  // Core workspace roles
   owner: 'admin',
   admin: 'admin',
   member: 'operator',
   viewer: 'viewer',
+  // Supply chain domain roles — all map to 'operator' privilege level
+  // (can execute tools, manage domain resources, but not workspace administration)
+  procurement_manager: 'operator',
+  logistics_coordinator: 'operator',
+  warehouse_operator: 'operator',
+  finance_approver: 'operator',
 };
 
 export function mapWorkspaceRole(workspaceRole: string): Role {

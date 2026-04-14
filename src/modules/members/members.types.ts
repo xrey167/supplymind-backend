@@ -1,4 +1,13 @@
-export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'viewer';
+export type WorkspaceRole =
+  | 'owner'
+  | 'admin'
+  | 'member'
+  | 'viewer'
+  // Supply chain domain roles
+  | 'procurement_manager'
+  | 'logistics_coordinator'
+  | 'warehouse_operator'
+  | 'finance_approver';
 
 export interface WorkspaceMember {
   id: string;
