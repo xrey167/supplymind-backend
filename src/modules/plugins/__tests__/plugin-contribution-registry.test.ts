@@ -167,6 +167,44 @@ describe('PluginContributionRegistry', () => {
     });
   });
 
+  describe('getGatewayOps', () => {
+    test('returns empty array when no plugins registered', () => {
+      expect(registry.getGatewayOps()).toEqual([]);
+    });
+
+    test('returns gateway ops from a single plugin', () => {
+      const mockHandler = mock(() => Promise.resolve({ ok: true, value: 'test' }));
+      const contrib: import('../plugin-contribution-registry').GatewayOpContribution = {
+        op: 'test.op',
+        handler: mockHandler as any,
+      };
+      registry.register('plugin-a', { gatewayOps: [contrib] });
+      const ops = registry.getGatewayOps();
+      expect(ops).toHaveLength(1);
+      expect(ops[0].op).toBe('test.op');
+    });
+
+    test('concatenates gateway ops from multiple plugins', () => {
+      const handlerA = mock(() => Promise.resolve({ ok: true, value: 'a' }));
+      const handlerB = mock(() => Promise.resolve({ ok: true, value: 'b' }));
+      registry.register('plugin-a', { gatewayOps: [{ op: 'plugin-a.op', handler: handlerA as any }] });
+      registry.register('plugin-b', { gatewayOps: [{ op: 'plugin-b.op', handler: handlerB as any }] });
+      const ops = registry.getGatewayOps();
+      expect(ops).toHaveLength(2);
+      expect(ops.map(o => o.op)).toContain('plugin-a.op');
+      expect(ops.map(o => o.op)).toContain('plugin-b.op');
+    });
+
+    test('skips plugins with no gatewayOps field', () => {
+      const mockHandler = mock(() => Promise.resolve({ ok: true, value: 'test' }));
+      registry.register('plugin-a', { gatewayOps: [{ op: 'plugin-a.op', handler: mockHandler as any }] });
+      registry.register('plugin-b', { topics: { FOO: 'foo.bar' } }); // no gatewayOps
+      const ops = registry.getGatewayOps();
+      expect(ops).toHaveLength(1);
+      expect(ops[0].op).toBe('plugin-a.op');
+    });
+  });
+
   describe('clear', () => {
     test('resets all contributions and active workers', async () => {
       registry.register('plugin-a', { topics: { A: 'a' }, roles: [{ role: 'r', privilege: 'agent' as const, allowedToolPrefixes: [] }] });
