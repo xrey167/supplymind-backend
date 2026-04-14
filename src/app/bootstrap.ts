@@ -239,7 +239,12 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
     logger.info({ workerCount: contribWorkers.length }, 'Step 12.5: Plugin contributions applied');
   } catch (err) {
     logger.warn({ err }, 'Step 12.5: Plugin contributions failed — non-critical');
-    await contribConnection?.quit().catch(() => {});
+    // Time-box the quit — maxRetriesPerRequest: null means commands wait indefinitely,
+    // so an unreachable Redis could hang startup if this has no timeout.
+    await Promise.race([
+      contribConnection?.quit().catch(() => {}),
+      new Promise<void>((r) => setTimeout(r, 5000)),
+    ]);
   }
 
   // Step 13.5: Bootstrap ERP sync cron schedules from DB (non-critical, fire-and-forget)
