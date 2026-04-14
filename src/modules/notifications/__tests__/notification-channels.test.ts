@@ -1,9 +1,11 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, setSystemTime } from 'bun:test';
 import type { CreateNotificationInput, Notification } from '../notifications.types';
 
 // --- Mock all direct deps ---
 
 const mockCreate = mock(() => Promise.resolve(null as any));
+const mockMarkDelivered = mock(() => Promise.resolve(true));
+const mockMarkFailed = mock(() => Promise.resolve(true));
 const _realRepo = require('../notifications.repo');
 mock.module('../notifications.repo', () => ({
   ..._realRepo,
@@ -13,6 +15,8 @@ mock.module('../notifications.repo', () => ({
     markRead: mock(() => Promise.resolve(null as any)),
     markAllRead: mock(() => Promise.resolve()),
     getUnreadCount: mock(() => Promise.resolve(0)),
+    markDelivered: mockMarkDelivered,
+    markFailed: mockMarkFailed,
   },
 }));
 
@@ -101,6 +105,8 @@ describe('NotificationsService – outbound channels', () => {
     mockPrefGetGlobal.mockResolvedValue(null);
     mockGetByProvider.mockClear();
     mockGetByProvider.mockResolvedValue(null);
+    mockMarkDelivered.mockClear();
+    mockMarkFailed.mockClear();
     mockDeliverInApp.mockClear();
     mockDeliverEmail.mockClear();
     mockDeliverSlack.mockClear();
@@ -155,7 +161,9 @@ describe('NotificationsService – outbound channels', () => {
   });
 
   test('quiet hours: skips all outbound channels when in quiet window', async () => {
-    // Use a quiet window that covers midnight UTC (00:00–23:59 = always)
+    // Freeze time at noon UTC — unambiguously inside 00:00–23:59.
+    // isInQuietHours uses strict `cur < end`, so 23:59 would be outside the window.
+    setSystemTime(new Date('2024-06-15T12:00:00.000Z'));
     mockPrefGet.mockResolvedValue({
       muted: false,
       channels: ['in_app', 'websocket', 'slack'],
@@ -166,6 +174,7 @@ describe('NotificationsService – outbound channels', () => {
     expect(mockDeliverInApp).toHaveBeenCalledTimes(1);
     expect(mockDeliverWebSocket).not.toHaveBeenCalled();
     expect(mockDeliverSlack).not.toHaveBeenCalled();
+    setSystemTime(); // restore real clock
   });
 
   test('global pref muted: returns null', async () => {

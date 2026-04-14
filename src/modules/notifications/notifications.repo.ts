@@ -1,7 +1,9 @@
-import { eq, and, isNull, desc, sql } from 'drizzle-orm';
+import { eq, and, isNull, desc, asc, lt, sql } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { notifications } from '../../infra/db/schema';
 import type { CreateNotificationInput, NotificationFilter, NotificationChannel } from './notifications.types';
+
+export const MAX_NOTIFICATION_ATTEMPTS = 3;
 
 export class NotificationsRepository {
   async create(input: CreateNotificationInput, channel: NotificationChannel = 'in_app') {
@@ -70,6 +72,41 @@ export class NotificationsRepository {
         ),
       );
     return Number(result[0]?.count ?? 0);
+  }
+
+  async markDelivered(id: string): Promise<boolean> {
+    const rows = await db.update(notifications)
+      .set({ status: 'delivered', lastAttemptedAt: new Date(), attemptCount: sql`${notifications.attemptCount} + 1` })
+      .where(eq(notifications.id, id))
+      .returning({ id: notifications.id });
+    return rows.length > 0;
+  }
+
+  async markFailed(id: string): Promise<boolean> {
+    const rows = await db.update(notifications)
+      .set({
+        status: 'failed',
+        lastAttemptedAt: new Date(),
+        attemptCount: sql`${notifications.attemptCount} + 1`,
+      })
+      .where(eq(notifications.id, id))
+      .returning({ id: notifications.id });
+    return rows.length > 0;
+  }
+
+  async listFailed(limit = 50): Promise<(typeof notifications.$inferSelect)[]> {
+    // TODO: replace single global cap with per-workspace sub-queries (round-robin
+    // across workspaces) so a high-failure workspace can't starve others.
+    return db.select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.status, 'failed'),
+          lt(notifications.attemptCount, MAX_NOTIFICATION_ATTEMPTS),
+        ),
+      )
+      .orderBy(asc(notifications.lastAttemptedAt), asc(notifications.createdAt))
+      .limit(limit);
   }
 }
 

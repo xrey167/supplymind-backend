@@ -101,41 +101,17 @@ mock.module('../../../config/logger', () => ({
   },
 }));
 
-// Mock dynamic imports used by applyChange / applyRollback.
-// Each mock MUST include ALL exports from the real module — mock.module
-// replaces the module globally in bun:test, so missing exports break
-// other test files that import the same module.
-mock.module('../../skills/skills.registry', () => ({
-  skillRegistry: {
-    get: mock(() => null),
-    register: mock(() => undefined),
-    unregister: mock(() => undefined),
-  },
-}));
-
+// improvement-pipeline.ts only uses skillRegistry and generators via dynamic
+// import() inside applyChange/applyRollback for specific proposal types. The
+// tests below only cover 'skill_weight' proposals (skillRegistry.get returns
+// undefined → noop branch) and CRUD operations, so no mocking is needed here.
+// Avoiding mock.module for these modules prevents contamination of downstream
+// test files (skills dispatch, tools registry, memory skills, generators).
 mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
   workspaceSettingsService: {
     set: mock(async () => undefined),
     getRaw: mock(async () => null),
   },
-}));
-
-mock.module('../generators/skill-generator', () => ({
-  detectSkillGaps: mock(async () => []),
-  generateSkillForGap: mock(async () => null),
-  testAndRegisterGeneratedSkill: mock(async () => undefined),
-}));
-
-mock.module('../generators/prompt-optimizer', () => ({
-  findUnderperformingAgents: mock(async () => []),
-  generatePromptVariant: mock(async () => null),
-  applyPromptUpdate: mock(async () => undefined),
-}));
-
-mock.module('../generators/workflow-generator', () => ({
-  detectRepeatedSequences: mock(async () => []),
-  proposeWorkflowTemplate: mock(() => ({})),
-  applyWorkflowTemplate: mock(async () => undefined),
 }));
 
 // --- Import SUT after mocks ---
