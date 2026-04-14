@@ -54,17 +54,21 @@ type RedisWithRateCheck = Redis & {
   ): Promise<[number, number]>;
 };
 
+// Module-level flag so defineCommand is only registered once regardless of
+// which client instance getSharedRedisClient() returns.
+let _rateLimitCommandDefined = false;
+
 function getRedis(): RedisWithRateCheck {
   // Use require() for lazy loading — avoids establishing a Redis connection at
   // module load time, which would break tests that mock the client.
   const { getSharedRedisClient } = require('../../infra/redis/client');
   const client = getSharedRedisClient() as RedisWithRateCheck;
-  if (!(client as any).__rateLimitDefined) {
+  if (!_rateLimitCommandDefined) {
     client.defineCommand('rateLimitCheck', {
       numberOfKeys: 1,
       lua: RATE_LIMIT_SCRIPT,
     });
-    (client as any).__rateLimitDefined = true;
+    _rateLimitCommandDefined = true;
   }
   return client;
 }
@@ -75,8 +79,10 @@ function getRedis(): RedisWithRateCheck {
 const DEFAULT_MAX_TOKENS = 200;
 const DEFAULT_REFILL_INTERVAL_MS = 60_000; // 1 minute
 
-/** @internal — no-op; exists so tests can import without breaking. Redis state is reset by mocking. */
-export function _resetBuckets() {}
+/** @internal — resets the defineCommand registration flag so tests using fresh mock clients get a clean slate. */
+export function _resetBuckets() {
+  _rateLimitCommandDefined = false;
+}
 
 /**
  * Rate limit middleware factory.
