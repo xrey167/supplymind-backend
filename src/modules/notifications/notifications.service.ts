@@ -18,43 +18,42 @@ export async function dispatchChannel(
   notification: Notification,
   workspaceId: string,
   recipientEmail?: string | null,
-): Promise<void> {
+): Promise<boolean> {
   switch (ch) {
-    case 'websocket':
-      await deliverWebSocket(notification);
-      break;
     case 'email':
       if (recipientEmail) {
         const { deliverEmail } = await import('./channels/email/email.channel');
         await deliverEmail(notification, recipientEmail);
+        return true;   // delivered
       }
-      break;
+      return false;  // no address — skip
+
     case 'slack': {
       const { credentialsService } = await import('../credentials/credentials.service');
-      const cred = await credentialsService.getByProvider(workspaceId, 'slack');
-      if (cred) {
-        const { deliverSlack } = await import('./channels/slack/slack.channel');
-        await deliverSlack(notification, cred.value);
-      }
-      break;
+      const cred = await credentialsService.getByProvider(workspaceId, 'slack').catch(() => null);
+      if (!cred) return false;   // no credentials — skip
+      const { deliverSlack } = await import('./channels/slack/slack.channel');
+      await deliverSlack(notification, cred.value);
+      return true;
     }
+
     case 'telegram': {
       const { credentialsService } = await import('../credentials/credentials.service');
-      const cred = await credentialsService.getByProvider(workspaceId, 'telegram');
-      if (cred) {
-        const chatId = String(cred.metadata?.chatId ?? '');
-        if (chatId) {
-          const { deliverTelegram } = await import('./channels/telegram/telegram.channel');
-          await deliverTelegram(notification, cred.value, chatId);
-        }
-      }
-      break;
+      const cred = await credentialsService.getByProvider(workspaceId, 'telegram').catch(() => null);
+      const chatId = String(cred?.metadata?.chatId ?? '');
+      if (!cred || !chatId) return false;   // no credentials or chatId — skip
+      const { deliverTelegram } = await import('./channels/telegram/telegram.channel');
+      await deliverTelegram(notification, cred.value, chatId);
+      return true;
     }
+
+    case 'websocket':
+      await deliverWebSocket(notification);
+      return true;
+
     case 'in_app':
-      // no-op: in-app is the DB record itself
-      break;
     default:
-      break;
+      return false;  // in_app is the DB record itself; default is intentional no-op
   }
 }
 
@@ -127,26 +126,35 @@ export class NotificationsService {
     const skipOutbound = quietHours != null && isInQuietHours(quietHours);
 
     const outbound = channels.filter((c) => c !== 'in_app');
-    let successCount = 0;
+    let attempted = 0;
+    let succeeded = 0;
 
     if (!skipOutbound) {
       for (const ch of outbound) {
         try {
-          await dispatchChannel(ch, notification, input.workspaceId, input.recipientEmail);
-          successCount++;
+          const sent = await dispatchChannel(ch, notification, input.workspaceId, input.recipientEmail);
+          if (sent) {
+            attempted++;
+            succeeded++;
+          }
+          // sent=false means intentionally skipped — don't count as attempt or failure
         } catch (err) {
+          attempted++;
           logger.warn({ err, notificationId: notification.id, ch }, `${ch} delivery failed`);
         }
       }
     }
 
-    // Mark delivered if: no outbound channels (in-app only) OR at least one channel succeeded
-    // Mark failed if: had outbound channels AND ALL failed
-    // Note: skipOutbound (quiet hours) → markDelivered because quiet-hours suppression is intentional, not a failure
-    if (outbound.length === 0 || successCount > 0 || skipOutbound) {
-      await notificationsRepo.markDelivered(notification.id);
+    // markDelivered if: no outbound channels, or all were skipped (none attempted), or at least one succeeded, or quiet hours
+    // markFailed if: at least one delivery was attempted AND all attempts failed
+    if (attempted === 0 || succeeded > 0 || skipOutbound) {
+      await notificationsRepo.markDelivered(notification.id).catch((err) =>
+        logger.warn({ err, notificationId: notification.id }, 'markDelivered failed'),
+      );
     } else {
-      await notificationsRepo.markFailed(notification.id);
+      await notificationsRepo.markFailed(notification.id).catch((err) =>
+        logger.warn({ err, notificationId: notification.id }, 'markFailed failed'),
+      );
     }
 
     // 4. Publish NOTIFICATION_CREATED event
