@@ -2,7 +2,7 @@ import { ok, err } from '../../core/result';
 import type { Result } from '../../core/result';
 import { AppError, NotFoundError } from '../../core/errors';
 import { eventBus as defaultEventBus } from '../../events/bus';
-import { Topics } from '../../events/topics';
+import { MissionTopics } from '../../plugins/mission-kernel/topics';
 import { missionsRepo as defaultRepo } from './missions.repo';
 import type { MissionsRepository } from './missions.repo';
 import { compileMission } from './missions.compiler';
@@ -29,7 +29,7 @@ export class MissionsService {
       disciplineMaxRetries: input.disciplineMaxRetries ?? 3,
       metadata: input.metadata ?? {},
     });
-    this.bus.publish(Topics.MISSION_CREATED, {
+    this.bus.publish(MissionTopics.MISSION_CREATED, {
       workspaceId,
       missionId: mission.id,
       name: mission.name,
@@ -62,7 +62,7 @@ export class MissionsService {
     }
 
     const updated = await this.repo.updateRunStatus(id, 'running');
-    this.bus.publish(Topics.MISSION_STARTED, {
+    this.bus.publish(MissionTopics.MISSION_STARTED, {
       workspaceId: mission.workspaceId,
       missionId: id,
       startedAt: new Date().toISOString(),
@@ -78,7 +78,7 @@ export class MissionsService {
     }
 
     const updated = await this.repo.updateRunStatus(id, 'paused');
-    this.bus.publish(Topics.MISSION_PAUSED, {
+    this.bus.publish(MissionTopics.MISSION_PAUSED, {
       workspaceId: mission.workspaceId,
       missionId: id,
       pausedAt: new Date().toISOString(),
@@ -94,7 +94,7 @@ export class MissionsService {
     }
 
     const updated = await this.repo.updateRunStatus(id, 'cancelled');
-    this.bus.publish(Topics.MISSION_CANCELLED, {
+    this.bus.publish(MissionTopics.MISSION_CANCELLED, {
       workspaceId: mission.workspaceId,
       missionId: id,
       cancelledAt: new Date().toISOString(),
@@ -110,7 +110,7 @@ export class MissionsService {
     }
 
     const updated = await this.repo.updateRunStatus(id, 'completed');
-    this.bus.publish(Topics.MISSION_COMPLETED, {
+    this.bus.publish(MissionTopics.MISSION_COMPLETED, {
       workspaceId: mission.workspaceId,
       missionId: id,
       completedAt: new Date().toISOString(),
@@ -123,7 +123,7 @@ export class MissionsService {
     if (!mission) return err(new NotFoundError('Mission not found'));
 
     const artifact = await this.repo.createArtifact(input);
-    this.bus.publish(Topics.MISSION_ARTIFACT_CREATED, {
+    this.bus.publish(MissionTopics.MISSION_ARTIFACT_CREATED, {
       workspaceId: mission.workspaceId,
       missionId: mission.id,
       artifactId: artifact.id,

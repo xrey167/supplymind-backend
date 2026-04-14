@@ -29,13 +29,7 @@ const mockRepo = {
 const mockBus = { publish: mock(async () => undefined) };
 
 mock.module('../../events/bus', () => ({ eventBus: mockBus }));
-mock.module('../../events/topics', () => ({
-  Topics: {
-    AGENT_PROFILE_CREATED: 'agent_profile.created',
-    AGENT_PROFILE_UPDATED: 'agent_profile.updated',
-    AGENT_PROFILE_DELETED: 'agent_profile.deleted',
-  },
-}));
+// MissionTopics imported directly from the plugin (static as const) — no mock needed
 mock.module('../agent-profiles.repo', () => ({ agentProfilesRepo: mockRepo }));
 mock.module('../../core/errors', () => ({
   NotFoundError: class NotFoundError extends Error {

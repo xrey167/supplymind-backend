@@ -37,18 +37,7 @@ const mockRepo = {
 const mockBus = { publish: mock(async () => undefined) };
 
 mock.module('../../events/bus', () => ({ eventBus: mockBus }));
-mock.module('../../events/topics', () => ({
-  Topics: {
-    MISSION_CREATED: 'mission.created',
-    MISSION_STARTED: 'mission.started',
-    MISSION_PAUSED: 'mission.paused',
-    MISSION_RESUMED: 'mission.resumed',
-    MISSION_COMPLETED: 'mission.completed',
-    MISSION_FAILED: 'mission.failed',
-    MISSION_CANCELLED: 'mission.cancelled',
-    MISSION_ARTIFACT_CREATED: 'mission.artifact.created',
-  },
-}));
+// MissionTopics imported directly from the plugin (static as const) — no mock needed
 mock.module('../missions.repo', () => ({ missionsRepo: mockRepo }));
 mock.module('../../core/errors', () => ({
   NotFoundError: class NotFoundError extends Error {
