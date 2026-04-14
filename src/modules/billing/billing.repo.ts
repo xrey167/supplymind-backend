@@ -1,6 +1,6 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, gte, lte, sum } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
-import { billingCustomers, subscriptions, invoices } from '../../infra/db/schema';
+import { billingCustomers, subscriptions, invoices, usageRecords } from '../../infra/db/schema';
 import type { PlanTier } from './billing.types';
 
 export class BillingRepository {
@@ -110,6 +110,25 @@ export class BillingRepository {
 
   async getPastDueSubscriptions() {
     return db.select().from(subscriptions).where(eq(subscriptions.status, 'past_due'));
+  }
+
+  /**
+   * Sum the total cost in USD from usage_records for a workspace within a time window.
+   * Returns 0 if no records exist.
+   */
+  async totalCost(workspaceId: string, periodStart: Date, periodEnd: Date): Promise<number> {
+    const rows = await db
+      .select({ total: sum(usageRecords.costUsd) })
+      .from(usageRecords)
+      .where(
+        and(
+          eq(usageRecords.workspaceId, workspaceId),
+          gte(usageRecords.createdAt, periodStart),
+          lte(usageRecords.createdAt, periodEnd),
+        ),
+      );
+    const raw = rows[0]?.total;
+    return raw === null || raw === undefined ? 0 : Number(raw);
   }
 }
 

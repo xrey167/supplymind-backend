@@ -134,8 +134,20 @@ export class BillingService {
     const plan = await this.repo.getActivePlan(workspaceId);
     const limits = PLAN_LIMITS[plan];
     if (limits.monthlyTokenBudgetUsd === -1) return { allowed: true }; // enterprise: unlimited
-    // TODO: query actual spend once usage tracking is implemented
-    return { allowed: true }; // safe default until spend tracking exists
+    if (limits.monthlyTokenBudgetUsd === 0) return { allowed: true }; // no budget set
+
+    const now = new Date();
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1); // first of current month
+    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999); // last ms of month
+
+    const spentUsd = await this.repo.totalCost(workspaceId, periodStart, periodEnd);
+    if (spentUsd >= limits.monthlyTokenBudgetUsd) {
+      return {
+        allowed: false,
+        reason: `Monthly token budget of $${limits.monthlyTokenBudgetUsd} exceeded (spent $${spentUsd.toFixed(4)})`,
+      };
+    }
+    return { allowed: true };
   }
 
   async enforceLimits(workspaceId: string) {

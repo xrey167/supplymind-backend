@@ -34,6 +34,8 @@ const mockUpsertSubscription = mock(() => Promise.resolve({ id: 'sub-1' }));
 const mockGetCustomerByStripeId = mock(() => Promise.resolve({ id: 'bc-1', workspaceId: 'ws-1', stripeCustomerId: 'cus_test123' }));
 const mockGetActivePlan = mock(() => Promise.resolve('free' as PlanTier));
 
+const mockTotalCost = mock(() => Promise.resolve(0));
+
 const mockRepo = {
   getCustomer: mockGetCustomer,
   upsertCustomer: mockUpsertCustomer,
@@ -44,6 +46,7 @@ const mockRepo = {
   insertInvoice: mock(() => Promise.resolve({ id: 'inv-1' })),
   listInvoices: mock(() => Promise.resolve([])),
   getPastDueSubscriptions: mock(() => Promise.resolve([])),
+  totalCost: mockTotalCost,
 };
 
 // Mock events
@@ -161,6 +164,76 @@ describe('BillingService', () => {
       }));
       const result = await service.enforceLimits('ws-1');
       expect(result.allowed).toBe(true);
+    });
+  });
+
+  describe('checkTokenBudget', () => {
+    // Use a fresh BillingService with a fresh repo mock per describe block to
+    // avoid cross-test state leakage from the outer beforeEach.
+    const tcMock = mock(() => Promise.resolve(0 as number));
+    const planMock = mock(() => Promise.resolve('free' as PlanTier));
+    let svc: BillingService;
+
+    beforeEach(() => {
+      tcMock.mockReset();
+      tcMock.mockImplementation(() => Promise.resolve(0));
+      planMock.mockReset();
+      planMock.mockImplementation(() => Promise.resolve('free' as PlanTier));
+      svc = new BillingService({ ...mockRepo, getActivePlan: planMock, totalCost: tcMock } as any);
+    });
+
+    test('enterprise plan (unlimited) → always allowed without querying spend', async () => {
+      planMock.mockImplementation(() => Promise.resolve('enterprise' as PlanTier));
+      tcMock.mockImplementation(() => Promise.resolve(9999));
+      const result = await svc.checkTokenBudget('ws-1');
+      expect(result.allowed).toBe(true);
+      expect(tcMock).not.toHaveBeenCalled();
+    });
+
+    test('free plan spend below budget → allowed', async () => {
+      planMock.mockImplementation(() => Promise.resolve('free' as PlanTier)); // budget = $5
+      tcMock.mockImplementation(() => Promise.resolve(3.5));
+      const result = await svc.checkTokenBudget('ws-1');
+      expect(result.allowed).toBe(true);
+    });
+
+    test('spend equals budget → not allowed', async () => {
+      planMock.mockImplementation(() => Promise.resolve('free' as PlanTier)); // budget = $5
+      tcMock.mockImplementation(() => Promise.resolve(5));
+      const result = await svc.checkTokenBudget('ws-1');
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toContain('exceeded');
+    });
+
+    test('spend exceeds budget → not allowed with reason', async () => {
+      planMock.mockImplementation(() => Promise.resolve('starter' as PlanTier)); // budget = $50
+      tcMock.mockImplementation(() => Promise.resolve(52.75));
+      const result = await svc.checkTokenBudget('ws-1');
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toContain('$50');
+    });
+
+    test('no spend yet (totalCost = 0) → allowed', async () => {
+      planMock.mockImplementation(() => Promise.resolve('pro' as PlanTier)); // budget = $500
+      tcMock.mockImplementation(() => Promise.resolve(0));
+      const result = await svc.checkTokenBudget('ws-1');
+      expect(result.allowed).toBe(true);
+    });
+
+    test('totalCost is called with workspace id and current-month period', async () => {
+      planMock.mockImplementation(() => Promise.resolve('starter' as PlanTier));
+      tcMock.mockImplementation(() => Promise.resolve(10));
+      await svc.checkTokenBudget('ws-billing-period');
+      expect(tcMock).toHaveBeenCalledTimes(1);
+      const [wsId, start, end] = (tcMock as any).mock.calls[0];
+      expect(wsId).toBe('ws-billing-period');
+      // Period start is the 1st of the current month
+      const now = new Date();
+      expect(start.getFullYear()).toBe(now.getFullYear());
+      expect(start.getMonth()).toBe(now.getMonth());
+      expect(start.getDate()).toBe(1);
+      // Period end is in the same month
+      expect(end.getMonth()).toBe(now.getMonth());
     });
   });
 });
