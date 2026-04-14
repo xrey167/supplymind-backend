@@ -46,7 +46,7 @@ const gateAuditLogItemSchema = z.object({
   orchestrationId: z.string(),
   stepId: z.string(),
   workspaceId: z.string(),
-  outcome: z.string(),
+  outcome: z.enum(['approved', 'rejected', 'timeout']),
   decidedBy: z.string().nullable(),
   decidedAt: z.string(),
   reason: z.string().nullable(),

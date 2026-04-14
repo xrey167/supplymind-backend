@@ -189,13 +189,17 @@ export async function recoverPendingGates(): Promise<void> {
       ).catch(() => {});
 
       // Persist audit record (fire-and-forget)
+      const recOrchId = typeof parsed.orchestrationId === 'string' ? parsed.orchestrationId : undefined;
+      const recStepId = typeof parsed.stepId === 'string' ? parsed.stepId : undefined;
+      const recWsId = typeof parsed.workspaceId === 'string' ? parsed.workspaceId : undefined;
+      if (!recOrchId || !recStepId || !recWsId) continue;
       gateAuditRepo.insert({
-        orchestrationId: parsed.orchestrationId as string,
-        stepId: parsed.stepId as string,
-        workspaceId: parsed.workspaceId as string,
+        orchestrationId: recOrchId,
+        stepId: recStepId,
+        workspaceId: recWsId,
         outcome: 'timeout',
         decidedBy: 'system',
-        prompt: parsed.prompt as string | undefined,
+        prompt: typeof parsed.prompt === 'string' ? parsed.prompt : undefined,
       }).catch(() => {});
     }
   } while (cursor !== '0');

@@ -925,7 +925,7 @@ export const gateAuditLog = pgTable('gate_audit_log', {
   orchestrationId: text('orchestration_id').notNull(),
   stepId: text('step_id').notNull(),
   workspaceId: uuid('workspace_id').notNull(),
-  outcome: text('outcome').notNull(), // 'approved' | 'rejected' | 'timeout'
+  outcome: text('outcome').notNull().$type<'approved' | 'rejected' | 'timeout'>(), // 'approved' | 'rejected' | 'timeout'
   decidedBy: text('decided_by'),      // userId or 'system'
   decidedAt: timestamp('decided_at', { withTimezone: true }).notNull().defaultNow(),
   reason: text('reason'),
