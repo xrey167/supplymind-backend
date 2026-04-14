@@ -1,3 +1,12 @@
+/**
+ * Mission Kernel event topic constants.
+ *
+ * These are contributed to the global Topics object at bootstrap via the
+ * plugin contribution registry (Step 12.5). Do NOT import from
+ * src/events/topics.ts here — that would create a circular dependency through
+ * src/core/hooks/hook-registry.ts.
+ */
+
 export const MissionTopics = {
   MISSION_CREATED: 'mission.created',
   MISSION_STARTED: 'mission.started',

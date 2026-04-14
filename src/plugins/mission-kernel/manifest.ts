@@ -1,6 +1,9 @@
+import { Worker } from 'bullmq';
+import { processMissionJob } from '../../modules/missions/missions.job';
+import { logger } from '../../config/logger';
+import type { MissionJobData } from '../../infra/queue/bullmq';
 import type { PluginManifest } from '../../modules/plugins/plugin-manifest';
 import { MissionTopics } from './topics';
-import type { MissionJobData } from './queue';
 
 export const missionKernelManifest: PluginManifest = {
   id: 'mission-kernel',
@@ -15,9 +18,6 @@ export const missionKernelManifest: PluginManifest = {
         name: 'mission-kernel:run',
         queueName: 'mission-run',
         factory: (connection) => {
-          const { Worker } = require('bullmq');
-          const { processMissionJob } = require('../../modules/missions/missions.job');
-          const { logger } = require('../../config/logger');
           const w = new Worker<MissionJobData>('mission-run', processMissionJob, {
             connection,
             concurrency: 3,
@@ -34,7 +34,13 @@ export const missionKernelManifest: PluginManifest = {
         op: 'mission.create',
         handler: async (req) => {
           const { missionsService } = await import('../../modules/missions/missions.service');
-          return missionsService.create(req.context.workspaceId, req.params as any);
+          const { name, mode, input, metadata } = req.params as {
+            name: string;
+            mode: string;
+            input?: Record<string, unknown>;
+            metadata?: Record<string, unknown>;
+          };
+          return missionsService.create(req.context.workspaceId, { name, mode, input, metadata });
         },
       },
       {
@@ -56,6 +62,7 @@ export const missionKernelManifest: PluginManifest = {
         handler: async (req) => {
           const { missionsService } = await import('../../modules/missions/missions.service');
           const { ok } = await import('../../core/result');
+          // missionsService.list returns a raw array, not a Result — wrap with ok()
           const missions = await missionsService.list(req.context.workspaceId, {
             limit: req.params.limit as number | undefined,
             cursor: req.params.cursor as string | undefined,
