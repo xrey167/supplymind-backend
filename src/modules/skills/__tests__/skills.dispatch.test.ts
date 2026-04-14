@@ -1,105 +1,60 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test';
 
-// Test-controllable permission mode and allowlist
-let _permissionMode = 'auto';
-let _allowedTools: string[] = [];
-let _approvalResult = true;
+// ---------------------------------------------------------------------------
+// Infrastructure stubs — mock.module for modules with no shared mutable state
+// that would break other files in the same bun worker. Must precede imports.
+// ---------------------------------------------------------------------------
 
-// Test-controllable feature-flag and billing gates
-let _skillsEnabled = true;
-let _budgetAllowed = true;
-let _budgetReason: string | undefined = undefined;
-let _featureFlagsThrows = false;
-let _billingThrows = false;
+mock.module('../../../infra/observability/otel', () => ({
+  withSpan: async (_name: string, _attrs: unknown, fn: (span: any) => unknown) =>
+    fn({ setAttribute: () => {} }),
+}));
 
-// Override any stale mock.module from orchestration.engine.test.ts (alphabetically earlier).
-// We reconstruct dispatchSkill inline using the real singleton dependencies so that
-// skillRegistry state set up in beforeEach is visible to the function.
-mock.module('../skills.dispatch', () => {
-  const { skillRegistry } = require('../skills.registry') as any;
-  const { skillCache } = require('../skills.cache') as any;
-  const { skillExecutor } = require('../skills.executor') as any;
-  const { hooksRegistry } = require('../../tools/tools.hooks') as any;
-  const { err } = require('../../../core/result') as any;
-  const { AbortError, AppError } = require('../../../core/errors') as any;
-  const { eventBus } = require('../../../events/bus') as any;
-  const { Topics } = require('../../../events/topics') as any;
+mock.module('../../../infra/observability/sentry', () => ({
+  captureException: () => {},
+}));
 
-  const { hasPermission, getRequiredRole } = require('../../../core/security/rbac') as any;
+mock.module('../../../events/bus', () => ({
+  eventBus: { publish: () => {} },
+}));
 
-  const dispatchSkill = async (skillId: string, args: any, context: any): Promise<any> => {
-    if (context.signal?.aborted) return err(new AbortError('Skill dispatch aborted', 'system'));
+mock.module('../../../events/topics', () => ({
+  Topics: new Proxy({} as Record<string, string>, { get: (_t, prop) => String(prop) }),
+}));
 
-    // Gate 1: License / feature-flag check
-    const skillsEnabled = await (async () => {
-      if (_featureFlagsThrows) throw new Error('flags service error');
-      return _skillsEnabled;
-    })().catch(() => true);
-    if (!skillsEnabled) {
-      return err(new AppError('Skill execution is disabled for this workspace', 403, 'SKILLS_DISABLED'));
-    }
+mock.module('../../../infra/state/tool-approvals', () => ({
+  createApprovalRequest: createApprovalRequestStub,
+}));
 
-    // Gate 2: Billing — monthly token budget
-    const budgetCheck = await (async () => {
-      if (_billingThrows) throw new Error('billing service error');
-      return { allowed: _budgetAllowed, reason: _budgetReason };
-    })().catch(() => ({ allowed: true }));
-    if (!budgetCheck.allowed) {
-      return err(new AppError(budgetCheck.reason ?? 'Monthly token budget exceeded', 402, 'BUDGET_EXCEEDED'));
-    }
+// Stub for createApprovalRequest — mutable so tests can override
+function createApprovalRequestStub(
+  _approvalId: string,
+  _workspaceId: string,
+  _timeoutMs: number,
+): Promise<{ approved: boolean; updatedInput?: unknown }> {
+  return Promise.resolve({ approved: _approvalResultRef.value });
+}
 
-    const skill = skillRegistry.get(skillId);
-    if (!skill) return err(new Error(`Skill not found: ${skillId}`));
-    const requiredRole = getRequiredRole(skill.providerType);
-    if (!hasPermission(context.callerRole, requiredRole)) {
-      return err(new Error(`Permission denied: role '${context.callerRole}' cannot invoke '${skillId}' (requires '${requiredRole}')`));
-    }
+// Mutable ref shared between stub and tests
+const _approvalResultRef = { value: true };
 
-    // Permission mode gate (builtins exempt)
-    if (skill.providerType !== 'builtin') {
-      const mode = context.cachedPermissionMode ?? _permissionMode;
-      if (mode === 'strict') {
-        if (!_allowedTools.includes(skill.name)) {
-          eventBus.publish(Topics.SECURITY_PERMISSION_MODE_BLOCKED, {
-            skillId, callerRole: context.callerRole, workspaceId: context.workspaceId, mode: 'strict',
-          });
-          return err(new AppError(`Tool '${skill.name}' is not in workspace allowlist`, 403, 'TOOL_NOT_ALLOWED'));
-        }
-      }
-      if (mode === 'ask') {
-        if (!_approvalResult) {
-          return err(new AppError('Tool approval denied or timed out', 403, 'TOOL_APPROVAL_DENIED'));
-        }
-      }
-    }
-
-    const hooks = hooksRegistry.get(skillId);
-    if (hooks?.beforeExecute) {
-      const hookCtx = { callerId: context.callerId, workspaceId: context.workspaceId, traceId: context.traceId };
-      const hookResult = await hooks.beforeExecute(args, hookCtx);
-      if (!hookResult.allow) return err(new Error(hookResult.reason ?? `Tool ${skillId} blocked by beforeExecute hook`));
-      if (hookResult.modifiedArgs !== undefined) args = hookResult.modifiedArgs;
-    }
-    const cached = await skillCache.get(skillId, args);
-    if (cached !== undefined) return { ok: true, value: cached };
-    const result = await skillExecutor.execute(skillId, () => skillRegistry.invoke(skillId, args));
-    if (result.ok) await skillCache.set(skillId, args, result.value);
-    eventBus.publish(Topics.SKILL_INVOKED, { name: skillId, success: result.ok, workspaceId: context.workspaceId, callerId: context.callerId });
-    if (hooks?.afterExecute) {
-      const hookCtx = { callerId: context.callerId, workspaceId: context.workspaceId, traceId: context.traceId };
-      await hooks.afterExecute(args, result, hookCtx).catch(() => {});
-    }
-    return result;
-  };
-  return { dispatchSkill };
-});
+// ---------------------------------------------------------------------------
+// Imports — the REAL dispatchSkill and its singleton dependencies
+// ---------------------------------------------------------------------------
 
 import { dispatchSkill } from '../skills.dispatch';
 import { skillRegistry } from '../skills.registry';
 import { skillCache } from '../skills.cache';
 import { hooksRegistry } from '../../tools/tools.hooks';
+import { workspaceSettingsService } from '../../settings/workspace-settings/workspace-settings.service';
+import { featureFlagsService } from '../../feature-flags/feature-flags.service';
+import { billingService } from '../../billing/billing.service';
 import { ok, err } from '../../../core/result';
 import type { DispatchContext } from '../skills.types';
+
+// ---------------------------------------------------------------------------
+// Shared test context
+// ---------------------------------------------------------------------------
 
 const ctx: DispatchContext = {
   callerId: 'test-user',
@@ -107,10 +62,48 @@ const ctx: DispatchContext = {
   callerRole: 'admin' as const,
 };
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function registerBuiltin(name: string, handler?: (args: any) => Promise<any>) {
+  skillRegistry.register({
+    id: `test:${name}`,
+    name,
+    description: name,
+    inputSchema: { type: 'object' },
+    providerType: 'builtin',
+    priority: 10,
+    handler: handler ?? (async (args) => ok(args)),
+  });
+}
+
+function registerMcp(name: string, handler?: (args: any) => Promise<any>) {
+  skillRegistry.register({
+    id: `test:${name}`,
+    name,
+    description: name,
+    inputSchema: { type: 'object' },
+    providerType: 'mcp',
+    priority: 15,
+    handler: handler ?? (async () => ok('done')),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Core dispatch tests
+// ---------------------------------------------------------------------------
+
 describe('dispatchSkill', () => {
   beforeEach(() => {
     skillRegistry.clear();
     skillCache.clear();
+    // Gates: permissive defaults via singleton monkey-patch
+    featureFlagsService.isEnabled = async () => true;
+    billingService.checkTokenBudget = async () => ({ allowed: true });
+    workspaceSettingsService.getToolPermissionMode = async () => 'auto' as any;
+    workspaceSettingsService.getAllowedToolNames = async () => [];
+    workspaceSettingsService.getApprovalTimeoutMs = async () => 5000;
   });
 
   test('returns error for unknown skill', async () => {
@@ -119,15 +112,7 @@ describe('dispatchSkill', () => {
   });
 
   test('dispatches to registered skill and returns result', async () => {
-    skillRegistry.register({
-      id: 'test:echo',
-      name: 'echo',
-      description: 'Echo',
-      inputSchema: { type: 'object' },
-      providerType: 'builtin',
-      priority: 10,
-      handler: async (args) => ok(args),
-    });
+    registerBuiltin('echo');
     const result = await dispatchSkill('echo', { msg: 'hi' }, ctx);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value).toEqual({ msg: 'hi' });
@@ -168,11 +153,20 @@ describe('dispatchSkill', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Hook tests
+// ---------------------------------------------------------------------------
+
 describe('dispatchSkill hooks', () => {
   beforeEach(() => {
     skillRegistry.clear();
     skillCache.clear();
     hooksRegistry.clear();
+    featureFlagsService.isEnabled = async () => true;
+    billingService.checkTokenBudget = async () => ({ allowed: true });
+    workspaceSettingsService.getToolPermissionMode = async () => 'auto' as any;
+    workspaceSettingsService.getAllowedToolNames = async () => [];
+    workspaceSettingsService.getApprovalTimeoutMs = async () => 5000;
   });
 
   test('beforeExecute returning allow:false blocks execution', async () => {
@@ -235,10 +229,20 @@ describe('dispatchSkill hooks', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// RBAC tests
+// ---------------------------------------------------------------------------
+
 describe('dispatchSkill RBAC', () => {
   beforeEach(() => {
     skillRegistry.clear();
     skillCache.clear();
+    featureFlagsService.isEnabled = async () => true;
+    billingService.checkTokenBudget = async () => ({ allowed: true });
+    // Stub permission mode so non-builtin skills don't hit the DB
+    workspaceSettingsService.getToolPermissionMode = async () => 'auto' as any;
+    workspaceSettingsService.getAllowedToolNames = async () => [];
+    workspaceSettingsService.getApprovalTimeoutMs = async () => 5000;
   });
 
   test('viewer can invoke builtin skills', async () => {
@@ -295,54 +299,50 @@ describe('dispatchSkill RBAC', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Permission mode tests
+// Use cachedPermissionMode on context to bypass workspaceSettingsService.getToolPermissionMode,
+// and monkey-patch workspaceSettingsService for allowlist / timeout queries.
+// ---------------------------------------------------------------------------
+
 describe('dispatchSkill permission modes', () => {
   beforeEach(() => {
     skillRegistry.clear();
     skillCache.clear();
-    _permissionMode = 'auto';
-    _allowedTools = [];
-    _approvalResult = true;
+    featureFlagsService.isEnabled = async () => true;
+    billingService.checkTokenBudget = async () => ({ allowed: true });
+    workspaceSettingsService.getAllowedToolNames = async () => [];
+    workspaceSettingsService.getApprovalTimeoutMs = async () => 5000;
+    _approvalResultRef.value = true;
   });
 
-  const registerMcpSkill = () => {
-    skillRegistry.register({
-      id: 'test:mcp', name: 'mcp_tool', description: 'MCP tool',
-      inputSchema: { type: 'object' }, providerType: 'mcp', priority: 15,
-      handler: async () => ok('done'),
-    });
-  };
-
   test('strict mode blocks non-allowlisted tools', async () => {
-    registerMcpSkill();
-    _permissionMode = 'strict';
-    _allowedTools = ['other_tool'];
-    const result = await dispatchSkill('mcp_tool', {}, ctx);
+    registerMcp('mcp_tool');
+    workspaceSettingsService.getAllowedToolNames = async () => ['other_tool'];
+    const result = await dispatchSkill('mcp_tool', {}, { ...ctx, cachedPermissionMode: 'strict' });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.message).toContain('not in workspace allowlist');
   });
 
   test('strict mode allows allowlisted tools', async () => {
-    registerMcpSkill();
-    _permissionMode = 'strict';
-    _allowedTools = ['mcp_tool'];
-    const result = await dispatchSkill('mcp_tool', {}, ctx);
+    registerMcp('mcp_tool');
+    workspaceSettingsService.getAllowedToolNames = async () => ['mcp_tool'];
+    const result = await dispatchSkill('mcp_tool', {}, { ...ctx, cachedPermissionMode: 'strict' });
     expect(result.ok).toBe(true);
   });
 
   test('ask mode blocks when approval denied', async () => {
-    registerMcpSkill();
-    _permissionMode = 'ask';
-    _approvalResult = false;
-    const result = await dispatchSkill('mcp_tool', {}, ctx);
+    registerMcp('mcp_tool');
+    _approvalResultRef.value = false;
+    const result = await dispatchSkill('mcp_tool', {}, { ...ctx, cachedPermissionMode: 'ask' });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.message).toContain('approval denied');
   });
 
   test('ask mode allows when approval granted', async () => {
-    registerMcpSkill();
-    _permissionMode = 'ask';
-    _approvalResult = true;
-    const result = await dispatchSkill('mcp_tool', {}, ctx);
+    registerMcp('mcp_tool');
+    _approvalResultRef.value = true;
+    const result = await dispatchSkill('mcp_tool', {}, { ...ctx, cachedPermissionMode: 'ask' });
     expect(result.ok).toBe(true);
   });
 
@@ -352,16 +352,15 @@ describe('dispatchSkill permission modes', () => {
       inputSchema: { type: 'object' }, providerType: 'builtin', priority: 10,
       handler: async () => ok('safe'),
     });
-    _permissionMode = 'strict';
-    _allowedTools = []; // empty allowlist
-    const result = await dispatchSkill('builtin_tool', {}, ctx);
+    workspaceSettingsService.getAllowedToolNames = async () => []; // empty allowlist
+    const result = await dispatchSkill('builtin_tool', {}, { ...ctx, cachedPermissionMode: 'strict' });
     expect(result.ok).toBe(true);
   });
 
-  test('cachedPermissionMode on context overrides global setting', async () => {
-    registerMcpSkill();
-    _permissionMode = 'auto'; // global says auto
-    _allowedTools = [];
+  test('cachedPermissionMode on context overrides workspaceSettingsService', async () => {
+    registerMcp('mcp_tool');
+    workspaceSettingsService.getToolPermissionMode = async () => 'auto' as any; // service says auto
+    workspaceSettingsService.getAllowedToolNames = async () => [];
     const result = await dispatchSkill('mcp_tool', {}, {
       ...ctx,
       cachedPermissionMode: 'strict', // context says strict
@@ -371,63 +370,49 @@ describe('dispatchSkill permission modes', () => {
   });
 });
 
-describe('dispatchSkill license and billing gates', () => {
+// ---------------------------------------------------------------------------
+// Gate tests (inline copy matching skills.dispatch.gates.test.ts scenarios)
+// ---------------------------------------------------------------------------
+
+describe('dispatchSkill gates', () => {
   beforeEach(() => {
     skillRegistry.clear();
     skillCache.clear();
-    _skillsEnabled = true;
-    _budgetAllowed = true;
-    _budgetReason = undefined;
-    _featureFlagsThrows = false;
-    _billingThrows = false;
-    skillRegistry.register({
-      id: 'test:guarded2',
-      name: 'guarded2',
-      description: 'Gate test skill',
-      inputSchema: { type: 'object' },
-      providerType: 'builtin',
-      priority: 10,
-      handler: async (args) => ok(args),
-    });
+    featureFlagsService.isEnabled = async () => true;
+    billingService.checkTokenBudget = async () => ({ allowed: true });
+    registerBuiltin('gated');
   });
 
-  test('featureFlagsService.isEnabled returns false → err with code SKILLS_DISABLED', async () => {
-    _skillsEnabled = false;
-    const result = await dispatchSkill('guarded2', {}, ctx);
+  test('isEnabled returns false → SKILLS_DISABLED', async () => {
+    featureFlagsService.isEnabled = async () => false;
+    const result = await dispatchSkill('gated', {}, ctx);
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect((result.error as any).code).toBe('SKILLS_DISABLED');
-      expect(result.error.message).toContain('disabled');
-    }
+    if (!result.ok) expect((result.error as any).code).toBe('SKILLS_DISABLED');
   });
 
-  test('billingService.checkTokenBudget returns allowed:false → err with code BUDGET_EXCEEDED', async () => {
-    _budgetAllowed = false;
-    _budgetReason = 'Budget exceeded';
-    const result = await dispatchSkill('guarded2', {}, ctx);
+  test('checkTokenBudget returns allowed:false → BUDGET_EXCEEDED', async () => {
+    billingService.checkTokenBudget = async () => ({ allowed: false, reason: 'Monthly budget exceeded' });
+    const result = await dispatchSkill('gated', {}, ctx);
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect((result.error as any).code).toBe('BUDGET_EXCEEDED');
-      expect(result.error.message).toContain('Budget exceeded');
-    }
+    if (!result.ok) expect((result.error as any).code).toBe('BUDGET_EXCEEDED');
   });
 
-  test('featureFlagsService.isEnabled throws → dispatch still proceeds (catch → allow)', async () => {
-    _featureFlagsThrows = true;
-    const result = await dispatchSkill('guarded2', { x: 1 }, ctx);
+  test('isEnabled throws → dispatch proceeds (fail-open)', async () => {
+    featureFlagsService.isEnabled = async () => { throw new Error('DB down'); };
+    const result = await dispatchSkill('gated', { x: 1 }, ctx);
     expect(result.ok).toBe(true);
   });
 
-  test('billingService.checkTokenBudget throws → dispatch still proceeds (catch → allow)', async () => {
-    _billingThrows = true;
-    const result = await dispatchSkill('guarded2', { x: 2 }, ctx);
+  test('checkTokenBudget throws → dispatch proceeds (fail-open)', async () => {
+    billingService.checkTokenBudget = async () => { throw new Error('Billing service unavailable'); };
+    const result = await dispatchSkill('gated', { x: 2 }, ctx);
     expect(result.ok).toBe(true);
   });
 
-  test('normal path succeeds when feature enabled and budget ok', async () => {
-    _skillsEnabled = true;
-    _budgetAllowed = true;
-    const result = await dispatchSkill('guarded2', { ping: true }, ctx);
+  test('normal path: both gates pass → ok = true', async () => {
+    featureFlagsService.isEnabled = async () => true;
+    billingService.checkTokenBudget = async () => ({ allowed: true });
+    const result = await dispatchSkill('gated', { ping: true }, ctx);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value).toEqual({ ping: true });
   });
