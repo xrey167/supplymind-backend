@@ -49,6 +49,17 @@ const mockRepo = {
   totalCost: mockTotalCost,
 };
 
+// Mock budget counter (Redis) — default: counter returns 0 (cold start)
+const mockGetBudgetCounter = mock(() => Promise.resolve(0 as number));
+const _realBudgetCounter = require('../../../infra/billing/budget-counter');
+mock.module('../../../infra/billing/budget-counter', () => ({
+  ..._realBudgetCounter,
+  getBudgetCounter: mockGetBudgetCounter,
+  incrementBudgetCounter: mock(() => Promise.resolve(0)),
+  resetBudgetCounter: mock(() => Promise.resolve()),
+  resetAllBudgetCountersForMonth: mock(() => Promise.resolve(0)),
+}));
+
 // Mock events
 mock.module('../billing.events', () => ({
   emitSubscriptionCreated: mock(() => Promise.resolve()),
@@ -179,6 +190,9 @@ describe('BillingService', () => {
       tcMock.mockImplementation(() => Promise.resolve(0));
       planMock.mockReset();
       planMock.mockImplementation(() => Promise.resolve('free' as PlanTier));
+      // Redis counter defaults to 0 (cold start) for these tests
+      mockGetBudgetCounter.mockReset();
+      mockGetBudgetCounter.mockImplementation(() => Promise.resolve(0));
       svc = new BillingService({ ...mockRepo, getActivePlan: planMock, totalCost: tcMock } as any);
     });
 
@@ -234,6 +248,53 @@ describe('BillingService', () => {
       expect(start.getDate()).toBe(1);
       // Period end is in the same month
       expect(end.getMonth()).toBe(now.getMonth());
+    });
+
+    // Redis fast-path tests
+    test('Redis counter at or above budget → denied without DB query', async () => {
+      planMock.mockImplementation(() => Promise.resolve('free' as PlanTier)); // budget = $5
+      mockGetBudgetCounter.mockResolvedValueOnce(5.001);
+      const result = await svc.checkTokenBudget('ws-redis-over');
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toContain('exceeded');
+      // DB must NOT be consulted when Redis already shows over-budget
+      expect(tcMock).not.toHaveBeenCalled();
+    });
+
+    test('Redis counter below budget → falls through to DB check', async () => {
+      planMock.mockImplementation(() => Promise.resolve('starter' as PlanTier)); // budget = $50
+      mockGetBudgetCounter.mockResolvedValueOnce(20);
+      tcMock.mockResolvedValueOnce(20);
+      const result = await svc.checkTokenBudget('ws-redis-under');
+      expect(result.allowed).toBe(true);
+      expect(tcMock).toHaveBeenCalledTimes(1);
+    });
+
+    test('Redis counter = 0 (cold start) → falls through to DB check', async () => {
+      planMock.mockImplementation(() => Promise.resolve('pro' as PlanTier)); // budget = $500
+      mockGetBudgetCounter.mockResolvedValueOnce(0);
+      tcMock.mockResolvedValueOnce(300);
+      const result = await svc.checkTokenBudget('ws-cold-start');
+      expect(result.allowed).toBe(true);
+      expect(tcMock).toHaveBeenCalledTimes(1);
+    });
+
+    test('Redis error is handled gracefully → falls through to DB check', async () => {
+      planMock.mockImplementation(() => Promise.resolve('starter' as PlanTier)); // budget = $50
+      mockGetBudgetCounter.mockRejectedValueOnce(new Error('Redis connection refused'));
+      tcMock.mockResolvedValueOnce(10);
+      const result = await svc.checkTokenBudget('ws-redis-error');
+      // Should not throw; should fall back to DB
+      expect(result.allowed).toBe(true);
+      expect(tcMock).toHaveBeenCalledTimes(1);
+    });
+
+    test('enterprise plan skips both Redis and DB checks', async () => {
+      planMock.mockImplementation(() => Promise.resolve('enterprise' as PlanTier));
+      const result = await svc.checkTokenBudget('ws-enterprise');
+      expect(result.allowed).toBe(true);
+      expect(mockGetBudgetCounter).not.toHaveBeenCalled();
+      expect(tcMock).not.toHaveBeenCalled();
     });
   });
 });

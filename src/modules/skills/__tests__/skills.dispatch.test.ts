@@ -35,6 +35,24 @@ mock.module('../../../infra/state/tool-approvals', () => ({
   createApprovalRequest: createApprovalRequestStub,
 }));
 
+// Stub membersRepo so Gate 4 does not hit the real DB.
+// Default: caller is a member. Tests can override membersRepoStub.findMember.
+const membersRepoStub = {
+  findMember: async (_workspaceId: string, _userId: string) => ({
+    id: 'mem-stub',
+    workspaceId: _workspaceId,
+    userId: _userId,
+    role: 'member' as const,
+    invitedBy: null,
+    joinedAt: new Date(),
+  }),
+};
+const _realMembersRepo = require('../../members/members.repo');
+mock.module('../../members/members.repo', () => ({
+  ..._realMembersRepo,
+  membersRepo: membersRepoStub,
+}));
+
 // Stub for createApprovalRequest — mutable so tests can override
 function createApprovalRequestStub(
   _approvalId: string,
