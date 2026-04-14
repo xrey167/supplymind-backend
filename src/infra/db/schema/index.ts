@@ -127,7 +127,17 @@ export const memoryTypeEnum = pgEnum('memory_type', ['domain', 'feedback', 'patt
 export const memorySourceEnum = pgEnum('memory_source', ['explicit', 'proposed', 'approved']);
 export const proposalStatusEnum = pgEnum('proposal_status', ['pending', 'approved', 'auto_applied', 'rejected', 'rolled_back']);
 export const orchestrationStatusEnum = pgEnum('orchestration_status', ['submitted', 'running', 'paused', 'completed', 'failed', 'cancelled']);
-export const workspaceRoleEnum = pgEnum('workspace_role', ['owner', 'admin', 'member', 'viewer']);
+export const workspaceRoleEnum = pgEnum('workspace_role', [
+  'owner',
+  'admin',
+  'member',
+  'viewer',
+  // Supply chain domain roles
+  'procurement_manager',
+  'logistics_coordinator',
+  'warehouse_operator',
+  'finance_approver',
+]);
 
 // Workspaces
 export const workspaces = pgTable('workspaces', {

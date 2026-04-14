@@ -134,6 +134,13 @@
       "when": 1776153494403,
       "tag": "0018_notification_attempt_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1776390000000,
+      "tag": "0019_supply_chain_roles",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import { eq, and, isNull, desc, asc, lt, sql } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { notifications } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { CreateNotificationInput, NotificationFilter, NotificationChannel } from './notifications.types';
 
 /** Maximum failed notifications fetched per workspace in each retry sweep */
@@ -8,7 +9,17 @@ export const PER_WORKSPACE_CAP = 10;
 
 export const MAX_NOTIFICATION_ATTEMPTS = 3;
 
-export class NotificationsRepository {
+type NotificationRow = typeof notifications.$inferSelect;
+type NotificationInsert = typeof notifications.$inferInsert;
+
+export class NotificationsRepository extends BaseRepo<
+  typeof notifications,
+  NotificationRow,
+  NotificationInsert
+> {
+  constructor() {
+    super(notifications);
+  }
   async create(input: CreateNotificationInput, channel: NotificationChannel = 'in_app') {
     const rows = await db.insert(notifications).values({
       workspaceId: input.workspaceId,
@@ -97,12 +108,12 @@ export class NotificationsRepository {
     return rows.length > 0;
   }
 
-  async listFailed(batchSize = 50): Promise<(typeof notifications.$inferSelect)[]> {
+  async listFailed(batchSize = 50, perWorkspaceCap = PER_WORKSPACE_CAP): Promise<(typeof notifications.$inferSelect)[]> {
     // Per-workspace fairness: use a CTE to rank failed notifications within each
-    // workspace, then take up to PER_WORKSPACE_CAP per workspace, and finally cap
+    // workspace, then take up to perWorkspaceCap per workspace, and finally cap
     // the full result set at batchSize. This prevents a high-failure workspace
     // from starving others during retry sweeps.
-    const perWsCap = PER_WORKSPACE_CAP;
+    const perWsCap = perWorkspaceCap;
     const rows = await db.execute<typeof notifications.$inferSelect>(
       sql`
         WITH ranked AS (
