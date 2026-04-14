@@ -205,4 +205,35 @@ describe('NotificationsService', () => {
     expect(mockGetUnreadCount).toHaveBeenCalledTimes(1);
     expect(mockGetUnreadCount).toHaveBeenCalledWith('user-1', 'ws-1');
   });
+
+  test('notify() calls markFailed when all outbound channels throw', async () => {
+    mockPrefGet.mockResolvedValueOnce({ muted: false, channels: ['in_app', 'websocket'] });
+    mockDeliverWebSocket.mockRejectedValueOnce(new Error('ws down'));
+
+    const result = await service.notify(baseInput);
+
+    expect(result).not.toBeNull();
+    // websocket threw → all outbound failed → markFailed
+    expect(mockMarkFailed).toHaveBeenCalledTimes(1);
+    expect(mockMarkFailed).toHaveBeenCalledWith('notif-1');
+    expect(mockMarkDelivered).not.toHaveBeenCalled();
+  });
+
+  test('notify() calls markDelivered when quiet hours active (intentional skip)', async () => {
+    // Use a preference with quietHours covering the entire day so the current
+    // time always falls within the window, regardless of when the test runs.
+    mockPrefGet.mockResolvedValueOnce({
+      muted: false,
+      channels: ['in_app', 'websocket'],
+      quietHours: { start: '00:00', end: '23:59', tz: 'UTC' },
+    });
+
+    const result = await service.notify(baseInput);
+
+    expect(result).not.toBeNull();
+    // Skip outbound due to quiet hours → markDelivered (intentional suppression, not failure)
+    expect(mockMarkDelivered).toHaveBeenCalledTimes(1);
+    expect(mockDeliverWebSocket).not.toHaveBeenCalled();
+    expect(mockMarkFailed).not.toHaveBeenCalled();
+  });
 });

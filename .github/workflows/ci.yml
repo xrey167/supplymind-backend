@@ -43,10 +43,12 @@ jobs:
           bun test $(find src -name '*.test.ts' \
             -not -path '*/learning/__tests__/*' \
             -not -path '*/infra/a2a/__tests__/task-manager.test.ts' \
-            -not -path '*/infra/mcp/__tests__/client-pool.test.ts')
+            -not -path '*/infra/mcp/__tests__/client-pool.test.ts' \
+            -not -path '*/jobs/notification/__tests__/*')
           bun test src/modules/learning/__tests__/
           bun test src/infra/a2a/__tests__/task-manager.test.ts
           bun test src/infra/mcp/__tests__/client-pool.test.ts
+          bun test src/jobs/notification/__tests__/
         env:
           CREDENTIALS_ENCRYPTION_KEY: ci-test-key-for-unit-tests-32bytes
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
