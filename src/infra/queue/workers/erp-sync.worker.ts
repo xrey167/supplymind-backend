@@ -6,6 +6,7 @@ import { logger } from '../../../config/logger';
 import { db } from '../../db/client';
 import { syncJobs, pluginInstallations } from '../../db/schema';
 import { eq } from 'drizzle-orm';
+import { credentialsService } from '../../../modules/credentials/credentials.service';
 
 /**
  * BullMQ worker for ERP sync jobs.
@@ -33,10 +34,32 @@ export function createErpSyncWorker(connection: Redis) {
         return;
       }
 
+      // Resolve clientSecret: prefer encrypted credential, fall back to plaintext (migration path)
+      const secretBindingIds = installation?.secretBindingIds as string[] | undefined;
+      let clientSecret: string | undefined;
+
+      if (secretBindingIds?.[0]) {
+        const decrypted = await credentialsService.getDecrypted(secretBindingIds[0], syncJob.workspaceId);
+        if (decrypted.ok) {
+          clientSecret = decrypted.value;
+        } else {
+          logger.warn({ credentialId: secretBindingIds[0] }, 'Failed to decrypt ERP-BC client secret — falling back to plaintext config');
+        }
+      }
+
+      // Migration fallback: use plaintext if no secretBindingId yet
+      if (!clientSecret) {
+        clientSecret = (installation?.config as any)?.clientSecret;
+      }
+
+      if (!clientSecret) {
+        throw new Error('ERP-BC client secret not available — cannot run sync');
+      }
+
       const { getCacheProvider } = await import('../../cache');
       const cache = getCacheProvider();
       const { BcClient } = await import('../../../plugins/erp-bc/connector/bc-client');
-      const client = new BcClient(bcConfig, {
+      const client = new BcClient({ ...bcConfig, clientSecret }, {
         get: (k) => cache.get<string>(k).then(v => v ?? null),
         set: (k, v, t) => cache.set(k, v, t),
       });

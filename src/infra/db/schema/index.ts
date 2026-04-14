@@ -410,7 +410,7 @@ export const userSettings = pgTable('user_settings', {
 ]);
 
 // Credentials (encrypted API keys for AI providers / MCP servers)
-export const credentialProviderEnum = pgEnum('credential_provider', ['anthropic', 'openai', 'google', 'custom', 'slack', 'telegram']);
+export const credentialProviderEnum = pgEnum('credential_provider', ['anthropic', 'openai', 'google', 'custom', 'slack', 'telegram', 'erp-bc']);
 
 export const credentials = pgTable('credentials', {
   id: uuid('id').primaryKey().defaultRandom(),

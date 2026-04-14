@@ -1,4 +1,4 @@
-export type CredentialProvider = 'anthropic' | 'openai' | 'google' | 'custom' | 'slack' | 'telegram';
+export type CredentialProvider = 'anthropic' | 'openai' | 'google' | 'custom' | 'slack' | 'telegram' | 'erp-bc';
 
 export interface Credential {
   id: string;

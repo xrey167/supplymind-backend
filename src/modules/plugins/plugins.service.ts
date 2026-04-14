@@ -6,6 +6,7 @@ import { pluginInstallationRepo } from './plugins.installation.repo';
 import { pluginHealthRepo } from './plugins.health.repo';
 import { validatePluginConfig, checkPermissions } from './plugins.manifest-validator';
 import { featureFlagsService } from '../feature-flags/feature-flags.service';
+import { credentialsService } from '../credentials/credentials.service';
 import type { InstallationRow, PluginEventRow, HealthCheckRow, Actor, PluginManifestV1 } from './plugins.types';
 import { PluginConflictError } from './plugins.types';
 
@@ -76,9 +77,18 @@ export const pluginsService = {
       return err(new Error(`Plugin exists with status '${existing.status}' — uninstall it first or re-enable it`));
     }
 
+    // For erp-bc: strip clientSecret from stored config; it will be stored encrypted
+    let storedConfig = config;
+    let erpBcClientSecret: string | undefined;
+    if (manifest.id === 'erp-bc' && (config as any).clientSecret) {
+      const { clientSecret: _, ...safeConfig } = config as any;
+      erpBcClientSecret = _ as string;
+      storedConfig = safeConfig;
+    }
+
     let installation: InstallationRow;
     try {
-      installation = await pluginInstallationRepo.create({ workspaceId, pluginId, config });
+      installation = await pluginInstallationRepo.create({ workspaceId, pluginId, config: storedConfig });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes('unique') || msg.includes('duplicate')) {
@@ -87,16 +97,36 @@ export const pluginsService = {
       throw e;
     }
 
+    let active: InstallationRow;
     try {
-      const { installation: active } = await pluginInstallationRepo.transition(
+      const result = await pluginInstallationRepo.transition(
         installation.id, workspaceId, 'active', 'installed', actor,
-        { pluginId, config },
+        { pluginId, config: storedConfig },
       );
-      return ok(active);
+      active = result.installation;
     } catch (e) {
       logger.error({ err: e, installationId: installation.id, workspaceId, pluginId }, 'Plugin install transition failed — orphaned installation row may remain');
       return err(new Error('Plugin install failed during activation'));
     }
+
+    // For erp-bc: store clientSecret encrypted and bind to installation
+    if (erpBcClientSecret) {
+      const credResult = await credentialsService.create({
+        workspaceId,
+        name: 'erp-bc-client-secret',
+        provider: 'erp-bc',
+        value: erpBcClientSecret,
+        metadata: { installationId: active.id },
+      });
+      if (credResult.ok) {
+        await pluginInstallationRepo.updateSecretBindingIds(active.id, [credResult.value.id]);
+        active = { ...active, secretBindingIds: [credResult.value.id] };
+      } else {
+        logger.error({ err: credResult.error, installationId: active.id, workspaceId }, 'Failed to store erp-bc client secret — installation active but secret not encrypted');
+      }
+    }
+
+    return ok(active);
   },
 
   async enable(workspaceId: string, installationId: string, actor: Actor): Promise<Result<InstallationRow>> {
@@ -147,17 +177,54 @@ export const pluginsService = {
     const configCheck = validatePluginConfig(config, manifest.configSchema);
     if (!configCheck.valid) return err(new Error(configCheck.error));
 
+    // For erp-bc: strip clientSecret from stored config and update encrypted credential
+    let storedConfig = config;
+    let erpBcClientSecret: string | undefined;
+    if (manifest.id === 'erp-bc' && (config as any).clientSecret) {
+      const { clientSecret: _, ...safeConfig } = config as any;
+      erpBcClientSecret = _ as string;
+      storedConfig = safeConfig;
+    }
+
+    let updatedInstallation: InstallationRow;
     try {
-      const { installation } = await pluginInstallationRepo.transition(
+      const result = await pluginInstallationRepo.transition(
         installationId, workspaceId, 'active', 'config_updated', actor,
-        { previousConfig: inst.config, newConfig: config },
-        { config },
+        { previousConfig: inst.config, newConfig: storedConfig },
+        { config: storedConfig },
       );
-      return ok(installation);
+      updatedInstallation = result.installation;
     } catch (e) {
       logger.error({ err: e, installationId, workspaceId }, 'Plugin updateConfig transition failed');
       return err(new Error('Internal error updating plugin config'));
     }
+
+    // For erp-bc: update or create encrypted credential for clientSecret
+    if (erpBcClientSecret) {
+      const existingSecretId = (inst.secretBindingIds as string[] | undefined)?.[0];
+      if (existingSecretId) {
+        const updateResult = await credentialsService.update(existingSecretId, { value: erpBcClientSecret });
+        if (!updateResult.ok) {
+          logger.error({ err: updateResult.error, credentialId: existingSecretId, installationId, workspaceId }, 'Failed to update erp-bc client secret credential');
+        }
+      } else {
+        const credResult = await credentialsService.create({
+          workspaceId,
+          name: 'erp-bc-client-secret',
+          provider: 'erp-bc',
+          value: erpBcClientSecret,
+          metadata: { installationId },
+        });
+        if (credResult.ok) {
+          await pluginInstallationRepo.updateSecretBindingIds(installationId, [credResult.value.id]);
+          updatedInstallation = { ...updatedInstallation, secretBindingIds: [credResult.value.id] };
+        } else {
+          logger.error({ err: credResult.error, installationId, workspaceId }, 'Failed to create erp-bc client secret credential during updateConfig');
+        }
+      }
+    }
+
+    return ok(updatedInstallation);
   },
 
   async pinVersion(
