@@ -6,8 +6,6 @@ CREATE TYPE "public"."collab_proposal_status" AS ENUM('open', 'closed', 'accepte
 CREATE TYPE "public"."mention_status" AS ENUM('pending', 'read', 'dismissed');--> statement-breakpoint
 CREATE TYPE "public"."vote_type" AS ENUM('up', 'down');--> statement-breakpoint
 CREATE TYPE "public"."webhook_delivery_status" AS ENUM('received', 'processed', 'duplicate', 'failed');--> statement-breakpoint
-ALTER TYPE "public"."credential_provider" ADD VALUE 'slack';--> statement-breakpoint
-ALTER TYPE "public"."credential_provider" ADD VALUE 'telegram';--> statement-breakpoint
 CREATE TABLE "alert_rule_fires" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"rule_id" uuid NOT NULL,

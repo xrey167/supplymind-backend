@@ -39,6 +39,7 @@ jobs:
           # - Learning/__tests__/ + task-manager: mock events/bus globally, corrupts real eventBus
           # - encrypted-secret.test.ts: mocks credentials.service without re-exporting CredentialsService
           # - skills.dispatch.test.ts: mocks feature-flags.service, corrupts feature-flags.service.test.ts
+          # - gate-audit.repo.test.ts: mocks drizzle-orm; also orchestration-gates.test.ts caches gate-audit.repo with real db first
           # client-pool.test.ts runs separately: ioredis ECONNREFUSED can attach to pending promises
           # in other tests depending on filesystem traversal order.
           # Exclude known-broken tests: PluginManager (Redis timeouts) and WorkspaceSettingsService
@@ -50,12 +51,14 @@ jobs:
             -not -path '*/settings/workspace-settings/__tests__/workspace-settings.service.test.ts' \
             -not -path '*/infra/mcp/__tests__/client-pool.test.ts' \
             -not -path '*/erp-bc/__tests__/encrypted-secret.test.ts' \
-            -not -path '*/skills/__tests__/skills.dispatch.test.ts')
+            -not -path '*/skills/__tests__/skills.dispatch.test.ts' \
+            -not -path '*/infra/state/__tests__/gate-audit.repo.test.ts')
           bun test src/modules/learning/__tests__/
           bun test src/infra/a2a/__tests__/task-manager.test.ts
           bun test src/infra/mcp/__tests__/client-pool.test.ts
           bun test src/plugins/erp-bc/__tests__/encrypted-secret.test.ts
           bun test src/modules/skills/__tests__/skills.dispatch.test.ts
+          bun test src/infra/state/__tests__/gate-audit.repo.test.ts
         env:
           CREDENTIALS_ENCRYPTION_KEY: ci-test-key-for-unit-tests-32bytes
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
