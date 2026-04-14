@@ -83,9 +83,9 @@ describe('rateLimit middleware (Redis-backed)', () => {
     mockRateLimitCheck.mockResolvedValueOnce([1, 199]);
     const app = createApp(200);
     await app.request('/test');
-    // First arg to rateLimitCheck is the key; should be prefixed with "rl:"
+    // The workspaceId is set to 'ws-test' in createApp; key must be 'rl:ws-test'
     expect(mockRateLimitCheck).toHaveBeenCalledWith(
-      expect.stringMatching(/^rl:/),
+      'rl:ws-test',
       '200',
       expect.any(String),
       expect.any(String),

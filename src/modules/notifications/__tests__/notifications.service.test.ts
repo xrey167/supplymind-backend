@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, setSystemTime } from 'bun:test';
 import type { CreateNotificationInput, Notification } from '../notifications.types';
 
 // --- Mock all transitive deps that fail in test context ---
@@ -220,8 +220,9 @@ describe('NotificationsService', () => {
   });
 
   test('notify() calls markDelivered when quiet hours active (intentional skip)', async () => {
-    // Use a preference with quietHours covering the entire day so the current
-    // time always falls within the window, regardless of when the test runs.
+    // Freeze time at noon UTC so we're unambiguously inside any window that spans
+    // 00:00–13:00, avoiding the 23:59 edge case (isInQuietHours uses strict < end).
+    setSystemTime(new Date('2024-06-15T12:00:00.000Z'));
     mockPrefGet.mockResolvedValueOnce({
       muted: false,
       channels: ['in_app', 'websocket'],
@@ -235,5 +236,7 @@ describe('NotificationsService', () => {
     expect(mockMarkDelivered).toHaveBeenCalledTimes(1);
     expect(mockDeliverWebSocket).not.toHaveBeenCalled();
     expect(mockMarkFailed).not.toHaveBeenCalled();
+
+    setSystemTime(); // restore real clock
   });
 });

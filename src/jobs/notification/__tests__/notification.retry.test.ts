@@ -63,6 +63,7 @@ describe('retryFailedNotifications', () => {
     const retried = await retryFailedNotifications();
 
     expect(retried).toBe(0);
+    expect(mockListFailed).toHaveBeenCalledWith(50);
     expect(mockMarkDelivered).not.toHaveBeenCalled();
     expect(mockMarkFailed).not.toHaveBeenCalled();
   });
