@@ -8,7 +8,11 @@ const mockListFailed = mock(() => Promise.resolve([]));
 const mockMarkDelivered = mock(() => Promise.resolve(true));
 const mockMarkFailed = mock(() => Promise.resolve(true));
 
+// Spread the real module so NotificationsRepository class export is preserved
+// for notifications.repo.test.ts when running in the same Bun worker.
+const _realRepo = require('../../../modules/notifications/notifications.repo');
 mock.module('../../../modules/notifications/notifications.repo', () => ({
+  ..._realRepo,
   notificationsRepo: {
     listFailed: mockListFailed,
     markDelivered: mockMarkDelivered,
@@ -17,7 +21,11 @@ mock.module('../../../modules/notifications/notifications.repo', () => ({
 }));
 
 const mockDispatchChannel = mock(() => Promise.resolve(true));
+// Spread the real module so NotificationsService class, notificationsService singleton,
+// and isInQuietHours export are preserved for other notification tests in the same worker.
+const _realSvc = require('../../../modules/notifications/notifications.service');
 mock.module('../../../modules/notifications/notifications.service', () => ({
+  ..._realSvc,
   dispatchChannel: mockDispatchChannel,
 }));
 
