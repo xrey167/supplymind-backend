@@ -13,30 +13,6 @@ const mockSelect = mock(() => ({ from: mockFrom }));
 
 const mockDb = { select: mockSelect } as any;
 
-mock.module('../../../../infra/db/client', () => ({ db: {} }));
-mock.module('../../../../infra/db/schema', () => ({
-  skillPerformanceMetrics: {
-    workspaceId: 'workspace_id',
-    pluginId: 'plugin_id',
-    skillId: 'skill_id',
-    invocationCount: 'invocation_count',
-    failureCount: 'failure_count',
-    lastFailureReason: 'last_failure_reason',
-    windowStart: 'window_start',
-  },
-  // Include learningObservations so co-running test files don't fail on import
-  learningObservations: {
-    workspaceId: 'workspace_id',
-    observationType: 'observation_type',
-    createdAt: 'created_at',
-  },
-}));
-
-mock.module('drizzle-orm', () => ({
-  eq: (...args: any[]) => args,
-  gte: (...args: any[]) => args,
-}));
-
 const { analyzeSkillWeights } = await import('../skill-weight-analyzer');
 
 describe('analyzeSkillWeights', () => {

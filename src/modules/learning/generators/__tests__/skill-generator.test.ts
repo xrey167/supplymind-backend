@@ -11,54 +11,45 @@ const mockFrom = mock(() => ({ where: mockWhere }));
 const mockSelect = mock(() => ({ from: mockFrom }));
 
 // ---------------------------------------------------------------------------
-// Schema mock — just needs to export the symbol
-// ---------------------------------------------------------------------------
-mock.module('../../../../infra/db/client', () => ({ db: {} }));
-mock.module('../../../../infra/db/schema', () => ({
-  learningObservations: Symbol('learningObservations'),
-}));
-
-// ---------------------------------------------------------------------------
-// drizzle-orm mock — operators used in where / groupBy clauses
-// ---------------------------------------------------------------------------
-mock.module('drizzle-orm', () => ({
-  and: (...args: unknown[]) => args,
-  eq: (a: unknown, b: unknown) => [a, b],
-  gte: (a: unknown, b: unknown) => [a, b],
-  sql: Object.assign((strings: TemplateStringsArray, ..._vals: unknown[]) => strings.join(''), {
-    raw: (s: string) => s,
-  }),
-}));
-
-// ---------------------------------------------------------------------------
-// AnthropicRawRuntime mock
+// AnthropicRawRuntime mock (spread to preserve other runtime exports)
 // ---------------------------------------------------------------------------
 let mockRunResult: any = { ok: true, value: { content: '' } };
 
 const mockRun = mock(async () => mockRunResult);
 
+const _realAnthropic = require('../../../../infra/ai/anthropic');
 mock.module('../../../../infra/ai/anthropic', () => ({
+  ..._realAnthropic,
   AnthropicRawRuntime: class {
     run = mockRun;
   },
 }));
 
 // ---------------------------------------------------------------------------
-// Stub out side-effect modules that skill-generator imports
+// Stub out side-effect modules (spread to preserve all exports)
 // ---------------------------------------------------------------------------
+const _realSandbox = require('../../../../core/security/sandbox');
 mock.module('../../../../core/security/sandbox', () => ({
+  ..._realSandbox,
   runInSandbox: mock(() => Promise.resolve({ ok: true, value: { value: {} } })),
 }));
 
+const _realRegistry = require('../../../skills/skills.registry');
 mock.module('../../../skills/skills.registry', () => ({
-  skillRegistry: { register: mock(() => {}) },
+  ..._realRegistry,
+  skillRegistry: { register: mock(() => {}), get: mock(() => null), unregister: mock(() => undefined) },
 }));
 
+// core/result: MUST spread — bare replacement strips err(), isOk(), etc. for all downstream tests
+const _realResult = require('../../../../core/result');
 mock.module('../../../../core/result', () => ({
+  ..._realResult,
   ok: (v: unknown) => ({ ok: true, value: v }),
 }));
 
+const _realLogger = require('../../../../config/logger');
 mock.module('../../../../config/logger', () => ({
+  ..._realLogger,
   logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
 }));
 

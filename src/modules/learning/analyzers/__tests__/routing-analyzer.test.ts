@@ -28,32 +28,6 @@ const mockSelect = mock(() => {
 
 const mockDb = { select: mockSelect } as any;
 
-mock.module('../../../../infra/db/client', () => ({ db: {} }));
-mock.module('../../../../infra/db/schema', () => ({
-  learningObservations: {
-    workspaceId: 'workspace_id',
-    observationType: 'observation_type',
-    createdAt: 'created_at',
-  },
-  // Include skillPerformanceMetrics so co-running test files don't fail on import
-  skillPerformanceMetrics: {
-    workspaceId: 'workspace_id',
-    pluginId: 'plugin_id',
-    skillId: 'skill_id',
-    invocationCount: 'invocation_count',
-    failureCount: 'failure_count',
-    lastFailureReason: 'last_failure_reason',
-    windowStart: 'window_start',
-  },
-}));
-
-mock.module('drizzle-orm', () => ({
-  eq: (...args: any[]) => args,
-  gte: (...args: any[]) => args,
-  and: (...args: any[]) => args,
-  sql: (strings: TemplateStringsArray, ...values: any[]) => strings.join(''),
-}));
-
 const { analyzeRouting } = await import('../routing-analyzer');
 
 describe('analyzeRouting', () => {

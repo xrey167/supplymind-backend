@@ -45,12 +45,16 @@ jobs:
           # - erp-bc/integration/*: requires Redis/BC sandbox — belongs in integration-tests job, not unit tests
           # - jobs/notification/__tests__/*: mocks notifications.service; isolated run prevents clobbering
           #   NotificationsService class export seen by notifications.service.test.ts + notification-channels.test.ts
+          # - learning/analyzers/__tests__/* and learning/generators/__tests__/*: run with all learning tests
+          #   in the isolated 'bun test src/modules/learning/' step below
           # client-pool.test.ts runs separately: ioredis ECONNREFUSED can attach to pending promises
           # in other tests depending on filesystem traversal order.
           # Exclude known-broken tests: PluginManager (Redis timeouts) and WorkspaceSettingsService
           # TODO: Remove exclusions once pre-existing failures are fixed (tracked in GitHub Issues)
           bun test $(find src -name '*.test.ts' \
             -not -path '*/learning/__tests__/*' \
+            -not -path '*/learning/analyzers/__tests__/*' \
+            -not -path '*/learning/generators/__tests__/*' \
             -not -path '*/infra/a2a/__tests__/task-manager.test.ts' \
             -not -path '*/plugins/__tests__/plugin-manifest.test.ts' \
             -not -path '*/settings/workspace-settings/__tests__/workspace-settings.service.test.ts' \
@@ -62,7 +66,16 @@ jobs:
             -not -path '*/erp-bc/__tests__/sync-runner.test.ts' \
             -not -path '*/erp-bc/__tests__/integration/*' \
             -not -path '*/jobs/notification/__tests__/*')
+          # learning tests run in 5 isolated steps:
+          # - __tests__/: mocks all analyzers/generators for engine test isolation
+          # - analyzers/__tests__/: no module mocks; safe together, separate from engine mocks
+          # - generators run individually: prompt-optimizer and skill-generator both mock
+          #   infra/ai/anthropic with different mockRun instances — they must be in separate workers
           bun test src/modules/learning/__tests__/
+          bun test src/modules/learning/analyzers/__tests__/
+          bun test src/modules/learning/generators/__tests__/workflow-generator.test.ts
+          bun test src/modules/learning/generators/__tests__/prompt-optimizer.test.ts
+          bun test src/modules/learning/generators/__tests__/skill-generator.test.ts
           bun test src/infra/a2a/__tests__/task-manager.test.ts
           bun test src/infra/mcp/__tests__/client-pool.test.ts
           bun test src/plugins/erp-bc/__tests__/encrypted-secret.test.ts

@@ -17,46 +17,32 @@ const mockFrom = mock(() => ({ where: mockWhere }));
 const mockSelect = mock(() => ({ from: mockFrom }));
 
 // ---------------------------------------------------------------------------
-// Schema mock
-// ---------------------------------------------------------------------------
-mock.module('../../../../infra/db/client', () => ({ db: {} }));
-mock.module('../../../../infra/db/schema', () => ({
-  learningObservations: Symbol('learningObservations'),
-}));
-
-// ---------------------------------------------------------------------------
-// drizzle-orm mock
-// ---------------------------------------------------------------------------
-mock.module('drizzle-orm', () => ({
-  and: (...args: unknown[]) => args,
-  eq: (a: unknown, b: unknown) => [a, b],
-  gte: (a: unknown, b: unknown) => [a, b],
-  sql: Object.assign((strings: TemplateStringsArray, ..._vals: unknown[]) => strings.join(''), {
-    raw: (s: string) => s,
-  }),
-}));
-
-// ---------------------------------------------------------------------------
-// AnthropicRawRuntime mock
+// AnthropicRawRuntime mock (spread to preserve other runtime exports)
 // ---------------------------------------------------------------------------
 let mockRunResult: any = { ok: true, value: { content: 'Improved system prompt here.' } };
 
 const mockRun = mock(async () => mockRunResult);
 
+const _realAnthropic = require('../../../../infra/ai/anthropic');
 mock.module('../../../../infra/ai/anthropic', () => ({
+  ..._realAnthropic,
   AnthropicRawRuntime: class {
     run = mockRun;
   },
 }));
 
 // ---------------------------------------------------------------------------
-// Stub side-effect modules
+// Stub side-effect modules (spread to preserve other exports)
 // ---------------------------------------------------------------------------
+const _realPromptsSvc = require('../../../prompts/prompts.service');
 mock.module('../../../prompts/prompts.service', () => ({
+  ..._realPromptsSvc,
   promptsService: { create: mock(() => Promise.resolve({ ok: true, value: { id: 'p1' } })) },
 }));
 
+const _realLogger = require('../../../../config/logger');
 mock.module('../../../../config/logger', () => ({
+  ..._realLogger,
   logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
 }));
 

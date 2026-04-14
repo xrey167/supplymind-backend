@@ -11,33 +11,17 @@ const mockFrom = mock(() => ({ where: mockWhere }));
 const mockSelect = mock(() => ({ from: mockFrom }));
 
 // ---------------------------------------------------------------------------
-// Schema mock
+// Stub side-effect modules (spread to preserve other exports)
 // ---------------------------------------------------------------------------
-mock.module('../../../../infra/db/client', () => ({ db: {} }));
-mock.module('../../../../infra/db/schema', () => ({
-  learningObservations: Symbol('learningObservations'),
-}));
-
-// ---------------------------------------------------------------------------
-// drizzle-orm mock
-// ---------------------------------------------------------------------------
-mock.module('drizzle-orm', () => ({
-  and: (...args: unknown[]) => args,
-  eq: (a: unknown, b: unknown) => [a, b],
-  gte: (a: unknown, b: unknown) => [a, b],
-  sql: Object.assign((strings: TemplateStringsArray, ..._vals: unknown[]) => strings.join(''), {
-    raw: (s: string) => s,
-  }),
-}));
-
-// ---------------------------------------------------------------------------
-// Stub side-effect modules
-// ---------------------------------------------------------------------------
+const _realWorkflowsSvc = require('../../../workflows/workflows.service');
 mock.module('../../../workflows/workflows.service', () => ({
+  ..._realWorkflowsSvc,
   workflowsService: { create: mock(() => Promise.resolve({ ok: true, value: { id: 'wf-1' } })) },
 }));
 
+const _realLogger = require('../../../../config/logger');
 mock.module('../../../../config/logger', () => ({
+  ..._realLogger,
   logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
 }));
 
