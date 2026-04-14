@@ -15,6 +15,7 @@
 
 import type { PermissionLayer } from '../../core/permissions/types';
 import type { Role } from '../../core/security/rbac';
+import type { GatewayRequest, GatewayResult } from '../../core/gateway/gateway.types';
 import type { Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
 
@@ -47,12 +48,19 @@ export interface WorkerContribution {
   factory: (connection: Redis) => Worker;
 }
 
+/** A gateway op handler contributed by a plugin. */
+export interface GatewayOpContribution {
+  op: string;
+  handler: (req: GatewayRequest) => Promise<GatewayResult>;
+}
+
 /** All contribution types a plugin manifest can declare. */
 export interface PluginContributions {
   topics?: PluginTopicContributions;
   roles?: WorkspaceRoleContribution[];
   workers?: WorkerContribution[];
   permissionLayers?: PermissionLayer[];
+  gatewayOps?: GatewayOpContribution[];
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +111,15 @@ export class PluginContributionRegistry {
     const result: PermissionLayer[] = [];
     for (const contrib of this.contributions.values()) {
       if (contrib.permissionLayers) result.push(...contrib.permissionLayers);
+    }
+    return result;
+  }
+
+  /** Flattened gateway op contribution list from all registered plugins. */
+  getGatewayOps(): GatewayOpContribution[] {
+    const result: GatewayOpContribution[] = [];
+    for (const contrib of this.contributions.values()) {
+      if (contrib.gatewayOps) result.push(...contrib.gatewayOps);
     }
     return result;
   }

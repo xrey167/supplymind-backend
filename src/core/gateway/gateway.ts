@@ -312,40 +312,12 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
       return plan ? ok(plan) : err(new NotFoundError('Plan not found: ' + id));
     }
 
-    // ------------------------------------------------------------------
-    // Missions
-    // ------------------------------------------------------------------
-    case 'mission.create': {
-      const { missionsService } = await import('../../modules/missions/missions.service');
-      return missionsService.create(context.workspaceId, params as any);
-    }
-
-    case 'mission.start': {
-      const { missionsService } = await import('../../modules/missions/missions.service');
-      return missionsService.start(params.id as string);
-    }
-
-    case 'mission.get': {
-      const { missionsService } = await import('../../modules/missions/missions.service');
-      return missionsService.get(params.id as string);
-    }
-
-    case 'mission.list': {
-      const { missionsService } = await import('../../modules/missions/missions.service');
-      const missions = await missionsService.list(context.workspaceId, {
-        limit: params.limit as number | undefined,
-        cursor: params.cursor as string | undefined,
-      });
-      return ok(missions);
-    }
-
-    case 'mission.cancel': {
-      const { missionsService } = await import('../../modules/missions/missions.service');
-      return missionsService.cancel(params.id as string);
-    }
-
-    default:
+    default: {
+      const { pluginContributionRegistry } = await import('../../modules/plugins/plugin-contribution-registry');
+      const registered = pluginContributionRegistry.getGatewayOps().find(g => g.op === op);
+      if (registered) return registered.handler(req);
       return err(new Error(`Unknown gateway op: ${op}`));
+    }
   }
 }
 
