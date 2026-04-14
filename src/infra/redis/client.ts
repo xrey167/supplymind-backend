@@ -28,6 +28,15 @@ export function createRedisPair(url: string): {
   };
 }
 
+/**
+ * Create a Redis connection suitable for BullMQ workers and queues.
+ * maxRetriesPerRequest: null is required by BullMQ — without it, blocked
+ * commands time out instead of waiting, causing unexpected job failures.
+ */
+export function createWorkerRedisConnection(url?: string): Redis {
+  return new Redis(url ?? Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
+}
+
 let sharedClient: Redis | null = null;
 
 export function getSharedRedisClient(): Redis {

@@ -5,7 +5,7 @@ import { skillRegistry } from '../modules/skills/skills.registry';
 import { wsServer } from '../infra/realtime/ws-server';
 import { skillEmbeddedMcpManager } from '../infra/mcp/embedded-manager';
 import { mcpClientPool } from '../infra/mcp/client-pool';
-import { createRedisPair } from '../infra/redis/client';
+import { createRedisPair, createWorkerRedisConnection } from '../infra/redis/client';
 import { RedisPubSub } from '../infra/redis/pubsub';
 import { initEventConsumers } from '../events/consumers';
 import { getStateStore, closeStateStore } from '../infra/state';
@@ -181,9 +181,7 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
     const { runCleanup } = await import('../jobs/cleanup');
     const { runSync } = await import('../jobs/sync');
     const { retryFailedNotifications } = await import('../jobs/notification');
-    const Redis = (await import('ioredis')).default;
-
-    const jobConnection = new Redis(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
+    const jobConnection = createWorkerRedisConnection();
 
     await cleanupQueue.upsertJobScheduler('cleanup-sweep', { pattern: '*/15 * * * *' }, { name: 'cleanup' });
     const cleanupWorker = new Worker('cleanup', async () => { await runCleanup(); }, { connection: jobConnection });
@@ -207,7 +205,7 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
   // Step 12.5: Register plugin contributions (topics, roles, permission layers, workers)
   // contribConnection is declared outside the try so the catch block can close it if startWorkers
   // throws after the connection is created (avoids a Redis connection leak on partial failure).
-  let contribConnection: import('ioredis').default | null = null;
+  let contribConnection: ReturnType<typeof createWorkerRedisConnection> | null = null;
   try {
     const { CONTRIBUTION_PLUGINS } = await import('../plugins/registry');
     const { pluginContributionRegistry } = await import('../modules/plugins/plugin-contribution-registry');
@@ -233,8 +231,7 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
     }
 
     // Start contributed workers
-    const Redis = (await import('ioredis')).default;
-    contribConnection = new Redis(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
+    contribConnection = createWorkerRedisConnection();
     const contribWorkers = pluginContributionRegistry.startWorkers(contribConnection);
     (globalThis as any).__pluginContribWorkers = { workers: contribWorkers, registry: pluginContributionRegistry, connection: contribConnection };
     contribConnection = null; // ownership transferred to globalThis.__pluginContribWorkers
@@ -256,8 +253,7 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
   // Step 14: Register plugin health check repeatable job (non-critical)
   try {
     const { Queue, Worker } = await import('bullmq');
-    const Redis = (await import('ioredis')).default;
-    const healthConnection = new Redis(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
+    const healthConnection = createWorkerRedisConnection();
     const healthQueue = new Queue('plugin-health', { connection: healthConnection });
     await healthQueue.upsertJobScheduler('plugin-health-check', { every: 5 * 60 * 1000 }, { name: 'health-check' });
     const { processHealthCheckJob } = await import('../infra/queue/workers/plugin-health.worker');
