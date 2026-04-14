@@ -210,6 +210,10 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
     logger.warn({ err }, 'Failed to start ERP sync worker — non-critical');
   }
 
+  // Step 13.5: Bootstrap ERP sync cron schedules from DB (non-critical, fire-and-forget)
+  const { bootstrapErpSyncSchedules } = await import('../jobs/erp-sync-scheduler');
+  bootstrapErpSyncSchedules().catch((err: unknown) => logger.warn({ err }, 'ERP sync schedule bootstrap failed'));
+
   // Step 14: Register plugin health check repeatable job (non-critical)
   try {
     const { Queue, Worker } = await import('bullmq');

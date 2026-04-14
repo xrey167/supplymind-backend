@@ -91,4 +91,8 @@ export const syncJobsRepo = {
     return db.select(syncJobColumns).from(syncJobs)
       .where(and(isNotNull(syncJobs.schedule), ne(syncJobs.status, 'failed')));
   },
+
+  async updateSchedule(id: string, schedule: string | null): Promise<void> {
+    await db.update(syncJobs).set({ schedule }).where(eq(syncJobs.id, id));
+  },
 };
