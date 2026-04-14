@@ -52,12 +52,13 @@ export class BcClient {
 
   async list<K extends BcEntityType>(
     entitySet: K,
-    opts: { filter?: string; top?: number; skipToken?: string } = {},
+    opts: { filter?: string; top?: number; skipToken?: string; orderby?: string } = {},
   ): Promise<ODataResponse<BcEntityMap[K]>> {
     const url = new URL(this.baseEntityUrl(entitySet));
     if (opts.filter) url.searchParams.set('$filter', opts.filter);
     if (opts.top) url.searchParams.set('$top', String(opts.top));
     if (opts.skipToken) url.searchParams.set('$skiptoken', opts.skipToken);
+    if (opts.orderby) url.searchParams.set('$orderby', opts.orderby);
     return this.request<ODataResponse<BcEntityMap[K]>>(url.toString(), { method: 'GET' });
   }
 

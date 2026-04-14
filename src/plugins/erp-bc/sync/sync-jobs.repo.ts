@@ -1,6 +1,6 @@
 import { db } from '../../../infra/db/client';
 import { syncJobs } from '../../../infra/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, isNotNull, ne } from 'drizzle-orm';
 
 export interface SyncJobRow {
   id: string;
@@ -11,6 +11,7 @@ export interface SyncJobRow {
   status: string;
   lastRunAt: Date | null;
   lastError: string | null;
+  cursor: string | null;
   createdAt: Date;
 }
 
@@ -30,6 +31,7 @@ const syncJobColumns = {
   status: syncJobs.status,
   lastRunAt: syncJobs.lastRunAt,
   lastError: syncJobs.lastError,
+  cursor: syncJobs.cursor,
   createdAt: syncJobs.createdAt,
 };
 
@@ -79,5 +81,14 @@ export const syncJobsRepo = {
       .where(and(eq(syncJobs.workspaceId, workspaceId), eq(syncJobs.status, 'failed')))
       .returning({ id: syncJobs.id });
     return { replayed: rows.length };
+  },
+
+  async updateCursor(jobId: string, cursor: string): Promise<void> {
+    await db.update(syncJobs).set({ cursor }).where(eq(syncJobs.id, jobId));
+  },
+
+  async listScheduled(): Promise<SyncJobRow[]> {
+    return db.select(syncJobColumns).from(syncJobs)
+      .where(and(isNotNull(syncJobs.schedule), ne(syncJobs.status, 'failed')));
   },
 };
