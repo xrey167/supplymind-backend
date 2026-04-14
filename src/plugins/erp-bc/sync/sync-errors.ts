@@ -14,6 +14,7 @@ export class AuthError extends Error {
   }
 }
 
+/** 409 — handled internally by BcClient.patch() via ETag merge-retry (max 3 attempts). Not retried by withRetry(). */
 export class ConflictError extends Error {
   readonly kind = 'ConflictError' as const;
   constructor(message: string, public readonly entityId?: string) {

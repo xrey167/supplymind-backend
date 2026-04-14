@@ -121,6 +121,12 @@ export const pluginInstallationRepo = {
       .limit(limit) as unknown as Promise<PluginEventRow[]>;
   },
 
+  async updateSecretBindingIds(installationId: string, secretBindingIds: string[]): Promise<void> {
+    await db.update(pluginInstallations)
+      .set({ secretBindingIds, updatedAt: new Date() })
+      .where(eq(pluginInstallations.id, installationId));
+  },
+
   async getLastVersionPinnedEvent(installationId: string): Promise<PluginEventRow | undefined> {
     const [row] = await db.select().from(pluginEvents)
       .where(and(

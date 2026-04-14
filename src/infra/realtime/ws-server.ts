@@ -91,6 +91,16 @@ class WsServer {
       });
     }));
 
+    this.subscriptionIds.push(eventBus.subscribe(Topics.ORCHESTRATION_GATE_RESOLVED, (event) => {
+      const data = event.data as { orchestrationId: string; stepId: string; outcome: string; workspaceId: string };
+      this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {
+        type: 'orchestration:gate_resolved',
+        orchestrationId: data.orchestrationId,
+        stepId: data.stepId,
+        outcome: data.outcome as 'approved' | 'rejected' | 'timeout',
+      });
+    }));
+
     this.subscriptionIds.push(eventBus.subscribe(Topics.ORCHESTRATION_COMPLETED, (event) => {
       const data = event.data as { orchestrationId: string; workspaceId: string };
       this.broadcastToSubscribed(`workspace:${data.workspaceId}`, {

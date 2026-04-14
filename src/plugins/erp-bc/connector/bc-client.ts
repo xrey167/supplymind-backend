@@ -1,8 +1,9 @@
 // src/plugins/erp-bc/connector/bc-client.ts
 
-import { classifyHttpError, PermanentError } from '../sync/sync-errors';
+import { classifyHttpError, ConflictError, PermanentError } from '../sync/sync-errors';
 import { getToken } from './bc-auth';
 import type { TokenCache } from './bc-auth';
+import { SYSTEM_FIELDS } from './bc-types';
 import type { BcConnectionConfig, ODataResponse, BcEntityType, BcEntityMap } from './bc-types';
 
 export class BcClient {
@@ -52,12 +53,13 @@ export class BcClient {
 
   async list<K extends BcEntityType>(
     entitySet: K,
-    opts: { filter?: string; top?: number; skipToken?: string } = {},
+    opts: { filter?: string; top?: number; skipToken?: string; orderby?: string } = {},
   ): Promise<ODataResponse<BcEntityMap[K]>> {
     const url = new URL(this.baseEntityUrl(entitySet));
     if (opts.filter) url.searchParams.set('$filter', opts.filter);
     if (opts.top) url.searchParams.set('$top', String(opts.top));
     if (opts.skipToken) url.searchParams.set('$skiptoken', opts.skipToken);
+    if (opts.orderby) url.searchParams.set('$orderby', opts.orderby);
     return this.request<ODataResponse<BcEntityMap[K]>>(url.toString(), { method: 'GET' });
   }
 
@@ -85,12 +87,30 @@ export class BcClient {
     id: string,
     etag: string,
     body: Partial<BcEntityMap[K]>,
+    mergeAttempt = 0,
   ): Promise<BcEntityMap[K]> {
     if (!/^[\w\-]+$/.test(id)) throw new PermanentError(`Invalid entity id: ${id}`);
-    return this.request<BcEntityMap[K]>(
-      `${this.baseEntityUrl(entitySet)}(${id})`,
-      { method: 'PATCH', body: JSON.stringify(body), headers: { 'If-Match': etag } },
-    );
+    try {
+      return await this.request<BcEntityMap[K]>(
+        `${this.baseEntityUrl(entitySet)}(${id})`,
+        { method: 'PATCH', body: JSON.stringify(body), headers: { 'If-Match': etag } },
+      );
+    } catch (err) {
+      if (!(err instanceof ConflictError)) throw err;
+      if (mergeAttempt >= 3) throw new PermanentError(`Conflict unresolvable after 3 merge attempts on ${entitySet}(${id})`);
+      // Fetch current server state with fresh ETag
+      const current = await this.get(entitySet, id);
+      const currentEtag = (current as Record<string, unknown>)['@odata.etag'] as string ?? '*';
+      const systemFields = SYSTEM_FIELDS[entitySet];
+      // Build merged body: overlay our non-system changes onto server state
+      const merged: Partial<BcEntityMap[K]> = {};
+      for (const [key, value] of Object.entries(body)) {
+        if (!systemFields.has(key)) {
+          (merged as Record<string, unknown>)[key] = value;
+        }
+      }
+      return this.patch(entitySet, id, currentEtag, merged, mergeAttempt + 1);
+    }
   }
 
   async action(entitySet: BcEntityType, id: string, actionName: string, payload?: unknown): Promise<void> {

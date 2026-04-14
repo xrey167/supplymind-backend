@@ -410,7 +410,7 @@ export const userSettings = pgTable('user_settings', {
 ]);
 
 // Credentials (encrypted API keys for AI providers / MCP servers)
-export const credentialProviderEnum = pgEnum('credential_provider', ['anthropic', 'openai', 'google', 'custom', 'slack', 'telegram']);
+export const credentialProviderEnum = pgEnum('credential_provider', ['anthropic', 'openai', 'google', 'custom', 'slack', 'telegram', 'erp-bc']);
 
 export const credentials = pgTable('credentials', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -916,4 +916,22 @@ export const collabActivities = pgTable('collab_activities', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('ca_board_created_idx').on(t.boardId, t.createdAt),
+]);
+
+// ── Gate Audit Log ────────────────────────────────────────────────────────────
+
+export const gateAuditLog = pgTable('gate_audit_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orchestrationId: text('orchestration_id').notNull(),
+  stepId: text('step_id').notNull(),
+  workspaceId: uuid('workspace_id').notNull(),
+  outcome: text('outcome').notNull().$type<'approved' | 'rejected' | 'timeout'>(), // 'approved' | 'rejected' | 'timeout'
+  decidedBy: text('decided_by'),      // userId or 'system'
+  decidedAt: timestamp('decided_at', { withTimezone: true }).notNull().defaultNow(),
+  reason: text('reason'),
+  prompt: text('prompt'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('gate_audit_orch_idx').on(t.orchestrationId),
+  index('gate_audit_workspace_created_idx').on(t.workspaceId, t.createdAt),
 ]);

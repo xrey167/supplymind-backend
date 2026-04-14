@@ -1,5 +1,6 @@
 import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
+import { logger } from '../../config/logger';
 
 export function emitOrchestrationStarted(id: string, workspaceId: string): void {
   eventBus.publish(Topics.ORCHESTRATION_STARTED, { orchestrationId: id, workspaceId });
@@ -23,4 +24,14 @@ export function emitOrchestrationFailed(id: string, workspaceId: string, error: 
 
 export function emitOrchestrationCancelled(id: string, workspaceId: string): void {
   eventBus.publish(Topics.ORCHESTRATION_CANCELLED, { orchestrationId: id, workspaceId });
+}
+
+export function emitGateResolved(
+  orchestrationId: string,
+  stepId: string,
+  outcome: 'approved' | 'rejected' | 'timeout',
+  workspaceId: string,
+): void {
+  eventBus.publish(Topics.ORCHESTRATION_GATE_RESOLVED, { orchestrationId, stepId, outcome, workspaceId })
+    .catch((err: unknown) => logger.warn({ err, orchestrationId, stepId }, 'Failed to publish ORCHESTRATION_GATE_RESOLVED'));
 }

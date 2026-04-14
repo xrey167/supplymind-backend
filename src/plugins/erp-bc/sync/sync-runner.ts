@@ -39,13 +39,20 @@ export async function runSync(
   let nextLink: string | undefined;
   let page = 0;
 
+  const baseFilter = (job.filter as string | null) ?? null;
+  const cursorFilter = job.cursor ? `lastModifiedDateTime gt ${job.cursor}` : null;
+  const combinedFilter = [cursorFilter, baseFilter].filter(Boolean).join(' and ') || undefined;
+
   try {
+    let maxLastModified: string | null = null;
+
     do {
       const response = await withRetry(
         () => client.list(job.entityType as BcEntityType, {
-          filter: (job.filter as string) ?? undefined,
+          filter: combinedFilter,
           top: job.batchSize,
           skipToken: nextLink ? new URL(nextLink).searchParams.get('$skiptoken') ?? undefined : undefined,
+          ...(job.cursor ? { orderby: 'lastModifiedDateTime asc' } : {}),
         }),
         DEFAULT_RETRY_POLICY,
         (error, attempt, delayMs) => {
@@ -55,6 +62,13 @@ export async function runSync(
 
       for (const entity of response.value) {
         const hash = createHash('sha256').update(JSON.stringify(entity)).digest('hex');
+
+        const lmd = (entity as any).lastModifiedDateTime as string | undefined;
+        if (lmd) {
+          if (!maxLastModified || lmd > maxLastModified) {
+            maxLastModified = lmd;
+          }
+        }
 
         try {
           await db.insert(syncRecords).values({
@@ -88,9 +102,9 @@ export async function runSync(
       page++;
     } while (nextLink && page < 100); // safety: max 100 pages per run
 
-    // Update cursor to last run time
+    // Update cursor to latest entity modification time (or existing cursor if no new data, or now on first run)
     await db.update(syncJobs)
-      .set({ status: 'idle', cursor: new Date().toISOString(), retryCount: 0, lastError: null })
+      .set({ status: 'idle', cursor: maxLastModified ?? job.cursor ?? new Date().toISOString(), retryCount: 0, lastError: null })
       .where(eq(syncJobs.id, jobId));
 
   } catch (err) {

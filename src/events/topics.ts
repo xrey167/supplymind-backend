@@ -56,6 +56,7 @@ export const Topics = {
   ORCHESTRATION_COMPLETED: 'orchestration.completed',
   ORCHESTRATION_FAILED: 'orchestration.failed',
   ORCHESTRATION_CANCELLED: 'orchestration.cancelled',
+  ORCHESTRATION_GATE_RESOLVED: 'orchestration.gate.resolved',
   // Task input (A2UI mid-execution pause/resume)
   TASK_INPUT_REQUIRED: 'task.input_required',
   TASK_INPUT_RECEIVED: 'task.input_received',

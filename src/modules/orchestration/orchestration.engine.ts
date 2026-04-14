@@ -62,7 +62,7 @@ async function executeStep(
           // otherwise fall back to the callback for programmatic callers.
           if (orchestrationId) {
             const { createGateRequest } = await import('../../infra/state/orchestration-gates');
-            const approved = await createGateRequest(orchestrationId, step.id, workspaceId, 5 * 60 * 1000);
+            const approved = await createGateRequest(orchestrationId, step.id, workspaceId, 5 * 60 * 1000, prompt);
             if (!approved) {
               return { stepId: step.id, status: 'failed', error: 'Gate rejected by user', durationMs: performance.now() - start };
             }

@@ -16,6 +16,8 @@ import { hasPermission, getRequiredRole } from '../../core/security/rbac';
 import { workspaceSettingsService } from '../settings/workspace-settings/workspace-settings.service';
 import { createApprovalRequest } from '../../infra/state/tool-approvals';
 import { nanoid } from 'nanoid';
+import { featureFlagsService } from '../feature-flags/feature-flags.service';
+import { billingService } from '../billing/billing.service';
 
 
 export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
@@ -28,13 +30,24 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
     'workspace.id': context.workspaceId,
     'caller.role': context.callerRole,
   }, async (span) => {
-    // Gate 1: License check (placeholder -- always passes for now)
-    // Gate 2: Billing check (placeholder -- always passes for now)
+    // Gate 1: License / feature-flag check — skills.execution must be enabled for this workspace
+    const skillsEnabled = await featureFlagsService.isEnabled(context.workspaceId, 'skills.execution')
+      .catch((err: unknown) => { logger.warn({ err, workspaceId: context.workspaceId }, 'featureFlagsService.isEnabled failed — allowing skill execution'); return true; });
+    if (!skillsEnabled) {
+      return err(new AppError('Skill execution is disabled for this workspace', 403, 'SKILLS_DISABLED'));
+    }
+
+    // Gate 2: Billing — monthly token budget must not be exceeded
+    const budgetCheck = await billingService.checkTokenBudget(context.workspaceId)
+      .catch((err: unknown) => { logger.warn({ err, workspaceId: context.workspaceId }, 'checkTokenBudget failed — allowing by default'); return { allowed: true }; });
+    if (!budgetCheck.allowed) {
+      return err(new AppError(budgetCheck.reason ?? 'Monthly token budget exceeded', 402, 'BUDGET_EXCEEDED'));
+    }
 
     // Verify skill exists (needed before RBAC to get providerType)
     const skill = skillRegistry.get(skillId);
     if (!skill) {
-      return err(new Error(`Skill not found: ${skillId}`));
+      return err(new AppError(`Skill not found: ${skillId}`, 404, 'SKILL_NOT_FOUND'));
     }
 
     // Gate 3: RBAC -- caller role must meet the minimum required for this skill's provider type
@@ -43,7 +56,7 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
       eventBus.publish(Topics.SECURITY_RBAC_DENIED, {
         skillId, callerRole: context.callerRole, requiredRole, workspaceId: context.workspaceId, callerId: context.callerId,
       });
-      return err(new Error(`Permission denied: role '${context.callerRole}' cannot invoke '${skillId}' (requires '${requiredRole}')`));
+      return err(new AppError(`Permission denied: role '${context.callerRole}' cannot invoke '${skillId}' (requires '${requiredRole}')`, 403, 'RBAC_DENIED'));
     }
 
     // Gate 3b: Tool permission mode -- workspace-level execution policy
@@ -104,7 +117,9 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
       }
     }
 
-    // Gate 4: Workspace membership check (placeholder -- always passes for now)
+    // TODO: Gate 4 — workspace membership check
+    // Requires: workspacesService.isMember(workspaceId, callerId) or equivalent
+    // Deferred: Clerk user → workspace mapping not yet implemented as a callable service method
 
     // beforeExecute hook
     const hooks = hooksRegistry.get(skillId);

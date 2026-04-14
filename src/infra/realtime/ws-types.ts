@@ -18,6 +18,7 @@ export type ServerMessage =
   | { type: 'memory:proposal'; proposal: { id: string; agentId: string; title: string; content: string; evidence?: string; type: string } }
   | { type: 'orchestration:status'; orchestrationId: string; status: OrchestrationStatus; stepId?: string; error?: string }
   | { type: 'orchestration:gate'; orchestrationId: string; stepId: string; prompt: string }
+  | { type: 'orchestration:gate_resolved'; orchestrationId: string; stepId: string; outcome: 'approved' | 'rejected' | 'timeout' }
   | { type: 'task:thinking_delta'; taskId: string; thinking: string }
   | { type: 'task:round_completed'; taskId: string; roundId: string; iterationIndex: number; toolCallCount: number; tokenUsage: { input: number; output: number }; totalTokens: { input: number; output: number } }
   | { type: 'tool:approval_required'; approvalId: string; taskId: string; toolName: string; args: unknown; workspaceId: string };

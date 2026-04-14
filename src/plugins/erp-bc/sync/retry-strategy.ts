@@ -1,4 +1,4 @@
-import { TransientError, ConflictError, RateLimitError, PermanentError, AuthError } from './sync-errors';
+import { TransientError, RateLimitError, PermanentError, AuthError } from './sync-errors';
 import type { BcError } from './sync-errors';
 
 export interface RetryPolicy {
@@ -13,19 +13,12 @@ export const DEFAULT_RETRY_POLICY: RetryPolicy = {
   maxDelayMs: 30_000,
 };
 
-export const CONFLICT_RETRY_POLICY: RetryPolicy = {
-  maxRetries: 3,
-  baseDelayMs: 500,
-  maxDelayMs: 5_000,
-};
-
 export function shouldRetry(error: BcError, attempt: number, policy: RetryPolicy): boolean {
   if (attempt >= policy.maxRetries) return false;
   if (error instanceof PermanentError) return false;
   if (error instanceof AuthError) return attempt < 1;
   if (error instanceof RateLimitError) return true;
   if (error instanceof TransientError) return true;
-  if (error instanceof ConflictError) return attempt < CONFLICT_RETRY_POLICY.maxRetries;
   return false;
 }
 
@@ -47,7 +40,7 @@ export async function withRetry<T>(
       return await fn();
     } catch (rawErr) {
       if (!(rawErr instanceof TransientError) && !(rawErr instanceof AuthError) &&
-          !(rawErr instanceof ConflictError) && !(rawErr instanceof PermanentError) &&
+          !(rawErr instanceof PermanentError) &&
           !(rawErr instanceof RateLimitError)) throw rawErr;
       const error = rawErr;
       if (!shouldRetry(error, attempt, policy)) throw error;

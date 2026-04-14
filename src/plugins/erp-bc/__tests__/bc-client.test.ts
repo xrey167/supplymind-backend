@@ -80,4 +80,172 @@ describe('BcClient', () => {
       expect(e).toBeInstanceOf(TransientError);
     }
   });
+
+  describe('patch() conflict merge-retry', () => {
+    it('on 409 fetches fresh ETag and retries with merged body (system fields stripped)', async () => {
+      const capturedRequests: Array<{ url: string; init: RequestInit }> = [];
+
+      mockFetchImpl = async (url: string, init?: RequestInit) => {
+        capturedRequests.push({ url, init: init ?? {} });
+
+        // Azure AD token endpoint
+        if (url.includes('login.microsoftonline.com')) {
+          return new Response(
+            JSON.stringify({ access_token: 'test-token', expires_in: 3600 }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+
+        const method = (init?.method ?? 'GET').toUpperCase();
+
+        // First PATCH → 409
+        if (method === 'PATCH' && capturedRequests.filter(r => (r.init.method ?? 'GET').toUpperCase() === 'PATCH').length === 1) {
+          return new Response('ETag mismatch', { status: 409 });
+        }
+
+        // GET (re-fetch for fresh ETag) → 200
+        if (method === 'GET') {
+          return jsonResponse({
+            id: 'po-1',
+            '@odata.etag': '"new-etag"',
+            lastModifiedDateTime: '2026-04-14T00:00:00Z',
+            number: 'PO001',
+            status: 'Open',
+            vendorId: 'v-1',
+            vendorNumber: 'V001',
+            orderDate: '2026-04-01',
+            totalAmountIncludingTax: 1000,
+            currencyCode: 'USD',
+          });
+        }
+
+        // Second PATCH → 200
+        return jsonResponse({
+          id: 'po-1',
+          '@odata.etag': '"new-etag"',
+          lastModifiedDateTime: '2026-04-14T00:01:00Z',
+          number: 'PO001',
+          status: 'Open',
+          vendorId: 'v-1',
+          vendorNumber: 'V001',
+          orderDate: '2026-04-14',
+          totalAmountIncludingTax: 2000,
+          currencyCode: 'USD',
+        });
+      };
+
+      // Attempt to patch with body that includes system fields + editable fields
+      const result = await makeClient().patch(
+        'purchaseOrders',
+        'po-1',
+        '"stale-etag"',
+        {
+          id: 'po-1',                         // system field — must be stripped
+          '@odata.etag': '"stale-etag"',       // system field — must be stripped
+          lastModifiedDateTime: '2026-01-01',  // system field — must be stripped
+          number: 'PO001',                     // system field — must be stripped
+          status: 'Open',                      // system field — must be stripped
+          vendorId: 'v-1',                     // editable — must be kept
+          orderDate: '2026-04-14',             // editable — must be kept
+          totalAmountIncludingTax: 2000,       // editable — must be kept
+        } as any,
+      );
+
+      expect(result).toBeDefined();
+
+      // Find PATCH requests (excluding Azure AD token calls)
+      const patchRequests = capturedRequests.filter(r => (r.init.method ?? 'GET').toUpperCase() === 'PATCH');
+      expect(patchRequests).toHaveLength(2);
+
+      // Second PATCH must use fresh ETag
+      const secondPatchHeaders = patchRequests[1].init.headers as Record<string, string>;
+      expect(secondPatchHeaders['If-Match']).toBe('"new-etag"');
+
+      // Second PATCH body must NOT contain system fields
+      const secondPatchBody = JSON.parse(patchRequests[1].init.body as string);
+      expect(secondPatchBody).not.toHaveProperty('id');
+      expect(secondPatchBody).not.toHaveProperty('@odata.etag');
+      expect(secondPatchBody).not.toHaveProperty('lastModifiedDateTime');
+      expect(secondPatchBody).not.toHaveProperty('number');
+      expect(secondPatchBody).not.toHaveProperty('status');
+
+      // Second PATCH body must contain editable fields
+      expect(secondPatchBody.vendorId).toBe('v-1');
+      expect(secondPatchBody.orderDate).toBe('2026-04-14');
+      expect(secondPatchBody.totalAmountIncludingTax).toBe(2000);
+    });
+
+    it('throws PermanentError after 3 consecutive 409 responses', async () => {
+      mockFetchImpl = async (url: string, init?: RequestInit) => {
+        if (url.includes('login.microsoftonline.com')) {
+          return new Response(
+            JSON.stringify({ access_token: 'test-token', expires_in: 3600 }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+
+        const method = (init?.method ?? 'GET').toUpperCase();
+
+        if (method === 'PATCH') {
+          return new Response('ETag mismatch', { status: 409 });
+        }
+
+        // GET always returns fresh (but it keeps conflicting because every PATCH fails)
+        return jsonResponse({
+          id: 'v-1',
+          '@odata.etag': '"fresh-etag"',
+          lastModifiedDateTime: '2026-04-14T00:00:00Z',
+          number: 'V001',
+          displayName: 'Acme',
+          email: null,
+          currencyCode: 'USD',
+          blocked: '',
+        });
+      };
+
+      let caught: unknown;
+      try {
+        await makeClient().patch('vendors', 'v-1', '"old-etag"', { displayName: 'Updated' } as any);
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught).toBeInstanceOf(PermanentError);
+      expect((caught as PermanentError).message).toContain('vendors');
+      expect((caught as PermanentError).message).toContain('v-1');
+    });
+
+    it('propagates non-409 errors without retrying (no GET called)', async () => {
+      let getCalled = false;
+
+      mockFetchImpl = async (url: string, init?: RequestInit) => {
+        if (url.includes('login.microsoftonline.com')) {
+          return new Response(
+            JSON.stringify({ access_token: 'test-token', expires_in: 3600 }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+
+        const method = (init?.method ?? 'GET').toUpperCase();
+
+        if (method === 'GET') {
+          getCalled = true;
+          return jsonResponse({ id: 'v-1' });
+        }
+
+        // PATCH returns 400 (permanent, not conflict)
+        return new Response('bad request', { status: 400 });
+      };
+
+      let caught: unknown;
+      try {
+        await makeClient().patch('vendors', 'v-1', '"etag"', { displayName: 'X' } as any);
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught).toBeInstanceOf(PermanentError);
+      expect(getCalled).toBe(false);
+    });
+  });
 });
