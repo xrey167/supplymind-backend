@@ -13,6 +13,51 @@ import type {
   QuietHours,
 } from './notifications.types';
 
+export async function dispatchChannel(
+  ch: NotificationChannel,
+  notification: Notification,
+  workspaceId: string,
+  recipientEmail?: string | null,
+): Promise<void> {
+  switch (ch) {
+    case 'websocket':
+      await deliverWebSocket(notification);
+      break;
+    case 'email':
+      if (recipientEmail) {
+        const { deliverEmail } = await import('./channels/email/email.channel');
+        await deliverEmail(notification, recipientEmail);
+      }
+      break;
+    case 'slack': {
+      const { credentialsService } = await import('../credentials/credentials.service');
+      const cred = await credentialsService.getByProvider(workspaceId, 'slack');
+      if (cred) {
+        const { deliverSlack } = await import('./channels/slack/slack.channel');
+        await deliverSlack(notification, cred.value);
+      }
+      break;
+    }
+    case 'telegram': {
+      const { credentialsService } = await import('../credentials/credentials.service');
+      const cred = await credentialsService.getByProvider(workspaceId, 'telegram');
+      if (cred) {
+        const chatId = String(cred.metadata?.chatId ?? '');
+        if (chatId) {
+          const { deliverTelegram } = await import('./channels/telegram/telegram.channel');
+          await deliverTelegram(notification, cred.value, chatId);
+        }
+      }
+      break;
+    }
+    case 'in_app':
+      // no-op: in-app is the DB record itself
+      break;
+    default:
+      break;
+  }
+}
+
 export function isInQuietHours(qh: QuietHours): boolean {
   try {
     const now = new Date();
@@ -65,8 +110,15 @@ export class NotificationsService {
       quietHours = (pref?.quietHours ?? global?.quietHours ?? null) as QuietHours | null;
     }
 
-    // 2. Insert DB record (always in_app)
-    const record = await notificationsRepo.create(input, 'in_app');
+    // 2. Insert DB record (always in_app), storing resolved channels in metadata
+    const record = await notificationsRepo.create({
+      ...input,
+      metadata: {
+        ...input.metadata ?? {},
+        _channels: channels,
+        _recipientEmail: input.recipientEmail ?? null,
+      },
+    }, 'in_app');
     const notification = record as unknown as Notification;
 
     // 3. Dispatch to channels
@@ -74,46 +126,27 @@ export class NotificationsService {
 
     const skipOutbound = quietHours != null && isInQuietHours(quietHours);
 
+    const outbound = channels.filter((c) => c !== 'in_app');
+    let successCount = 0;
+
     if (!skipOutbound) {
-      if (channels.includes('websocket')) {
-        await deliverWebSocket(notification).catch((err) =>
-          logger.warn({ err, notificationId: notification.id }, 'websocket delivery failed'),
-        );
-      }
-
-      if (channels.includes('email') && input.recipientEmail) {
-        const { deliverEmail } = await import('./channels/email/email.channel');
-        await deliverEmail(notification, input.recipientEmail).catch((err) =>
-          logger.warn({ err, notificationId: notification.id }, 'email delivery failed'),
-        );
-      }
-
-      if (channels.includes('slack') || channels.includes('telegram')) {
-        const { credentialsService } = await import('../credentials/credentials.service');
-
-        if (channels.includes('slack')) {
-          const cred = await credentialsService.getByProvider(input.workspaceId, 'slack').catch(() => null);
-          if (cred) {
-            const { deliverSlack } = await import('./channels/slack/slack.channel');
-            await deliverSlack(notification, cred.value).catch((err) =>
-              logger.warn({ err, notificationId: notification.id }, 'slack delivery failed'),
-            );
-          }
-        }
-
-        if (channels.includes('telegram')) {
-          const cred = await credentialsService.getByProvider(input.workspaceId, 'telegram').catch(() => null);
-          if (cred) {
-            const chatId = String(cred.metadata?.chatId ?? '');
-            if (chatId) {
-              const { deliverTelegram } = await import('./channels/telegram/telegram.channel');
-              await deliverTelegram(notification, cred.value, chatId).catch((err) =>
-                logger.warn({ err, notificationId: notification.id }, 'telegram delivery failed'),
-              );
-            }
-          }
+      for (const ch of outbound) {
+        try {
+          await dispatchChannel(ch, notification, input.workspaceId, input.recipientEmail);
+          successCount++;
+        } catch (err) {
+          logger.warn({ err, notificationId: notification.id, ch }, `${ch} delivery failed`);
         }
       }
+    }
+
+    // Mark delivered if: no outbound channels (in-app only) OR at least one channel succeeded
+    // Mark failed if: had outbound channels AND ALL failed
+    // Note: skipOutbound (quiet hours) → markDelivered because quiet-hours suppression is intentional, not a failure
+    if (outbound.length === 0 || successCount > 0 || skipOutbound) {
+      await notificationsRepo.markDelivered(notification.id);
+    } else {
+      await notificationsRepo.markFailed(notification.id);
     }
 
     // 4. Publish NOTIFICATION_CREATED event

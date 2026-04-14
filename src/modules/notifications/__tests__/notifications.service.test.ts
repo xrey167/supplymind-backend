@@ -16,6 +16,8 @@ const mockList = mock(() => Promise.resolve([]));
 const mockMarkRead = mock(() => Promise.resolve(null as any));
 const mockMarkAllRead = mock(() => Promise.resolve());
 const mockGetUnreadCount = mock(() => Promise.resolve(5));
+const mockMarkDelivered = mock(() => Promise.resolve(true));
+const mockMarkFailed = mock(() => Promise.resolve(true));
 
 // Re-export the real NotificationsRepository class so notifications.repo.test.ts
 // (same Bun worker) tests the actual class, not a mock stub.
@@ -28,6 +30,8 @@ mock.module('../notifications.repo', () => ({
     markRead: mockMarkRead,
     markAllRead: mockMarkAllRead,
     getUnreadCount: mockGetUnreadCount,
+    markDelivered: mockMarkDelivered,
+    markFailed: mockMarkFailed,
   },
 }));
 
@@ -106,6 +110,8 @@ describe('NotificationsService', () => {
     mockMarkRead.mockClear();
     mockMarkAllRead.mockClear();
     mockGetUnreadCount.mockClear();
+    mockMarkDelivered.mockClear();
+    mockMarkFailed.mockClear();
     mockPrefGet.mockClear();
     mockPrefGetGlobal.mockClear();
     mockDeliverInApp.mockClear();
@@ -116,6 +122,8 @@ describe('NotificationsService', () => {
     mockPrefGet.mockResolvedValue(null);
     mockPrefGetGlobal.mockResolvedValue(null);
     mockCreate.mockResolvedValue(fakeNotification);
+    mockMarkDelivered.mockResolvedValue(true);
+    mockMarkFailed.mockResolvedValue(true);
   });
 
   const baseInput: CreateNotificationInput = {
@@ -131,8 +139,18 @@ describe('NotificationsService', () => {
     expect(result).not.toBeNull();
     expect(result!.id).toBe('notif-1');
     expect(mockCreate).toHaveBeenCalledTimes(1);
-    expect(mockCreate).toHaveBeenCalledWith(baseInput, 'in_app');
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ...baseInput,
+        metadata: expect.objectContaining({ _channels: ['in_app'], _recipientEmail: null }),
+      }),
+      'in_app',
+    );
     expect(mockDeliverInApp).toHaveBeenCalledTimes(1);
+    // in_app only — no outbound channels — should mark delivered
+    expect(mockMarkDelivered).toHaveBeenCalledTimes(1);
+    expect(mockMarkDelivered).toHaveBeenCalledWith('notif-1');
+    expect(mockMarkFailed).not.toHaveBeenCalled();
     expect(mockPublish).toHaveBeenCalledTimes(1);
   });
 
@@ -153,6 +171,9 @@ describe('NotificationsService', () => {
     expect(result).not.toBeNull();
     expect(mockDeliverWebSocket).toHaveBeenCalledTimes(1);
     expect(mockDeliverInApp).toHaveBeenCalledTimes(1);
+    // websocket succeeded → markDelivered
+    expect(mockMarkDelivered).toHaveBeenCalledTimes(1);
+    expect(mockMarkFailed).not.toHaveBeenCalled();
   });
 
   test('list() delegates to repo', async () => {
