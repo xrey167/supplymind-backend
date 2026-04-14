@@ -4,7 +4,9 @@ const jobStore = new Map<string, any>();
 const recordStore: any[] = [];
 const updateSets: any[] = [];
 
+const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
   db: {
     select: () => ({
       from: () => ({
@@ -28,9 +30,12 @@ mock.module('../../../infra/db/client', () => ({
   },
 }));
 
-mock.module('../../../infra/db/schema', () => ({ syncJobs: {}, syncRecords: {} }));
-mock.module('../../../config/logger', () => ({ logger: { warn: () => {}, info: () => {}, error: () => {} } }));
-mock.module('drizzle-orm', () => ({ eq: (col: any, val: any) => ({ col, val }) }));
+const _realDbSchema = require('../../../infra/db/schema');
+mock.module('../../../infra/db/schema', () => ({ ..._realDbSchema, syncJobs: {}, syncRecords: {} }));
+const _realLogger = require('../../../config/logger');
+mock.module('../../../config/logger', () => ({ ..._realLogger, logger: { warn: () => {}, info: () => {}, error: () => {} } }));
+const _realDrizzleOrm = require('drizzle-orm');
+mock.module('drizzle-orm', () => ({ ..._realDrizzleOrm, eq: (col: any, val: any) => ({ col, val }) }));
 
 const { runSync } = await import('../sync/sync-runner');
 

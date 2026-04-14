@@ -2,7 +2,9 @@ import { describe, test, expect, beforeEach, mock } from 'bun:test';
 
 // ── Mocks (declared before module imports) ──────────────────────────────────
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { info: mock(() => {}), warn: mock(() => {}), debug: mock(() => {}), error: mock(() => {}) },
 }));
 
@@ -12,7 +14,9 @@ const mockList = mock(async (_wsId: string) => [] as any[]);
 const mockUpdate = mock(async (_id: string, _patch: any) => ({ id: 'tmpl-1' }));
 const mockDelete = mock(async (_id: string) => true);
 
+const _realWorkflowsRepo = require('../workflows.repo');
 mock.module('../workflows.repo', () => ({
+  ..._realWorkflowsRepo,
   workflowsRepo: {
     create: mockCreate,
     getById: mockGetById,
@@ -23,12 +27,16 @@ mock.module('../workflows.repo', () => ({
 }));
 
 const mockOrchCreate = mock(async (_data: any) => ({ id: 'orch-1', workspaceId: 'ws-1' }));
+const _realOrchestrationRepo = require('../../orchestration/orchestration.repo');
 mock.module('../../orchestration/orchestration.repo', () => ({
+  ..._realOrchestrationRepo,
   orchestrationRepo: { create: mockOrchCreate },
 }));
 
 const mockEnqueue = mock(async (_data: any) => {});
+const _realBullmq = require('../../../infra/queue/bullmq');
 mock.module('../../../infra/queue/bullmq', () => ({
+  ..._realBullmq,
   enqueueOrchestration: mockEnqueue,
 }));
 

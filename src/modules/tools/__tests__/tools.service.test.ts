@@ -8,7 +8,9 @@ const mockCreate = mock(async (_input: any) => ({} as any));
 const mockUpdate = mock(async (_id: string, _input: any) => null as any);
 const mockRemove = mock(async (_id: string) => undefined);
 
+const _realToolsRepo = require('../tools.repo');
 mock.module('../tools.repo', () => ({
+  ..._realToolsRepo,
   toolsRepo: {
     findById: mockFindById,
     findByWorkspace: mockFindByWorkspace,
@@ -34,7 +36,9 @@ const mockMcpPool = { callTool: mockCallTool } as any;
 
 const mockEnqueueSkill = mock(async (_payload: any, _opts: any) => ({ success: true, value: 'worker-result' }));
 
+const _realBullmq = require('../../../infra/queue/bullmq');
 mock.module('../../../infra/queue/bullmq', () => ({
+  ..._realBullmq,
   enqueueSkill: mockEnqueueSkill,
 }));
 
@@ -44,7 +48,9 @@ const mockGetSandboxPolicy = mock(async (_wsId?: string) => ({
   maxTimeoutMs: 30000, allowNetwork: false, allowedPaths: [], deniedPaths: [], maxMemoryMb: 128, lockedByOrg: false,
 }));
 
+const _realWorkspaceSettingsService = require('../../settings/workspace-settings/workspace-settings.service');
 mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
+  ..._realWorkspaceSettingsService,
   workspaceSettingsService: {
     getSandboxPolicy: mockGetSandboxPolicy,
     getToolPermissionMode: mock(async () => 'auto'),
@@ -52,7 +58,9 @@ mock.module('../../settings/workspace-settings/workspace-settings.service', () =
   },
 }));
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: {
     info: mock(() => undefined),
     warn: mock(() => undefined),

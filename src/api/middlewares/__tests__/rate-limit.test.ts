@@ -7,7 +7,9 @@ import { Hono } from 'hono';
 const mockRateLimitCheck = mock(() => Promise.resolve([1, 9, Date.now() - 1000] as [number, number, number]));
 const mockDefineCommand = mock(() => {});
 
+const _realRedisClient = require('../../../infra/redis/client');
 mock.module('../../../infra/redis/client', () => ({
+  ..._realRedisClient,
   getSharedRedisClient: () => ({
     rateLimitCheck: mockRateLimitCheck,
     defineCommand: mockDefineCommand,

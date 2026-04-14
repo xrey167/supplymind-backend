@@ -7,7 +7,9 @@ import { describe, it, expect, mock, beforeEach, spyOn } from 'bun:test';
 const mockUpsertJobScheduler = mock(() => Promise.resolve());
 const mockRemoveJobScheduler = mock(() => Promise.resolve());
 
+const _realBullmq = require('bullmq');
 mock.module('bullmq', () => ({
+  ..._realBullmq,
   Queue: class MockQueue {
     upsertJobScheduler(...args: unknown[]) {
       return mockUpsertJobScheduler(...args);
@@ -23,7 +25,9 @@ mock.module('bullmq', () => ({
 // try to open a real socket during tests.
 // --------------------------------------------------------------------------
 
+const _realInfraBullmq = require('../../infra/queue/bullmq');
 mock.module('../../infra/queue/bullmq', () => ({
+  ..._realInfraBullmq,
   redis: { /* stub — never used in tests */ },
 }));
 
@@ -38,7 +42,9 @@ const mockListScheduled = mock(() =>
   ]),
 );
 
+const _realSyncJobsRepo = require('../../plugins/erp-bc/sync/sync-jobs.repo');
 mock.module('../../plugins/erp-bc/sync/sync-jobs.repo', () => ({
+  ..._realSyncJobsRepo,
   syncJobsRepo: {
     listScheduled: mockListScheduled,
   },
@@ -52,7 +58,9 @@ const mockLoggerError = mock(() => {});
 const mockLoggerWarn = mock(() => {});
 const mockLoggerInfo = mock(() => {});
 
+const _realLogger = require('../../config/logger');
 mock.module('../../config/logger', () => ({
+  ..._realLogger,
   logger: {
     info: mockLoggerInfo,
     warn: mockLoggerWarn,

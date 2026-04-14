@@ -5,24 +5,33 @@ import { describe, test, expect, beforeEach, mock } from 'bun:test';
 // that would break other files in the same bun worker. Must precede imports.
 // ---------------------------------------------------------------------------
 
+const _realOtel = require('../../../infra/observability/otel');
 mock.module('../../../infra/observability/otel', () => ({
+  ..._realOtel,
   withSpan: async (_name: string, _attrs: unknown, fn: (span: any) => unknown) =>
     fn({ setAttribute: () => {} }),
 }));
 
+const _realSentry = require('../../../infra/observability/sentry');
 mock.module('../../../infra/observability/sentry', () => ({
+  ..._realSentry,
   captureException: () => {},
 }));
 
+const _realBus = require('../../../events/bus');
 mock.module('../../../events/bus', () => ({
+  ..._realBus,
   eventBus: { publish: () => {} },
 }));
 
+const _realTopics = require('../../../events/topics');
 mock.module('../../../events/topics', () => ({
-  Topics: new Proxy({} as Record<string, string>, { get: (_t, prop) => String(prop) }),
+  ..._realTopics,
 }));
 
+const _realToolApprovals = require('../../../infra/state/tool-approvals');
 mock.module('../../../infra/state/tool-approvals', () => ({
+  ..._realToolApprovals,
   createApprovalRequest: createApprovalRequestStub,
 }));
 

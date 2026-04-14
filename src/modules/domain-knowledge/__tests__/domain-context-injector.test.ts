@@ -4,7 +4,9 @@ import type { DomainKnowledgeGraph } from '../domain-knowledge.service';
 // --- mock domainKnowledgeService ---------------------------------------------
 const mockListForWorkspace = mock<() => Promise<DomainKnowledgeGraph[]>>(() => Promise.resolve([]));
 
+const _realDomainKnowledgeService = require('../domain-knowledge.service');
 mock.module('../domain-knowledge.service', () => ({
+  ..._realDomainKnowledgeService,
   domainKnowledgeService: {
     listForWorkspace: mockListForWorkspace,
   },
@@ -13,11 +15,15 @@ mock.module('../domain-knowledge.service', () => ({
 // --- mock workspace settings (dynamic import in buildDomainContext) -----------
 const mockGetRaw = mock(() => Promise.resolve(500));
 
+const _realWorkspaceSettingsService = require('../../settings/workspace-settings/workspace-settings.service');
 mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
+  ..._realWorkspaceSettingsService,
   workspaceSettingsService: { getRaw: mockGetRaw },
 }));
 // --- mock logger -------------------------------------------------------------
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { warn: mock(), info: mock(), error: mock(), debug: mock() },
 }));
 

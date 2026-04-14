@@ -44,16 +44,22 @@ const mockAnalyzeSkillWeights = mock(async (_wsId: string) => [skillProposal]);
 const mockAnalyzeRouting = mock(async (_wsId: string) => [routingProposal]);
 const mockAnalyzeMemoryQuality = mock(async (_wsId: string) => [memoryProposal]);
 
+const _realSkillWeightAnalyzer = require('../analyzers/skill-weight-analyzer');
 mock.module('../analyzers/skill-weight-analyzer', () => ({
+  ..._realSkillWeightAnalyzer,
   analyzeSkillWeights: mockAnalyzeSkillWeights,
   ImprovementProposal: {},
 }));
 
+const _realRoutingAnalyzer = require('../analyzers/routing-analyzer');
 mock.module('../analyzers/routing-analyzer', () => ({
+  ..._realRoutingAnalyzer,
   analyzeRouting: mockAnalyzeRouting,
 }));
 
+const _realMemoryAnalyzer = require('../analyzers/memory-analyzer');
 mock.module('../analyzers/memory-analyzer', () => ({
+  ..._realMemoryAnalyzer,
   analyzeMemoryQuality: mockAnalyzeMemoryQuality,
 }));
 
@@ -63,7 +69,9 @@ const mockPipelineCreate = mock(async (_proposal: any) => PROPOSAL_ID);
 const mockPipelineAutoApply = mock(async (_id: string) => undefined);
 const mockCountAutoAppliedToday = mock(async (_wsId: string) => 0);
 
+const _realImprovementPipeline = require('../improvement-pipeline');
 mock.module('../improvement-pipeline', () => ({
+  ..._realImprovementPipeline,
   improvementPipeline: {
     create: mockPipelineCreate,
     autoApply: mockPipelineAutoApply,
@@ -88,7 +96,9 @@ const mockGetTierConfig = mock(async (_wsId: string) => ({
 
 const mockCanAutoApply = mock(async (_wsId: string, _type: string) => false);
 
+const _realTrustTierService = require('../trust-tier.service');
 mock.module('../trust-tier.service', () => ({
+  ..._realTrustTierService,
   trustTierService: {
     getTierConfig: mockGetTierConfig,
     canAutoApply: mockCanAutoApply,
@@ -99,7 +109,9 @@ mock.module('../trust-tier.service', () => ({
 
 const mockIsEnabled = mock(async (_wsId: string, _flag: string) => false);
 
+const _realFeatureFlagsService = require('../../feature-flags/feature-flags.service');
 mock.module('../../feature-flags/feature-flags.service', () => ({
+  ..._realFeatureFlagsService,
   featureFlagsService: {
     isEnabled: mockIsEnabled,
   },
@@ -107,19 +119,25 @@ mock.module('../../feature-flags/feature-flags.service', () => ({
 
 // --- Generators mock (for generative phase) ---
 
+const _realSkillGenerator = require('../generators/skill-generator');
 mock.module('../generators/skill-generator', () => ({
+  ..._realSkillGenerator,
   detectSkillGaps: mock(async () => []),
   generateSkillForGap: mock(async () => null),
   testAndRegisterGeneratedSkill: mock(async () => undefined),
 }));
 
+const _realPromptOptimizer = require('../generators/prompt-optimizer');
 mock.module('../generators/prompt-optimizer', () => ({
+  ..._realPromptOptimizer,
   findUnderperformingAgents: mock(async () => []),
   generatePromptVariant: mock(async () => null),
   applyPromptUpdate: mock(async () => undefined),
 }));
 
+const _realWorkflowGenerator = require('../generators/workflow-generator');
 mock.module('../generators/workflow-generator', () => ({
+  ..._realWorkflowGenerator,
   detectRepeatedSequences: mock(async () => []),
   proposeWorkflowTemplate: mock(() => ({})),
   applyWorkflowTemplate: mock(async () => undefined),
@@ -127,7 +145,9 @@ mock.module('../generators/workflow-generator', () => ({
 
 // --- DB + events mock (used by runCycle for workspace listing) ---
 
+const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
   db: {
     select: mock(() => ({
       from: mock(() => Promise.resolve([{ id: WORKSPACE_ID }])),
@@ -148,7 +168,9 @@ mock.module('../../../events/bus', () => ({
   }),
 }));
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: {
     info: mock(() => undefined),
     warn: mock(() => undefined),
