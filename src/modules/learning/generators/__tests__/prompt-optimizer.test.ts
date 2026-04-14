@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, mock, afterAll } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // DB mock — two parallel db.select() chains for completed + error counts
@@ -187,3 +187,5 @@ describe('prompt-optimizer', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

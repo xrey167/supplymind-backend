@@ -37,25 +37,21 @@ jobs:
           # Several test files use mock.module() at module scope which persists across all
           # test files in the same bun worker process, causing mock bleed-through:
           # - Learning/__tests__/ + task-manager: mock events/bus globally, corrupts real eventBus
-          # - encrypted-secret.test.ts: mocks credentials.service without re-exporting CredentialsService
-          # - skills.dispatch.test.ts: mocks feature-flags.service, corrupts feature-flags.service.test.ts
-          # - gate-audit.repo.test.ts: mocks drizzle-orm; also orchestration-gates.test.ts caches gate-audit.repo with real db first
-          # - erp-sync-scheduler.test.ts: mocks infra/queue/bullmq stripping enqueueAgentRun, corrupts gateway task.get
-          # - sync-runner.test.ts: mocks drizzle-orm (strips desc/and/etc) + db/client; same class of contamination
-          # - erp-bc/integration/*: requires Redis/BC sandbox — belongs in integration-tests job, not unit tests
-          # - jobs/notification/__tests__/*: mocks notifications.service; isolated run prevents clobbering
-          #   NotificationsService class export seen by notifications.service.test.ts + notification-channels.test.ts
-          # - infra/billing/__tests__/budget-counter.test.ts: mocks infra/redis/client; another test in the
-          #   same worker overwrites the mock, stripping getSharedRedisClient, causing assertion failures
-          # - learning/analyzers/__tests__/* and learning/generators/__tests__/*: run with all learning tests
-          #   in the isolated 'bun test src/modules/learning/' step below
-          # client-pool.test.ts runs separately: ioredis ECONNREFUSED can attach to pending promises
-          # in other tests depending on filesystem traversal order.
-          # orchestration-gates.test.ts: mocks orchestration.events replacing emitGateResolved with a spy;
-          #   orchestration.events.test.ts (run later in the batch) imports the real functions to verify
-          #   they call eventBus.publish — gets the spy stub instead, causing 10 test failures.
+          # Remaining isolated files and why they can't join the main batch:
+          # - gate-audit.repo.test.ts: mocks infra/db/schema (minimal subset); Bun caches factory
+          #   output after mock.restore(), so sync-runner.test.ts would get the stale stripped schema
+          # - orchestration-gates.test.ts: mocks orchestration/orchestration.events; Bun caches the
+          #   factory output — orchestration.events.test.ts (main batch) gets the stale no-op stubs
+          # - jobs/notification/__tests__/*: mocks notifications.service; Bun cache causes
+          #   notifications.service.test.ts (main batch) to receive the stale mock stub
+          # - erp-bc/integration/*: requires Redis/BC sandbox — belongs in integration-tests job
+          # - learning/* steps: mocks analyzers/generators broadly; kept logically separate
+          # - client-pool.test.ts: ioredis ECONNREFUSED timing (not a mock issue)
           # Exclude known-broken tests: PluginManager (Redis timeouts) and WorkspaceSettingsService
           # TODO: Remove exclusions once pre-existing failures are fixed (tracked in GitHub Issues)
+          # Files previously isolated but now safe in main batch (each has afterAll(() => mock.restore())):
+          #   encrypted-secret.test.ts, skills.dispatch.test.ts, erp-sync-scheduler.test.ts,
+          #   sync-runner.test.ts, budget-counter.test.ts
           bun test $(find src -name '*.test.ts' \
             -not -path '*/learning/__tests__/*' \
             -not -path '*/learning/analyzers/__tests__/*' \
@@ -64,35 +60,21 @@ jobs:
             -not -path '*/plugins/__tests__/plugin-manifest.test.ts' \
             -not -path '*/settings/workspace-settings/__tests__/workspace-settings.service.test.ts' \
             -not -path '*/infra/mcp/__tests__/client-pool.test.ts' \
-            -not -path '*/erp-bc/__tests__/encrypted-secret.test.ts' \
-            -not -path '*/skills/__tests__/skills.dispatch.test.ts' \
             -not -path '*/infra/state/__tests__/gate-audit.repo.test.ts' \
             -not -path '*/infra/state/__tests__/orchestration-gates.test.ts' \
-            -not -path '*/jobs/__tests__/erp-sync-scheduler.test.ts' \
-            -not -path '*/erp-bc/__tests__/sync-runner.test.ts' \
             -not -path '*/erp-bc/__tests__/integration/*' \
-            -not -path '*/jobs/notification/__tests__/*' \
-            -not -path '*/infra/billing/__tests__/budget-counter.test.ts')
-          # learning tests run in 5 isolated steps:
-          # - __tests__/: mocks all analyzers/generators for engine test isolation
-          # - analyzers/__tests__/: no module mocks; safe together, separate from engine mocks
-          # - generators run individually: prompt-optimizer and skill-generator both mock
-          #   infra/ai/anthropic with different mockRun instances — they must be in separate workers
+            -not -path '*/jobs/notification/__tests__/*')
+          # Remaining isolated steps (8 total, down from 15):
+          # - learning: engine, analyzers, and generators each in separate steps
+          # - generators batched as one directory (each file has afterAll(() => mock.restore()))
           bun test src/modules/learning/__tests__/
           bun test src/modules/learning/analyzers/__tests__/
-          bun test src/modules/learning/generators/__tests__/workflow-generator.test.ts
-          bun test src/modules/learning/generators/__tests__/prompt-optimizer.test.ts
-          bun test src/modules/learning/generators/__tests__/skill-generator.test.ts
+          bun test src/modules/learning/generators/__tests__/
           bun test src/infra/a2a/__tests__/task-manager.test.ts
           bun test src/infra/mcp/__tests__/client-pool.test.ts
-          bun test src/plugins/erp-bc/__tests__/encrypted-secret.test.ts
-          bun test src/modules/skills/__tests__/skills.dispatch.test.ts
           bun test src/infra/state/__tests__/gate-audit.repo.test.ts
           bun test src/infra/state/__tests__/orchestration-gates.test.ts
-          bun test src/jobs/__tests__/erp-sync-scheduler.test.ts
-          bun test src/plugins/erp-bc/__tests__/sync-runner.test.ts
           if [ -d src/jobs/notification/__tests__ ]; then bun test src/jobs/notification/__tests__/; fi
-          bun test src/infra/billing/__tests__/budget-counter.test.ts
         env:
           CREDENTIALS_ENCRYPTION_KEY: ci-test-key-for-unit-tests-32bytes
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy

@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, spyOn } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, spyOn, afterAll } from 'bun:test';
 
 // --------------------------------------------------------------------------
 // Mock BullMQ Queue
@@ -169,3 +169,5 @@ describe('erp-sync-scheduler', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

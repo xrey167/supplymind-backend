@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -430,3 +430,5 @@ describe('ERP-BC encrypted secret — worker path', () => {
     expect(runSync).toThrow('ERP-BC client secret not available — cannot run sync');
   });
 });
+
+afterAll(() => mock.restore());

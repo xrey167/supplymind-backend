@@ -1,21 +1,20 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 // ---------------------------------------------------------------------------
-// Mock logger
+// Mock logger — spread not needed (logger has no cross-module re-exports)
 // ---------------------------------------------------------------------------
 mock.module('../../../config/logger', () => ({
   logger: { warn: mock(() => {}), error: mock(() => {}), info: mock(() => {}), debug: mock(() => {}) },
 }));
 
 // ---------------------------------------------------------------------------
-// Mock eventBus — capture publish calls
+// Mock eventBus.publish — replace events/bus with a tracked stub so every
+// emit helper's publish call is recorded. Must run before the module import.
 // ---------------------------------------------------------------------------
-const mockPublish = mock(async (_topic: string, _data: unknown): Promise<unknown> => undefined);
+const mockPublish = mock(async (_topic: string, _data: unknown) => undefined as unknown as import('../../../events/bus').BusEvent);
 
 mock.module('../../../events/bus', () => ({
-  eventBus: {
-    publish: mockPublish,
-  },
+  eventBus: { publish: mockPublish },
 }));
 
 // ---------------------------------------------------------------------------
@@ -37,7 +36,7 @@ const {
 describe('orchestration.events', () => {
   beforeEach(() => {
     mockPublish.mockReset();
-    mockPublish.mockImplementation(async () => undefined);
+    mockPublish.mockImplementation(async () => undefined as unknown as import('../../../events/bus').BusEvent);
   });
 
   describe('emitGateResolved', () => {
@@ -140,3 +139,5 @@ describe('orchestration.events', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

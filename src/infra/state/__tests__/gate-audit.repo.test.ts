@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // Mock the db client — intercept insert/select calls
@@ -193,3 +193,5 @@ describe('gateAuditRepo', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

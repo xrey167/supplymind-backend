@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, mock, afterAll } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // DB mock — chainable select().from().where().groupBy()
@@ -177,3 +177,5 @@ describe('workflow-generator', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

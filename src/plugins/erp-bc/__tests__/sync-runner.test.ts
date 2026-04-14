@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 const jobStore = new Map<string, any>();
 const recordStore: any[] = [];
@@ -254,3 +254,5 @@ describe('runSync — cursor-based incremental sync', () => {
     expect(successUpdate.cursor).toBe('2024-06-15T23:59:59Z');
   });
 });
+
+afterAll(() => mock.restore());
