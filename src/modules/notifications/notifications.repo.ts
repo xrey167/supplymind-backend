@@ -5,6 +5,9 @@ import type { CreateNotificationInput, NotificationFilter, NotificationChannel }
 
 export const MAX_NOTIFICATION_ATTEMPTS = 3;
 
+/** Maximum failed notifications fetched per workspace in each retry sweep */
+export const PER_WORKSPACE_CAP = 10;
+
 export class NotificationsRepository {
   async create(input: CreateNotificationInput, channel: NotificationChannel = 'in_app') {
     const rows = await db.insert(notifications).values({
@@ -94,19 +97,50 @@ export class NotificationsRepository {
     return rows.length > 0;
   }
 
-  async listFailed(limit = 50): Promise<(typeof notifications.$inferSelect)[]> {
-    // TODO: replace single global cap with per-workspace sub-queries (round-robin
-    // across workspaces) so a high-failure workspace can't starve others.
-    return db.select()
-      .from(notifications)
-      .where(
-        and(
-          eq(notifications.status, 'failed'),
-          lt(notifications.attemptCount, MAX_NOTIFICATION_ATTEMPTS),
-        ),
-      )
-      .orderBy(asc(notifications.lastAttemptedAt), asc(notifications.createdAt))
-      .limit(limit);
+  async listFailed(batchSize = 50, perWorkspaceCap = PER_WORKSPACE_CAP): Promise<(typeof notifications.$inferSelect)[]> {
+    // Per-workspace fairness: use a CTE with ROW_NUMBER() to rank failed
+    // notifications within each workspace, take at most perWorkspaceCap rows
+    // per workspace, then cap the full result at batchSize.  This prevents a
+    // high-failure workspace from starving every other workspace in a retry sweep.
+    const rows = await db.execute<typeof notifications.$inferSelect>(
+      sql`
+        WITH ranked AS (
+          SELECT *,
+            ROW_NUMBER() OVER (
+              PARTITION BY workspace_id
+              ORDER BY last_attempted_at ASC NULLS FIRST, created_at ASC
+            ) AS rn
+          FROM notifications
+          WHERE status = 'failed'
+            AND attempt_count < ${MAX_NOTIFICATION_ATTEMPTS}
+        )
+        SELECT id, workspace_id, user_id, type, title, body, metadata,
+               channel, status, read_at, attempt_count, last_attempted_at,
+               created_at, updated_at
+        FROM ranked
+        WHERE rn <= ${perWorkspaceCap}
+        ORDER BY last_attempted_at ASC NULLS FIRST, created_at ASC
+        LIMIT ${batchSize}
+      `,
+    );
+    // Drizzle execute returns a ResultSet; rows are in .rows for postgres driver
+    const rawRows = (rows as any).rows ?? rows;
+    return (rawRows as any[]).map((r: any) => ({
+      id: r.id,
+      workspaceId: r.workspace_id,
+      userId: r.user_id,
+      type: r.type,
+      title: r.title,
+      body: r.body,
+      metadata: r.metadata,
+      channel: r.channel,
+      status: r.status,
+      readAt: r.read_at,
+      attemptCount: r.attempt_count,
+      lastAttemptedAt: r.last_attempted_at,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
   }
 }
 
