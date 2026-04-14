@@ -34,7 +34,7 @@ export interface SkillProvider {
 }
 
 export interface DispatchContext {
-  callerId: string;
+  callerId?: string;
   workspaceId: string;
   callerRole: Role;
   traceId?: string;

@@ -1,6 +1,8 @@
 import { usageRepo } from './usage.repo';
 import { calculateCost, resolveProvider } from './pricing';
 import { workspaceSettingsService } from '../settings/workspace-settings/workspace-settings.service';
+import { incrementBudgetCounter } from '../../infra/billing/budget-counter';
+import { logger } from '../../config/logger';
 import type { RecordUsageInput } from './usage.types';
 
 export interface BudgetCheckResult {
@@ -35,6 +37,13 @@ export const usageService = {
       totalTokens: input.inputTokens + input.outputTokens,
       costUsd,
     });
+    // Increment the Redis atomic budget counter after persisting the DB record.
+    // Fire-and-forget: a Redis failure must not break the usage recording path.
+    if (costUsd > 0) {
+      incrementBudgetCounter(input.workspaceId, costUsd).catch((err: unknown) =>
+        logger.warn({ workspaceId: input.workspaceId, err }, 'Failed to increment Redis budget counter'),
+      );
+    }
   },
 
   async getWorkspaceSummary(workspaceId: string, period: 'day' | 'week' | 'month' | 'all' = 'month') {

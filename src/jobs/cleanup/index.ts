@@ -2,6 +2,7 @@ import { taskRepo } from '../../infra/a2a/task-repo';
 import { sessionsService } from '../../modules/sessions/sessions.service';
 import { apiKeysRepo } from '../../modules/api-keys/api-keys.repo';
 import { logger } from '../../config/logger';
+import { resetAllBudgetCountersForMonth } from '../../infra/billing/budget-counter';
 
 const STALE_WORKING_MS = 30 * 60 * 1000;
 const STALE_SUBMITTED_MS = 60 * 60 * 1000;
@@ -68,6 +69,17 @@ export async function runCleanup(tr: Pick<typeof taskRepo, 'findStale' | 'update
     if (deleted > 0) logger.info({ count: deleted, retentionDays }, 'Cleanup: pruned old audit logs');
   } catch (err) {
     logger.error({ err }, 'Cleanup: audit log retention step failed');
+  }
+
+  // Reset previous month's Redis budget counters
+  try {
+    const now = new Date();
+    const prevMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+    const prevMonthStr = prevMonth.toISOString().slice(0, 7);
+    const deleted = await resetAllBudgetCountersForMonth(prevMonthStr);
+    if (deleted > 0) logger.info({ month: prevMonthStr, deleted }, 'Cleanup: reset budget counters for previous month');
+  } catch (err) {
+    logger.error({ err }, 'Cleanup: reset budget counters step failed');
   }
 
   // Hard-delete soft-deleted workspaces past 30-day grace period
