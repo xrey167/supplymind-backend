@@ -20,21 +20,30 @@ import { describe, test, expect, beforeEach, mock } from 'bun:test';
 // that would break other test files in the same worker.
 // ---------------------------------------------------------------------------
 
+const _realOtel = require('../../../infra/observability/otel');
 mock.module('../../../infra/observability/otel', () => ({
+  ..._realOtel,
   withSpan: async (_name: string, _attrs: unknown, fn: (span: any) => unknown) =>
     fn({ setAttribute: () => {} }),
 }));
 
+const _realSentry = require('../../../infra/observability/sentry');
 mock.module('../../../infra/observability/sentry', () => ({
+  ..._realSentry,
   captureException: () => {},
 }));
 
+const _realBus = require('../../../events/bus');
 mock.module('../../../events/bus', () => ({
+  ..._realBus,
   eventBus: { publish: () => {} },
 }));
 
+// spread real Topics so downstream tests that import events/topics get the real
+// string values (e.g. Topics.WEBHOOK_RECEIVED === 'webhook.received') not 'WEBHOOK_RECEIVED'
+const _realTopics = require('../../../events/topics');
 mock.module('../../../events/topics', () => ({
-  Topics: new Proxy({} as Record<string, string>, { get: (_t, prop) => String(prop) }),
+  ..._realTopics,
 }));
 
 // ---------------------------------------------------------------------------

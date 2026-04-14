@@ -49,6 +49,9 @@ jobs:
           #   in the isolated 'bun test src/modules/learning/' step below
           # client-pool.test.ts runs separately: ioredis ECONNREFUSED can attach to pending promises
           # in other tests depending on filesystem traversal order.
+          # orchestration-gates.test.ts: mocks orchestration.events replacing emitGateResolved with a spy;
+          #   orchestration.events.test.ts (run later in the batch) imports the real functions to verify
+          #   they call eventBus.publish — gets the spy stub instead, causing 10 test failures.
           # Exclude known-broken tests: PluginManager (Redis timeouts) and WorkspaceSettingsService
           # TODO: Remove exclusions once pre-existing failures are fixed (tracked in GitHub Issues)
           bun test $(find src -name '*.test.ts' \
@@ -62,6 +65,7 @@ jobs:
             -not -path '*/erp-bc/__tests__/encrypted-secret.test.ts' \
             -not -path '*/skills/__tests__/skills.dispatch.test.ts' \
             -not -path '*/infra/state/__tests__/gate-audit.repo.test.ts' \
+            -not -path '*/infra/state/__tests__/orchestration-gates.test.ts' \
             -not -path '*/jobs/__tests__/erp-sync-scheduler.test.ts' \
             -not -path '*/erp-bc/__tests__/sync-runner.test.ts' \
             -not -path '*/erp-bc/__tests__/integration/*' \
@@ -81,6 +85,7 @@ jobs:
           bun test src/plugins/erp-bc/__tests__/encrypted-secret.test.ts
           bun test src/modules/skills/__tests__/skills.dispatch.test.ts
           bun test src/infra/state/__tests__/gate-audit.repo.test.ts
+          bun test src/infra/state/__tests__/orchestration-gates.test.ts
           bun test src/jobs/__tests__/erp-sync-scheduler.test.ts
           bun test src/plugins/erp-bc/__tests__/sync-runner.test.ts
           if [ -d src/jobs/notification/__tests__ ]; then bun test src/jobs/notification/__tests__/; fi

@@ -1,9 +1,11 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 // ---------------------------------------------------------------------------
-// Mock logger
+// Mock logger — spread to preserve debug/verbose/child for tests that run after
 // ---------------------------------------------------------------------------
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { warn: mock(() => {}), error: mock(() => {}), info: mock(() => {}), debug: mock(() => {}) },
 }));
 
@@ -14,7 +16,9 @@ const mockGet = mock(async (_key: string): Promise<string | null> => null);
 const mockSet = mock(async (..._args: unknown[]): Promise<'OK'> => 'OK');
 const mockScan = mock(async (_cursor: string, ..._args: unknown[]): Promise<[string, string[]]> => ['0', []]);
 
+const _realRedisClient = require('../../../infra/redis/client');
 mock.module('../../../infra/redis/client', () => ({
+  ..._realRedisClient,
   getSharedRedisClient: () => ({
     get: mockGet,
     set: mockSet,
@@ -27,7 +31,9 @@ mock.module('../../../infra/redis/client', () => ({
 // ---------------------------------------------------------------------------
 const mockAuditInsert = mock(async (_record: unknown): Promise<void> => undefined);
 
+const _realGateAuditRepo = require('../gate-audit.repo');
 mock.module('../gate-audit.repo', () => ({
+  ..._realGateAuditRepo,
   gateAuditRepo: {
     insert: mockAuditInsert,
     listByOrchestration: mock(async () => []),
@@ -35,18 +41,16 @@ mock.module('../gate-audit.repo', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock orchestration.events — track emitGateResolved calls
+// Mock orchestration.events — only override emitGateResolved (the one we
+// assert on). All other emit helpers keep their real implementations so
+// orchestration.events.test.ts (which runs later) is not contaminated.
 // ---------------------------------------------------------------------------
 const mockEmitGateResolved = mock((_orchId: string, _stepId: string, _outcome: string, _wsId: string): void => undefined);
 
+const _realOrcEvents = require('../../../modules/orchestration/orchestration.events');
 mock.module('../../../modules/orchestration/orchestration.events', () => ({
+  ..._realOrcEvents,
   emitGateResolved: mockEmitGateResolved,
-  emitGateWaiting: mock(() => {}),
-  emitOrchestrationStarted: mock(() => {}),
-  emitStepCompleted: mock(() => {}),
-  emitOrchestrationCompleted: mock(() => {}),
-  emitOrchestrationFailed: mock(() => {}),
-  emitOrchestrationCancelled: mock(() => {}),
 }));
 
 // ---------------------------------------------------------------------------
