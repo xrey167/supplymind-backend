@@ -234,7 +234,7 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
 
     // Start contributed workers
     const Redis = (await import('ioredis')).default;
-    contribConnection = new Redis(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null } as any);
+    contribConnection = new Redis(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
     const contribWorkers = pluginContributionRegistry.startWorkers(contribConnection);
     (globalThis as any).__pluginContribWorkers = { workers: contribWorkers, registry: pluginContributionRegistry, connection: contribConnection };
     contribConnection = null; // ownership transferred to globalThis.__pluginContribWorkers
@@ -257,7 +257,7 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
   try {
     const { Queue, Worker } = await import('bullmq');
     const Redis = (await import('ioredis')).default;
-    const healthConnection = new Redis(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null } as any);
+    const healthConnection = new Redis(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
     const healthQueue = new Queue('plugin-health', { connection: healthConnection });
     await healthQueue.upsertJobScheduler('plugin-health-check', { every: 5 * 60 * 1000 }, { name: 'health-check' });
     const { processHealthCheckJob } = await import('../infra/queue/workers/plugin-health.worker');
