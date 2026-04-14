@@ -81,6 +81,8 @@ export const syncQueue = new Queue('sync', { connection });
 export const learningQueue = new Queue('learning-cycle', { connection });
 export const adaptationAgentQueue = new Queue('adaptation-agent', { connection });
 
+export const notificationQueue = new Queue('notification-retry', { connection });
+
 export function enqueueOrchestration(data: OrchestrationJobData): Promise<Job<OrchestrationJobData>> {
   return orchestrationQueue.add('run', data, { attempts: 1, removeOnComplete: 100, removeOnFail: 200 });
 }

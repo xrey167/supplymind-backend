@@ -16,7 +16,7 @@ import { taskRepo } from '../infra/a2a/task-repo';
 
 let redisPubSub: RedisPubSub | null = null;
 let agentWorkerHandles: { worker: import('bullmq').Worker; connection: import('ioredis').default } | null = null;
-let jobWorkerHandles: { cleanupWorker: import('bullmq').Worker; syncWorker: import('bullmq').Worker; connection: import('ioredis').default } | null = null;
+let jobWorkerHandles: { cleanupWorker: import('bullmq').Worker; syncWorker: import('bullmq').Worker; notificationRetryWorker: import('bullmq').Worker; connection: import('ioredis').default } | null = null;
 let idleCleanupTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
@@ -168,10 +168,11 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
 
   // Step 12: Register repeatable job schedulers
   try {
-    const { cleanupQueue, syncQueue } = await import('../infra/queue/bullmq');
+    const { cleanupQueue, syncQueue, notificationQueue } = await import('../infra/queue/bullmq');
     const { Worker } = await import('bullmq');
     const { runCleanup } = await import('../jobs/cleanup');
     const { runSync } = await import('../jobs/sync');
+    const { retryFailedNotifications } = await import('../jobs/notification');
     const Redis = (await import('ioredis')).default;
 
     const jobConnection = new Redis(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
@@ -184,7 +185,11 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
     const syncWorker = new Worker('sync', async () => { await runSync(); }, { connection: jobConnection });
     syncWorker.on('error', (err) => logger.warn({ err }, 'Sync worker error'));
 
-    jobWorkerHandles = { cleanupWorker, syncWorker, connection: jobConnection };
+    await notificationQueue.upsertJobScheduler('notification-retry-sweep', { pattern: '0 * * * *' }, { name: 'notification-retry' });
+    const notificationRetryWorker = new Worker('notification-retry', async () => { await retryFailedNotifications(); }, { connection: jobConnection });
+    notificationRetryWorker.on('error', (err) => logger.warn({ err }, 'Notification retry worker error'));
+
+    jobWorkerHandles = { cleanupWorker, syncWorker, notificationRetryWorker, connection: jobConnection };
 
     logger.info('Step 12: Cleanup and sync job schedulers registered');
   } catch (err) {
@@ -294,6 +299,7 @@ export async function destroySubsystems(): Promise<void> {
   if (jobWorkerHandles) {
     await jobWorkerHandles.cleanupWorker.close();
     await jobWorkerHandles.syncWorker.close();
+    await jobWorkerHandles.notificationRetryWorker.close();
     await jobWorkerHandles.connection.quit();
   }
 
