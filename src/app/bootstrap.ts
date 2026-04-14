@@ -191,7 +191,7 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
 
     jobWorkerHandles = { cleanupWorker, syncWorker, notificationRetryWorker, connection: jobConnection };
 
-    logger.info('Step 12: Cleanup and sync job schedulers registered');
+    logger.info('Step 12: Job schedulers registered (cleanup, sync, notification-retry)');
   } catch (err) {
     logger.warn({ err }, 'Step 12: Job schedulers failed to register');
   }
