@@ -52,18 +52,14 @@ mock.module('../../../infra/db/client', () => ({
   },
 }));
 
+const _realSchema = require('../../../infra/db/schema');
 mock.module('../../../infra/db/schema', () => ({
-  agentProfiles: {
-    id: 'id',
-    workspaceId: 'workspace_id',
-    category: 'category',
-    isDefault: 'is_default',
-    $inferSelect: {},
-    $inferInsert: {},
-  },
+  ..._realSchema,
 }));
 
+const _realDrizzle = require('drizzle-orm');
 mock.module('drizzle-orm', () => ({
+  ..._realDrizzle,
   eq: mock((col: unknown, val: unknown) => ({ col, val })),
   and: mock((...args: unknown[]) => args),
 }));

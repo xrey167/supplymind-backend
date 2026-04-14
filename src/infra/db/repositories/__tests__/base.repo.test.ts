@@ -66,7 +66,9 @@ mock.module('../../client', () => ({
 }));
 
 // Mock drizzle-orm eq to be a simple identity-preserving stub
+const _realDrizzle = require('drizzle-orm');
 mock.module('drizzle-orm', () => ({
+  ..._realDrizzle,
   eq: (col: any, val: any) => ({ col, val, _type: 'eq' }),
   and: (...args: any[]) => ({ args, _type: 'and' }),
   isNull: (col: any) => ({ col, _type: 'isNull' }),

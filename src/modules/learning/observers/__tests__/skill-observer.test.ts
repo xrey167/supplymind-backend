@@ -39,7 +39,9 @@ const fakeDb = {
 };
 
 mock.module('../../../../infra/db/client', () => ({ db: {} }));
+const _realSchema = require('../../../../infra/db/schema');
 mock.module('../../../../infra/db/schema', () => ({
+  ..._realSchema,
   learningObservations: Symbol('learningObservations'),
   skillPerformanceMetrics: { id: 'id', workspaceId: 'workspaceId', skillId: 'skillId', windowStart: 'windowStart' },
 }));

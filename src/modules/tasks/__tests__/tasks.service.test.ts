@@ -63,7 +63,9 @@ mock.module('../../../infra/db/client', () => ({
   db: { transaction: async (fn: any) => fn({ select: () => ({ from: () => [] }), insert: () => ({ values: () => {} }) }) },
 }));
 
+const _realSchema = require('../../../infra/db/schema');
 mock.module('../../../infra/db/schema', () => ({
+  ..._realSchema,
   taskDependencies: {},
 }));
 

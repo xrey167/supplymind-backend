@@ -31,7 +31,9 @@ const mockDb = {
 };
 
 mock.module('../../../infra/db/client', () => ({ db: mockDb }));
+const _realSchema = require('../../../infra/db/schema');
 mock.module('../../../infra/db/schema', () => ({
+  ..._realSchema,
   inboxItems: {
     id: 'id',
     workspaceId: 'workspace_id',
