@@ -13,6 +13,8 @@ mock.module('../notifications.repo', () => ({
     markRead: mock(() => Promise.resolve(null as any)),
     markAllRead: mock(() => Promise.resolve()),
     getUnreadCount: mock(() => Promise.resolve(0)),
+    markDelivered: mock(() => Promise.resolve(true)),
+    markFailed: mock(() => Promise.resolve(true)),
   },
 }));
 
