@@ -1,11 +1,23 @@
 import { eq, and, isNull, desc, asc, lt, sql } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { notifications } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { CreateNotificationInput, NotificationFilter, NotificationChannel } from './notifications.types';
 
 export const MAX_NOTIFICATION_ATTEMPTS = 3;
 
-export class NotificationsRepository {
+type NotificationRow = typeof notifications.$inferSelect;
+type NotificationInsert = typeof notifications.$inferInsert;
+
+export class NotificationsRepository extends BaseRepo<
+  typeof notifications,
+  NotificationRow,
+  NotificationInsert
+> {
+  constructor() {
+    super(notifications);
+  }
+
   async create(input: CreateNotificationInput, channel: NotificationChannel = 'in_app') {
     const rows = await db.insert(notifications).values({
       workspaceId: input.workspaceId,
