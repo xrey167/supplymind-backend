@@ -378,7 +378,7 @@ export const notifications = pgTable('notifications', {
   channel: text('channel').notNull(), // in_app | email | websocket
   status: text('status').notNull().default('pending'), // pending | delivered | read | failed
   readAt: timestamp('read_at'),
-  attemptCount: integer('attempt_count').default(0).notNull(),
+  attemptCount: integer('attempt_count').notNull().default(0),
   lastAttemptedAt: timestamp('last_attempted_at'),
   createdAt: timestamp('created_at').defaultNow(),
 }, (t) => [
