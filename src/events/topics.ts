@@ -33,10 +33,21 @@ export const Topics = {
   WORKFLOW_STEP_COMPLETED: 'workflow.step.completed',
   WORKFLOW_COMPLETED: 'workflow.completed',
   WORKFLOW_FAILED: 'workflow.failed',
-  // TODO: Domain events — deferred (build general base first)
-  // DOMAIN_ENTITY_CREATED: 'ontology.entity.created',
-  // TODO: Supply chain alerts — deferred
-  // SC_ALERT_CRITICAL: 'supply-chain.alert.critical',
+  // Supply chain — orders
+  SC_ORDER_CREATED: 'supply_chain.order.created',
+  SC_ORDER_UPDATED: 'supply_chain.order.updated',
+  SC_ORDER_CANCELLED: 'supply_chain.order.cancelled',
+  // Supply chain — shipments
+  SC_SHIPMENT_DISPATCHED: 'supply_chain.shipment.dispatched',
+  SC_SHIPMENT_DELAYED: 'supply_chain.shipment.delayed',
+  SC_SHIPMENT_DELIVERED: 'supply_chain.shipment.delivered',
+  // Supply chain — alerts
+  SC_ALERT_LOW_STOCK: 'supply_chain.alert.low_stock',
+  SC_ALERT_SUPPLIER_RISK: 'supply_chain.alert.supplier_risk',
+  SC_ALERT_PRICE_CHANGE: 'supply_chain.alert.price_change',
+  // Supply chain — sync lifecycle
+  SC_SYNC_COMPLETED: 'supply_chain.sync.completed',
+  SC_SYNC_FAILED: 'supply_chain.sync.failed',
   // Sessions
   SESSION_CREATED: 'session.created',
   SESSION_PAUSED: 'session.paused',
