@@ -125,6 +125,7 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
           params.stepId as string,
           context.workspaceId,
           !!params.approved,
+          context.callerId,
         );
         return resolved
           ? ok({ orchestrationId: params.orchestrationId, stepId: params.stepId, resolved: true })
@@ -245,6 +246,7 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
         params.stepId as string,
         context.workspaceId,
         !!params.approved,
+        context.callerId,
       );
       return resolved
         ? ok({ orchestrationId: params.orchestrationId, stepId: params.stepId, resolved: true })

@@ -136,6 +136,14 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
     logger.warn({ err }, 'Stale task recovery failed — continuing');
   }
 
+  // Step 7.5: Recover orchestration gates that were pending before restart (non-critical)
+  try {
+    const { recoverPendingGates } = await import('../infra/state/orchestration-gates');
+    recoverPendingGates().catch((err: unknown) => logger.warn({ err }, 'Gate recovery failed at startup — continuing'));
+  } catch (err) {
+    logger.warn({ err }, 'Gate recovery import failed — continuing');
+  }
+
   // Step 8: MCP server is now mounted as a Hono route (/mcp) — no standalone init needed
   logger.info('MCP server available at /mcp (Streamable HTTP)');
 
