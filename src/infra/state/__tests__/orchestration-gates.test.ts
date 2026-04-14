@@ -261,10 +261,9 @@ describe('orchestration-gates', () => {
         status: 'pending',
       });
 
-      // scan returns one key, then empty
+      // scan returns one key on the first (and only) call; cursor '0' exits the loop immediately
       mockScan
-        .mockImplementationOnce(async () => ['0', ['gate:orch-recover:step-1']] as [string, string[]])
-        .mockImplementationOnce(async () => ['0', []] as [string, string[]]);
+        .mockImplementationOnce(async () => ['0', ['gate:orch-recover:step-1']] as [string, string[]]);
 
       mockGet.mockImplementationOnce(async (_key: string) => pendingMeta);
 

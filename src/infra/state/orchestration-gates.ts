@@ -59,6 +59,9 @@ export function createGateRequest(
       logger.warn({ orchestrationId, stepId, workspaceId }, 'Orchestration gate timed out — denying');
       resolve(false);
 
+      // NOTE: GET-then-SET with KEEPTTL has a narrow TOCTOU race — if the key expires
+      // between GET and SET, the SET recreates it without TTL. Acceptable for observability-
+      // only data; gate resolution correctness uses the in-memory path.
       // Update Redis status to 'timeout' (fire-and-forget)
       redis().get(`gate:${orchestrationId}:${stepId}`).then(raw => {
         if (!raw) return;
@@ -118,6 +121,9 @@ export function resolveGate(
   pendingGates.delete(key);
   pending.resolve(approved);
 
+  // NOTE: GET-then-SET with KEEPTTL has a narrow TOCTOU race — if the key expires
+  // between GET and SET, the SET recreates it without TTL. Acceptable for observability-
+  // only data; gate resolution correctness uses the in-memory path.
   // Update Redis status (fire-and-forget)
   redis().get(`gate:${orchestrationId}:${stepId}`).then(raw => {
     if (!raw) return;
