@@ -4,14 +4,18 @@ const catalogStore = new Map<string, any>();
 const installStore = new Map<string, any>();
 const eventStore: any[] = [];
 
+const _realCatalogRepo = require('../plugins.catalog.repo');
 mock.module('../plugins.catalog.repo', () => ({
+  ..._realCatalogRepo,
   pluginCatalogRepo: {
     findById: async (id: string) => catalogStore.get(id),
     findAll: async () => [...catalogStore.values()],
   },
 }));
 
+const _realInstallRepo = require('../plugins.installation.repo');
 mock.module('../plugins.installation.repo', () => ({
+  ..._realInstallRepo,
   pluginInstallationRepo: {
     findById: async (id: string) => installStore.get(id),
     findByWorkspaceAndPlugin: async (wsId: string, pluginId: string) =>
@@ -37,14 +41,19 @@ mock.module('../plugins.installation.repo', () => ({
   },
 }));
 
+const _realHealthRepo = require('../plugins.health.repo');
 mock.module('../plugins.health.repo', () => ({
+  ..._realHealthRepo,
   pluginHealthRepo: {
     create: async (data: any) => ({ id: 'health-1', ...data, checkedAt: new Date() }),
     getLatest: async () => undefined,
   },
 }));
 
+// spread to preserve FeatureFlagsService class and getAll/setFlag for tests that run after this file
+const _realFF = require('../../feature-flags/feature-flags.service');
 mock.module('../../feature-flags/feature-flags.service', () => ({
+  ..._realFF,
   featureFlagsService: {
     isEnabled: async (_wsId: string, flag: string) => {
       if (flag === 'plugins.platform.enabled') return true;
@@ -54,8 +63,21 @@ mock.module('../../feature-flags/feature-flags.service', () => ({
   },
 }));
 
+// spread to preserve logger.debug and other methods for tests that run after this file
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { info: () => {}, warn: () => {}, error: () => {} },
+}));
+
+// plugins.service.ts imports credentialsService (for erp-bc path); spread to keep CredentialsService class
+const _realCreds = require('../../credentials/credentials.service');
+mock.module('../../credentials/credentials.service', () => ({
+  ..._realCreds,
+  credentialsService: {
+    create: mock(async () => ({ ok: true, value: { id: 'cred-1' } })),
+    update: mock(async () => ({ ok: true, value: {} })),
+  },
 }));
 
 const { pluginsService } = await import('../plugins.service');

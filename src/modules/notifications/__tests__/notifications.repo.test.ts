@@ -10,7 +10,10 @@ const mockWhere = mock(() => ({ returning: mock(() => Promise.resolve([{ id: 'no
 const mockValues = mock(() => ({ returning: mock(() => Promise.resolve([{ id: 'notif-1', workspaceId: 'ws-1', type: 'task_error', title: 'Test', status: 'pending' }])) }));
 const mockSet = mock(() => ({ where: mockWhere }));
 
+// spread to preserve pool and other exports for tests that run after this file
+const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
   db: {
     select: () => ({ from: mockFrom }),
     insert: () => ({ values: mockValues }),
@@ -18,7 +21,10 @@ mock.module('../../../infra/db/client', () => ({
   },
 }));
 
+// spread to preserve all non-notifications tables for tests that run after this file
+const _realSchema = require('../../../infra/db/schema');
 mock.module('../../../infra/db/schema', () => ({
+  ..._realSchema,
   notifications: {
     id: 'id',
     workspaceId: 'workspace_id',
