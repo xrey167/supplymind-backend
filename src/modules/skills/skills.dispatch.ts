@@ -18,6 +18,7 @@ import { createApprovalRequest } from '../../infra/state/tool-approvals';
 import { nanoid } from 'nanoid';
 import { featureFlagsService } from '../feature-flags/feature-flags.service';
 import { billingService } from '../billing/billing.service';
+import { membersRepo } from '../members/members.repo';
 
 
 export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
@@ -117,9 +118,31 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
       }
     }
 
-    // TODO: Gate 4 — workspace membership check
-    // Requires: workspacesService.isMember(workspaceId, callerId) or equivalent
-    // Deferred: Clerk user → workspace mapping not yet implemented as a callable service method
+    // Gate 4: Workspace membership check
+    // System and service callers bypass this gate — they authenticate via API key or are trusted
+    // infrastructure that may operate across workspaces. User callers (operator, admin, viewer, agent)
+    // must be an active member of the target workspace.
+    const isServiceCaller = (context.callerRole as string) === 'service' || context.callerRole === 'system';
+    if (!isServiceCaller && context.workspaceId && context.callerId) {
+      let isMember: boolean;
+      try {
+        const member = await membersRepo.findMember(context.workspaceId, context.callerId);
+        isMember = member !== null;
+      } catch (memberErr: unknown) {
+        logger.warn({ memberErr, workspaceId: context.workspaceId, callerId: context.callerId }, 'Membership check failed — denying access');
+        return err(new AppError('Unable to verify workspace membership', 503, 'MEMBERSHIP_CHECK_FAILED'));
+      }
+      if (!isMember) {
+        eventBus.publish(Topics.SECURITY_RBAC_DENIED, {
+          skillId,
+          callerRole: context.callerRole,
+          requiredRole: 'member',
+          workspaceId: context.workspaceId,
+          callerId: context.callerId,
+        });
+        return err(new AppError('Caller is not a member of this workspace', 403, 'WORKSPACE_ACCESS_DENIED'));
+      }
+    }
 
     // beforeExecute hook
     const hooks = hooksRegistry.get(skillId);
