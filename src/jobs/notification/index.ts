@@ -3,29 +3,43 @@ import { notificationsRepo } from '../../modules/notifications/notifications.rep
 import { dispatchChannel } from '../../modules/notifications/notifications.service';
 import type { Notification, NotificationChannel } from '../../modules/notifications/notifications.types';
 
+const RETRY_BATCH_SIZE = 50;
+
+interface RetryMetadata {
+  _channels?: NotificationChannel[];
+  _recipientEmail?: string | null;
+}
+
+/**
+ * Hourly sweep: re-dispatches failed notifications whose outbound channels
+ * (slack/telegram/email/websocket) should be retried. Returns the number of
+ * notifications that had at least one outbound channel processed.
+ */
 export async function retryFailedNotifications(): Promise<number> {
-  const failed = await notificationsRepo.listFailed(50);
+  const failed = await notificationsRepo.listFailed(RETRY_BATCH_SIZE);
   let retried = 0;
 
   for (const n of failed) {
-    const channels = ((n.metadata as Record<string, unknown>)?._channels ?? ['in_app']) as NotificationChannel[];
-    const recipientEmail = ((n.metadata as Record<string, unknown>)?._recipientEmail ?? null) as string | null;
+    const meta = (n.metadata ?? {}) as RetryMetadata;
+    const channels = meta._channels ?? ['in_app'];
+    const recipientEmail = meta._recipientEmail ?? undefined;
     const outbound = channels.filter((c) => c !== 'in_app');
 
     let succeeded = 0;
-
     for (const ch of outbound) {
       try {
-        const sent = await dispatchChannel(ch, n as unknown as Notification, n.workspaceId, recipientEmail ?? undefined);
+        const sent = await dispatchChannel(ch, n as unknown as Notification, n.workspaceId, recipientEmail);
         if (sent) succeeded++;
       } catch (err) {
         logger.warn({ err, notificationId: n.id, ch }, 'Retry delivery failed');
       }
     }
 
-    // markDelivered if no outbound channels (in_app only) OR at least one channel succeeded
-    // markFailed for everything else: all failed, all skipped (no creds), or mixed
-    if (outbound.length === 0 || succeeded > 0) {
+    // markDelivered when there was nothing to retry (in_app only) or at least
+    // one outbound channel succeeded; markFailed otherwise (all errored, all
+    // skipped for missing creds, or a mix of the two).
+    const shouldMarkDelivered = outbound.length === 0 || succeeded > 0;
+    if (shouldMarkDelivered) {
       await notificationsRepo.markDelivered(n.id).catch((err) =>
         logger.warn({ err, notificationId: n.id }, 'markDelivered failed during retry'),
       );
@@ -34,6 +48,7 @@ export async function retryFailedNotifications(): Promise<number> {
         logger.warn({ err, notificationId: n.id }, 'markFailed failed during retry'),
       );
     }
+
     if (outbound.length > 0) retried++;
   }
 

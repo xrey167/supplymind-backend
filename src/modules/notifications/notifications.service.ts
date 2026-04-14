@@ -13,6 +13,14 @@ import type {
   QuietHours,
 } from './notifications.types';
 
+/**
+ * Dispatches a single notification to one outbound channel.
+ *
+ * Returns `true` when the delivery was actually attempted (and did not throw),
+ * `false` when the channel was intentionally skipped (missing recipient,
+ * credentials, or a no-op channel like `in_app`). Throwing callers treat
+ * exceptions as failures — see callers in `notify()` and `retryFailedNotifications`.
+ */
 export async function dispatchChannel(
   ch: NotificationChannel,
   notification: Notification,
@@ -20,18 +28,17 @@ export async function dispatchChannel(
   recipientEmail?: string | null,
 ): Promise<boolean> {
   switch (ch) {
-    case 'email':
-      if (recipientEmail) {
-        const { deliverEmail } = await import('./channels/email/email.channel');
-        await deliverEmail(notification, recipientEmail);
-        return true;   // delivered
-      }
-      return false;  // no address — skip
+    case 'email': {
+      if (!recipientEmail) return false;
+      const { deliverEmail } = await import('./channels/email/email.channel');
+      await deliverEmail(notification, recipientEmail);
+      return true;
+    }
 
     case 'slack': {
       const { credentialsService } = await import('../credentials/credentials.service');
       const cred = await credentialsService.getByProvider(workspaceId, 'slack').catch(() => null);
-      if (!cred) return false;   // no credentials — skip
+      if (!cred) return false;
       const { deliverSlack } = await import('./channels/slack/slack.channel');
       await deliverSlack(notification, cred.value);
       return true;
@@ -41,7 +48,7 @@ export async function dispatchChannel(
       const { credentialsService } = await import('../credentials/credentials.service');
       const cred = await credentialsService.getByProvider(workspaceId, 'telegram').catch(() => null);
       const chatId = String(cred?.metadata?.chatId ?? '');
-      if (!cred || !chatId) return false;   // no credentials or chatId — skip
+      if (!cred || !chatId) return false;
       const { deliverTelegram } = await import('./channels/telegram/telegram.channel');
       await deliverTelegram(notification, cred.value, chatId);
       return true;
@@ -53,7 +60,8 @@ export async function dispatchChannel(
 
     case 'in_app':
     default:
-      return false;  // in_app is the DB record itself; default is intentional no-op
+      // in_app is the DB record itself; default keeps the switch exhaustive.
+      return false;
   }
 }
 
@@ -82,23 +90,16 @@ export function isInQuietHours(qh: QuietHours): boolean {
 
 export class NotificationsService {
   /**
-   * Core dispatch: check preferences, insert DB record, dispatch to channels, publish event.
+   * Core dispatch: resolve preferences, insert DB record, deliver to channels, publish event.
    */
   async notify(input: CreateNotificationInput): Promise<Notification | null> {
-    // 1. Resolve channels + quiet hours from preferences
+    // Resolve channels + quiet hours from preferences.
     let channels: NotificationChannel[] = ['in_app'];
     let quietHours: QuietHours | null = null;
 
     if (input.userId) {
-      const pref = await notificationPreferencesRepo.get(
-        input.userId,
-        input.workspaceId,
-        input.type,
-      );
-      const global = await notificationPreferencesRepo.getGlobal(
-        input.userId,
-        input.workspaceId,
-      );
+      const pref = await notificationPreferencesRepo.get(input.userId, input.workspaceId, input.type);
+      const global = await notificationPreferencesRepo.getGlobal(input.userId, input.workspaceId);
       if (pref?.muted || global?.muted) {
         logger.debug({ userId: input.userId, type: input.type }, 'Notification muted by preference');
         return null;
@@ -109,7 +110,8 @@ export class NotificationsService {
       quietHours = (pref?.quietHours ?? global?.quietHours ?? null) as QuietHours | null;
     }
 
-    // 2. Insert DB record (always in_app), storing resolved channels in metadata
+    // Insert DB record (always in_app), stashing resolved channels in metadata
+    // so the retry job can re-dispatch to the same targets.
     const record = await notificationsRepo.create({
       ...input,
       metadata: {
@@ -120,11 +122,9 @@ export class NotificationsService {
     }, 'in_app');
     const notification = record as unknown as Notification;
 
-    // 3. Dispatch to channels
     await deliverInApp(notification);
 
     const skipOutbound = quietHours != null && isInQuietHours(quietHours);
-
     const outbound = channels.filter((c) => c !== 'in_app');
     let attempted = 0;
     let succeeded = 0;
@@ -137,7 +137,7 @@ export class NotificationsService {
             attempted++;
             succeeded++;
           }
-          // sent=false means intentionally skipped — don't count as attempt or failure
+          // sent=false is an intentional skip — don't count as attempt or failure.
         } catch (err) {
           attempted++;
           logger.warn({ err, notificationId: notification.id, ch }, `${ch} delivery failed`);
@@ -145,9 +145,11 @@ export class NotificationsService {
       }
     }
 
-    // markDelivered if: no outbound channels, or all were skipped (none attempted), or at least one succeeded, or quiet hours
-    // markFailed if: at least one delivery was attempted AND all attempts failed
-    if (attempted === 0 || succeeded > 0 || skipOutbound) {
+    // Mark delivered when nothing was actually attempted (in_app only, all skipped,
+    // or quiet hours) or at least one channel succeeded; mark failed only when
+    // every attempted delivery errored.
+    const allDelivered = attempted === 0 || succeeded > 0 || skipOutbound;
+    if (allDelivered) {
       await notificationsRepo.markDelivered(notification.id).catch((err) =>
         logger.warn({ err, notificationId: notification.id }, 'markDelivered failed'),
       );
@@ -157,7 +159,6 @@ export class NotificationsService {
       );
     }
 
-    // 4. Publish NOTIFICATION_CREATED event
     await eventBus.publish(Topics.NOTIFICATION_CREATED, {
       notificationId: notification.id,
       workspaceId: notification.workspaceId,
