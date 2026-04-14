@@ -135,10 +135,17 @@ mock.module('../../../infra/db/client', () => ({
   },
 }));
 
+// Spread the real bus so eventBus.subscribe is preserved for downstream test files.
+const _realBus = require('../../../events/bus');
 const mockPublish = mock(async () => undefined);
 mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mockPublish },
-  EventBus: class { subscribe() { return 'sub'; } },
+  ..._realBus,
+  eventBus: new Proxy(_realBus.eventBus, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'publish') return (...args: any[]) => mockPublish(...args);
+      return target[prop];
+    },
+  }),
 }));
 
 mock.module('../../../config/logger', () => ({

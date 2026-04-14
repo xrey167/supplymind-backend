@@ -75,10 +75,18 @@ const mockDb = {
 
 mock.module('../../../infra/db/client', () => ({ db: mockDb }));
 
+// Spread the real bus so eventBus.subscribe is preserved for downstream test files
+// (notification.handler.test.ts wraps it in a proxy that intercepts subscribe).
+const _realBus = require('../../../events/bus');
 const mockPublish = mock(async () => undefined);
 mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mockPublish },
-  EventBus: class { subscribe() { return 'sub'; } },
+  ..._realBus,
+  eventBus: new Proxy(_realBus.eventBus, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'publish') return (...args: any[]) => mockPublish(...args);
+      return target[prop];
+    },
+  }),
 }));
 
 // Do NOT mock events/topics — it's just string constants and mocking it

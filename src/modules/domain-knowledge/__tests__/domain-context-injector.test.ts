@@ -16,10 +16,6 @@ const mockGetRaw = mock(() => Promise.resolve(500));
 mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
   workspaceSettingsService: { getRaw: mockGetRaw },
 }));
-mock.module('../../settings/workspace-settings/workspace-settings.schemas', () => ({
-  WorkspaceSettingKeys: { LEARNING_DOMAIN_CONTEXT_BUDGET: 'learning.domain_context_budget' },
-}));
-
 // --- mock logger -------------------------------------------------------------
 mock.module('../../../config/logger', () => ({
   logger: { warn: mock(), info: mock(), error: mock(), debug: mock() },

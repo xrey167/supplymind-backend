@@ -43,6 +43,8 @@ jobs:
           # - erp-sync-scheduler.test.ts: mocks infra/queue/bullmq stripping enqueueAgentRun, corrupts gateway task.get
           # - sync-runner.test.ts: mocks drizzle-orm (strips desc/and/etc) + db/client; same class of contamination
           # - erp-bc/integration/*: requires Redis/BC sandbox — belongs in integration-tests job, not unit tests
+          # - jobs/notification/__tests__/*: mocks notifications.service; isolated run prevents clobbering
+          #   NotificationsService class export seen by notifications.service.test.ts + notification-channels.test.ts
           # client-pool.test.ts runs separately: ioredis ECONNREFUSED can attach to pending promises
           # in other tests depending on filesystem traversal order.
           # Exclude known-broken tests: PluginManager (Redis timeouts) and WorkspaceSettingsService
@@ -58,7 +60,8 @@ jobs:
             -not -path '*/infra/state/__tests__/gate-audit.repo.test.ts' \
             -not -path '*/jobs/__tests__/erp-sync-scheduler.test.ts' \
             -not -path '*/erp-bc/__tests__/sync-runner.test.ts' \
-            -not -path '*/erp-bc/__tests__/integration/*')
+            -not -path '*/erp-bc/__tests__/integration/*' \
+            -not -path '*/jobs/notification/__tests__/*')
           bun test src/modules/learning/__tests__/
           bun test src/infra/a2a/__tests__/task-manager.test.ts
           bun test src/infra/mcp/__tests__/client-pool.test.ts
@@ -67,6 +70,7 @@ jobs:
           bun test src/infra/state/__tests__/gate-audit.repo.test.ts
           bun test src/jobs/__tests__/erp-sync-scheduler.test.ts
           bun test src/plugins/erp-bc/__tests__/sync-runner.test.ts
+          bun test src/jobs/notification/__tests__/
         env:
           CREDENTIALS_ENCRYPTION_KEY: ci-test-key-for-unit-tests-32bytes
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
