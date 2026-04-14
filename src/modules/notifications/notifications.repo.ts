@@ -1,4 +1,4 @@
-import { eq, and, isNull, desc, sql } from 'drizzle-orm';
+import { eq, and, isNull, desc, asc, lt, sql } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { notifications } from '../../infra/db/schema';
 import type { CreateNotificationInput, NotificationFilter, NotificationChannel } from './notifications.types';
@@ -70,6 +70,39 @@ export class NotificationsRepository {
         ),
       );
     return Number(result[0]?.count ?? 0);
+  }
+
+  async markDelivered(id: string): Promise<void> {
+    await db.update(notifications)
+      .set({
+        status: 'delivered',
+        lastAttemptedAt: new Date(),
+        attemptCount: sql`${notifications.attemptCount} + 1`,
+      })
+      .where(eq(notifications.id, id));
+  }
+
+  async markFailed(id: string): Promise<void> {
+    await db.update(notifications)
+      .set({
+        status: 'failed',
+        lastAttemptedAt: new Date(),
+        attemptCount: sql`${notifications.attemptCount} + 1`,
+      })
+      .where(eq(notifications.id, id));
+  }
+
+  async listFailed(limit = 50): Promise<(typeof notifications.$inferSelect)[]> {
+    return db.select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.status, 'failed'),
+          lt(notifications.attemptCount, 3),
+        ),
+      )
+      .orderBy(asc(notifications.lastAttemptedAt))
+      .limit(limit);
   }
 }
 
