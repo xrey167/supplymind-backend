@@ -113,6 +113,13 @@
       "when": 1776310000000,
       "tag": "0015_notification_extensions",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1776153494403,
+      "tag": "0016_smooth_white_queen",
+      "breakpoints": true
     }
   ]
 }
