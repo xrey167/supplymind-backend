@@ -3,6 +3,8 @@ import { db } from '../../infra/db/client';
 import { notifications } from '../../infra/db/schema';
 import type { CreateNotificationInput, NotificationFilter, NotificationChannel } from './notifications.types';
 
+export const MAX_NOTIFICATION_ATTEMPTS = 3;
+
 export class NotificationsRepository {
   async create(input: CreateNotificationInput, channel: NotificationChannel = 'in_app') {
     const rows = await db.insert(notifications).values({
@@ -72,24 +74,24 @@ export class NotificationsRepository {
     return Number(result[0]?.count ?? 0);
   }
 
-  async markDelivered(id: string): Promise<void> {
-    await db.update(notifications)
-      .set({
-        status: 'delivered',
-        lastAttemptedAt: new Date(),
-        attemptCount: sql`${notifications.attemptCount} + 1`,
-      })
-      .where(eq(notifications.id, id));
+  async markDelivered(id: string): Promise<boolean> {
+    const rows = await db.update(notifications)
+      .set({ status: 'delivered', lastAttemptedAt: new Date() })
+      .where(eq(notifications.id, id))
+      .returning({ id: notifications.id });
+    return rows.length > 0;
   }
 
-  async markFailed(id: string): Promise<void> {
-    await db.update(notifications)
+  async markFailed(id: string): Promise<boolean> {
+    const rows = await db.update(notifications)
       .set({
         status: 'failed',
         lastAttemptedAt: new Date(),
         attemptCount: sql`${notifications.attemptCount} + 1`,
       })
-      .where(eq(notifications.id, id));
+      .where(eq(notifications.id, id))
+      .returning({ id: notifications.id });
+    return rows.length > 0;
   }
 
   async listFailed(limit = 50): Promise<(typeof notifications.$inferSelect)[]> {
@@ -98,10 +100,10 @@ export class NotificationsRepository {
       .where(
         and(
           eq(notifications.status, 'failed'),
-          lt(notifications.attemptCount, 3),
+          lt(notifications.attemptCount, MAX_NOTIFICATION_ATTEMPTS),
         ),
       )
-      .orderBy(asc(notifications.lastAttemptedAt))
+      .orderBy(asc(notifications.lastAttemptedAt), asc(notifications.createdAt))
       .limit(limit);
   }
 }
