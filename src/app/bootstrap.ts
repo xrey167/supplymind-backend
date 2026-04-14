@@ -211,8 +211,12 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
   }
 
   // Step 13.5: Bootstrap ERP sync cron schedules from DB (non-critical, fire-and-forget)
-  const { bootstrapErpSyncSchedules } = await import('../jobs/erp-sync-scheduler');
-  bootstrapErpSyncSchedules().catch((err: unknown) => logger.warn({ err }, 'ERP sync schedule bootstrap failed'));
+  try {
+    const { bootstrapErpSyncSchedules } = await import('../jobs/erp-sync-scheduler');
+    bootstrapErpSyncSchedules().catch((err: unknown) => logger.warn({ err }, 'ERP sync schedule bootstrap failed'));
+  } catch (err) {
+    logger.warn({ err }, 'Failed to import erp-sync-scheduler — cron schedules will not be registered');
+  }
 
   // Step 14: Register plugin health check repeatable job (non-critical)
   try {
