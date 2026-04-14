@@ -58,6 +58,15 @@ export type BcEntityMap = {
   customers: Customer;
 };
 
+/** System-assigned fields that must never be written back in a PATCH body (IDs, auto-numbers, read-only timestamps). */
+export const SYSTEM_FIELDS: Record<BcEntityType, ReadonlySet<string>> = {
+  purchaseOrders: new Set(['id', '@odata.etag', 'lastModifiedDateTime', 'number', 'status']),
+  vendors:        new Set(['id', '@odata.etag', 'lastModifiedDateTime', 'number']),
+  glEntries:      new Set(['id', '@odata.etag', 'lastModifiedDateTime', 'entryNumber']),
+  items:          new Set(['id', '@odata.etag', 'lastModifiedDateTime', 'number']),
+  customers:      new Set(['id', '@odata.etag', 'lastModifiedDateTime', 'number']),
+};
+
 export interface BcConnectionConfig {
   tenantId: string;
   clientId: string;

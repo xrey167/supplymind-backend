@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import { shouldRetry, withRetry, DEFAULT_RETRY_POLICY } from '../sync/retry-strategy';
-import { TransientError, PermanentError, AuthError } from '../sync/sync-errors';
+import { TransientError, PermanentError, AuthError, ConflictError } from '../sync/sync-errors';
 
 describe('shouldRetry', () => {
   it('does not retry PermanentError', () => {
@@ -13,6 +13,9 @@ describe('shouldRetry', () => {
   it('retries AuthError only once', () => {
     expect(shouldRetry(new AuthError('401'), 0, DEFAULT_RETRY_POLICY)).toBe(true);
     expect(shouldRetry(new AuthError('401'), 1, DEFAULT_RETRY_POLICY)).toBe(false);
+  });
+  it('does not retry ConflictError (handled by BcClient.patch() internally)', () => {
+    expect(shouldRetry(new ConflictError('409'), 0, DEFAULT_RETRY_POLICY)).toBe(false);
   });
 });
 
