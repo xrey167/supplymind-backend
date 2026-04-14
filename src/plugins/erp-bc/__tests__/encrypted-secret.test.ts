@@ -117,10 +117,12 @@ mock.module('../../../modules/plugins/plugins.manifest-validator', () => ({
   checkPermissions: mockCheckPermissions,
 }));
 
+const mockLoggerWarn = mock(() => {});
+
 mock.module('../../../config/logger', () => ({
   logger: {
     info: () => {},
-    warn: () => {},
+    warn: mockLoggerWarn,
     error: () => {},
     debug: () => {},
   },
@@ -351,8 +353,7 @@ describe('ERP-BC encrypted secret — worker path', () => {
   });
 
   it('falls back to plaintext clientSecret in config when no secretBindingIds', async () => {
-    const warnCalls: unknown[] = [];
-    const warnLogger = { warn: (...args: unknown[]) => { warnCalls.push(args); } };
+    mockLoggerWarn.mockReset();
 
     const installation = {
       secretBindingIds: [] as string[],
@@ -364,26 +365,32 @@ describe('ERP-BC encrypted secret — worker path', () => {
         clientSecret: 'plaintext-secret',
       },
     };
-    const workspaceId = 'ws-1';
+    const syncJob = { workspaceId: 'ws-1', installationId: 'install-abc' };
 
     const secretBindingIds = installation.secretBindingIds as string[] | undefined;
     let clientSecret: string | undefined;
 
     if (secretBindingIds?.[0]) {
-      const decrypted = await mockCredentialsService.getDecrypted(secretBindingIds[0], workspaceId);
+      const decrypted = await mockCredentialsService.getDecrypted(secretBindingIds[0], syncJob.workspaceId);
       if (decrypted.ok) {
         clientSecret = decrypted.value;
       } else {
-        warnLogger.warn({ credentialId: secretBindingIds[0] }, 'Failed to decrypt ERP-BC client secret — falling back to plaintext config');
+        mockLoggerWarn({ credentialId: secretBindingIds[0] }, 'Failed to decrypt ERP-BC client secret — falling back to plaintext config');
       }
     }
 
+    // Migration fallback: use plaintext if no secretBindingId yet
     if (!clientSecret) {
+      if (!secretBindingIds?.[0]) {
+        mockLoggerWarn({ workspaceId: syncJob.workspaceId, installationId: syncJob.installationId }, 'ERP-BC installation has no secretBindingId — using plaintext clientSecret (please re-install to encrypt)');
+      }
       clientSecret = (installation.config as any)?.clientSecret;
     }
 
     expect(clientSecret).toBe('plaintext-secret');
-    expect(warnCalls).toHaveLength(0); // no warn when no secretBindingIds
+    expect(mockLoggerWarn).toHaveBeenCalledTimes(1);
+    const warnCall = mockLoggerWarn.mock.calls[0] as [Record<string, unknown>, string];
+    expect(warnCall[1]).toMatch(/no secretBindingId/);
   });
 
   it('throws when BOTH decryption and plaintext config fail', async () => {

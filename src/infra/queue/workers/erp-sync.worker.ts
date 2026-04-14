@@ -49,6 +49,9 @@ export function createErpSyncWorker(connection: Redis) {
 
       // Migration fallback: use plaintext if no secretBindingId yet
       if (!clientSecret) {
+        if (!secretBindingIds?.[0]) {
+          logger.warn({ workspaceId: syncJob.workspaceId, installationId: syncJob.installationId }, 'ERP-BC installation has no secretBindingId — using plaintext clientSecret (please re-install to encrypt)');
+        }
         clientSecret = (installation?.config as any)?.clientSecret;
       }
 

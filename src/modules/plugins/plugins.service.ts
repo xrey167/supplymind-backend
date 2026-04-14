@@ -80,9 +80,12 @@ export const pluginsService = {
     // For erp-bc: strip clientSecret from stored config; it will be stored encrypted
     let storedConfig = config;
     let erpBcClientSecret: string | undefined;
-    if (manifest.id === 'erp-bc' && (config as any).clientSecret) {
+    if (manifest.id === 'erp-bc' && (config as any).clientSecret !== undefined) {
       const { clientSecret: _, ...safeConfig } = config as any;
-      erpBcClientSecret = _ as string;
+      if (typeof _ !== 'string' || !_) {
+        return err(new Error('ERP-BC clientSecret must be a non-empty string'));
+      }
+      erpBcClientSecret = _;
       storedConfig = safeConfig;
     }
 
@@ -122,7 +125,13 @@ export const pluginsService = {
         await pluginInstallationRepo.updateSecretBindingIds(active.id, [credResult.value.id]);
         active = { ...active, secretBindingIds: [credResult.value.id] };
       } else {
-        logger.error({ err: credResult.error, installationId: active.id, workspaceId }, 'Failed to store erp-bc client secret — installation active but secret not encrypted');
+        logger.error({ err: credResult.error, installationId: active.id, workspaceId }, 'Failed to store erp-bc client secret — marking installation as failed');
+        try {
+          await pluginInstallationRepo.transition(active.id, workspaceId, 'failed', 'installed', actor, { reason: 'credential_store_failed' });
+        } catch (transErr) {
+          logger.error({ err: transErr, installationId: active.id, workspaceId }, 'Failed to mark installation as failed after credential store failure');
+        }
+        return err(new Error('Failed to store ERP-BC client secret — installation cannot proceed'));
       }
     }
 
@@ -180,9 +189,12 @@ export const pluginsService = {
     // For erp-bc: strip clientSecret from stored config and update encrypted credential
     let storedConfig = config;
     let erpBcClientSecret: string | undefined;
-    if (manifest.id === 'erp-bc' && (config as any).clientSecret) {
+    if (manifest.id === 'erp-bc' && (config as any).clientSecret !== undefined) {
       const { clientSecret: _, ...safeConfig } = config as any;
-      erpBcClientSecret = _ as string;
+      if (typeof _ !== 'string' || !_) {
+        return err(new Error('ERP-BC clientSecret must be a non-empty string'));
+      }
+      erpBcClientSecret = _;
       storedConfig = safeConfig;
     }
 
