@@ -75,10 +75,18 @@ const mockDb = {
 
 mock.module('../../../infra/db/client', () => ({ db: mockDb }));
 
+// Spread the real bus so eventBus.subscribe is preserved for downstream test files
+// (notification.handler.test.ts wraps it in a proxy that intercepts subscribe).
+const _realBus = require('../../../events/bus');
 const mockPublish = mock(async () => undefined);
 mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mockPublish },
-  EventBus: class { subscribe() { return 'sub'; } },
+  ..._realBus,
+  eventBus: new Proxy(_realBus.eventBus, {
+    get(target: any, prop: string | symbol) {
+      if (prop === 'publish') return (...args: any[]) => mockPublish(...args);
+      return target[prop];
+    },
+  }),
 }));
 
 // Do NOT mock events/topics — it's just string constants and mocking it
@@ -93,41 +101,17 @@ mock.module('../../../config/logger', () => ({
   },
 }));
 
-// Mock dynamic imports used by applyChange / applyRollback.
-// Each mock MUST include ALL exports from the real module — mock.module
-// replaces the module globally in bun:test, so missing exports break
-// other test files that import the same module.
-mock.module('../../skills/skills.registry', () => ({
-  skillRegistry: {
-    get: mock(() => null),
-    register: mock(() => undefined),
-    unregister: mock(() => undefined),
-  },
-}));
-
+// improvement-pipeline.ts only uses skillRegistry and generators via dynamic
+// import() inside applyChange/applyRollback for specific proposal types. The
+// tests below only cover 'skill_weight' proposals (skillRegistry.get returns
+// undefined → noop branch) and CRUD operations, so no mocking is needed here.
+// Avoiding mock.module for these modules prevents contamination of downstream
+// test files (skills dispatch, tools registry, memory skills, generators).
 mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
   workspaceSettingsService: {
     set: mock(async () => undefined),
     getRaw: mock(async () => null),
   },
-}));
-
-mock.module('../generators/skill-generator', () => ({
-  detectSkillGaps: mock(async () => []),
-  generateSkillForGap: mock(async () => null),
-  testAndRegisterGeneratedSkill: mock(async () => undefined),
-}));
-
-mock.module('../generators/prompt-optimizer', () => ({
-  findUnderperformingAgents: mock(async () => []),
-  generatePromptVariant: mock(async () => null),
-  applyPromptUpdate: mock(async () => undefined),
-}));
-
-mock.module('../generators/workflow-generator', () => ({
-  detectRepeatedSequences: mock(async () => []),
-  proposeWorkflowTemplate: mock(() => ({})),
-  applyWorkflowTemplate: mock(async () => undefined),
 }));
 
 // --- Import SUT after mocks ---
