@@ -6,6 +6,7 @@ import { createOrchestrationSchema, orchestrationIdParamSchema } from './orchest
 import { enqueueOrchestration } from '../../infra/queue/bullmq';
 import type { OrchestrationDefinition } from './orchestration.types';
 import { AppError } from '../../core/errors';
+import { gateAuditRepo } from '../../infra/state/gate-audit.repo';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
 const errRes = (desc: string) => ({ description: desc, ...jsonRes });
@@ -38,6 +39,28 @@ const cancelRoute = createRoute({
   method: 'post', path: '/{id}/cancel',
   request: { params: orchestrationIdParamSchema },
   responses: { 200: { description: 'Cancelled', ...jsonRes }, 400: { description: 'Cannot cancel', ...jsonRes }, 404: { description: 'Not found', ...jsonRes } },
+});
+
+const gateAuditLogItemSchema = z.object({
+  id: z.string(),
+  orchestrationId: z.string(),
+  stepId: z.string(),
+  workspaceId: z.string(),
+  outcome: z.string(),
+  decidedBy: z.string().nullable(),
+  decidedAt: z.string(),
+  reason: z.string().nullable(),
+  prompt: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+const gatesRoute = createRoute({
+  method: 'get', path: '/{id}/gates',
+  request: { params: orchestrationIdParamSchema },
+  responses: {
+    200: { description: 'Gate audit log', content: { 'application/json': { schema: z.object({ data: z.array(gateAuditLogItemSchema) }) } } },
+    404: errRes('Not found'),
+  },
 });
 
 export const orchestrationRoutes = new OpenAPIHono<AppEnv>();
@@ -94,4 +117,30 @@ orchestrationRoutes.openapi(cancelRoute, async (c) => {
     return c.json({ error: result.error.message }, status as 400 | 404);
   }
   return c.json({ orchestrationId: id, status: 'cancelled' });
+});
+
+orchestrationRoutes.openapi(gatesRoute, async (c) => {
+  const workspaceId = c.get('workspaceId') as string;
+  const { id } = c.req.valid('param');
+
+  // Verify the orchestration belongs to this workspace
+  const orch = await orchestrationService.get(id);
+  if (!orch || orch.workspaceId !== workspaceId) {
+    return c.json({ error: 'Orchestration not found' }, 404);
+  }
+
+  const rows = await gateAuditRepo.listByOrchestration(id);
+  const data = rows.map((r) => ({
+    id: r.id,
+    orchestrationId: r.orchestrationId,
+    stepId: r.stepId,
+    workspaceId: r.workspaceId,
+    outcome: r.outcome,
+    decidedBy: r.decidedBy ?? null,
+    decidedAt: r.decidedAt.toISOString(),
+    reason: r.reason ?? null,
+    prompt: r.prompt ?? null,
+    createdAt: r.createdAt.toISOString(),
+  }));
+  return c.json({ data });
 });

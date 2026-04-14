@@ -23,6 +23,18 @@ mock.module('../../../infra/redis/client', () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Mock gate-audit.repo — track insert calls
+// ---------------------------------------------------------------------------
+const mockAuditInsert = mock(async (_record: unknown): Promise<void> => undefined);
+
+mock.module('../gate-audit.repo', () => ({
+  gateAuditRepo: {
+    insert: mockAuditInsert,
+    listByOrchestration: mock(async () => []),
+  },
+}));
+
+// ---------------------------------------------------------------------------
 // Import module AFTER mocks are registered
 // ---------------------------------------------------------------------------
 const {
@@ -45,10 +57,12 @@ function resetMocks() {
   mockGet.mockReset();
   mockSet.mockReset();
   mockScan.mockReset();
+  mockAuditInsert.mockReset();
   // Re-install default implementations after reset
   mockGet.mockImplementation(async (_key: string): Promise<string | null> => null);
   mockSet.mockImplementation(async (..._args: unknown[]): Promise<'OK'> => 'OK');
   mockScan.mockImplementation(async (_cursor: string, ..._args: unknown[]): Promise<[string, string[]]> => ['0', []]);
+  mockAuditInsert.mockImplementation(async (_record: unknown): Promise<void> => undefined);
 }
 
 // ---------------------------------------------------------------------------
@@ -364,6 +378,101 @@ describe('orchestration-gates', () => {
       mockGet.mockImplementationOnce(async () => null);
       const result = await listPendingGates();
       expect(result).toHaveLength(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Gate Audit Log — integration with orchestration-gates
+  // -------------------------------------------------------------------------
+  describe('gate audit writes', () => {
+    it('calls gateAuditRepo.insert with outcome:approved after resolveGate(approved=true)', async () => {
+      const promise = createGateRequest('orch-audit-1', 'step-1', 'ws-audit', 5000, 'audit approve test');
+      resolveGate('orch-audit-1', 'step-1', 'ws-audit', true, 'user-audit');
+      await promise;
+      await flush();
+
+      const insertCall = mockAuditInsert.mock.calls.find((c) => {
+        const rec = c[0] as Record<string, unknown>;
+        return rec.orchestrationId === 'orch-audit-1' && rec.outcome === 'approved';
+      });
+      expect(insertCall).toBeDefined();
+      const rec = insertCall![0] as Record<string, unknown>;
+      expect(rec.outcome).toBe('approved');
+      expect(rec.decidedBy).toBe('user-audit');
+      expect(rec.workspaceId).toBe('ws-audit');
+      expect(rec.prompt).toBe('audit approve test');
+      expect(rec.stepId).toBe('step-1');
+    });
+
+    it('calls gateAuditRepo.insert with outcome:rejected after resolveGate(approved=false)', async () => {
+      const promise = createGateRequest('orch-audit-2', 'step-1', 'ws-audit', 5000, 'audit reject test');
+      resolveGate('orch-audit-2', 'step-1', 'ws-audit', false, 'user-audit-2');
+      await promise;
+      await flush();
+
+      const insertCall = mockAuditInsert.mock.calls.find((c) => {
+        const rec = c[0] as Record<string, unknown>;
+        return rec.orchestrationId === 'orch-audit-2' && rec.outcome === 'rejected';
+      });
+      expect(insertCall).toBeDefined();
+      const rec = insertCall![0] as Record<string, unknown>;
+      expect(rec.outcome).toBe('rejected');
+      expect(rec.decidedBy).toBe('user-audit-2');
+    });
+
+    it('calls gateAuditRepo.insert with outcome:timeout after gate times out', async () => {
+      const promise = createGateRequest('orch-audit-timeout', 'step-1', 'ws-audit', 1, 'timeout audit test');
+      await new Promise<void>((r) => setTimeout(r, 20));
+      await promise;
+      await flush();
+
+      const insertCall = mockAuditInsert.mock.calls.find((c) => {
+        const rec = c[0] as Record<string, unknown>;
+        return rec.orchestrationId === 'orch-audit-timeout' && rec.outcome === 'timeout';
+      });
+      expect(insertCall).toBeDefined();
+      const rec = insertCall![0] as Record<string, unknown>;
+      expect(rec.outcome).toBe('timeout');
+      expect(rec.decidedBy).toBe('system');
+      expect(rec.workspaceId).toBe('ws-audit');
+      expect(rec.prompt).toBe('timeout audit test');
+    });
+
+    it('gateAuditRepo.insert failure is swallowed — resolveGate still returns true', async () => {
+      mockAuditInsert.mockImplementation(async () => { throw new Error('audit DB down'); });
+
+      const promise = createGateRequest('orch-audit-err', 'step-1', 'ws-audit', 5000, 'audit err test');
+      const resolved = resolveGate('orch-audit-err', 'step-1', 'ws-audit', true, 'user-x');
+
+      expect(resolved).toBe(true);
+      await expect(promise).resolves.toBe(true);
+      // No unhandled rejection should occur
+    });
+
+    it('calls gateAuditRepo.insert with outcome:timeout for each recovered gate', async () => {
+      const pendingMeta = JSON.stringify({
+        orchestrationId: 'orch-recover-audit', stepId: 'step-1', workspaceId: 'ws-recover',
+        prompt: 'recover?', createdAt: new Date().toISOString(),
+        timeoutAt: new Date(Date.now() + 5000).toISOString(),
+        status: 'pending',
+      });
+
+      mockScan.mockImplementationOnce(async () => ['0', ['gate:orch-recover-audit:step-1']] as [string, string[]]);
+      mockGet.mockImplementationOnce(async () => pendingMeta);
+
+      await recoverPendingGates();
+      await flush();
+
+      const insertCall = mockAuditInsert.mock.calls.find((c) => {
+        const rec = c[0] as Record<string, unknown>;
+        return rec.orchestrationId === 'orch-recover-audit' && rec.outcome === 'timeout';
+      });
+      expect(insertCall).toBeDefined();
+      const rec = insertCall![0] as Record<string, unknown>;
+      expect(rec.outcome).toBe('timeout');
+      expect(rec.decidedBy).toBe('system');
+      expect(rec.workspaceId).toBe('ws-recover');
+      expect(rec.prompt).toBe('recover?');
     });
   });
 });

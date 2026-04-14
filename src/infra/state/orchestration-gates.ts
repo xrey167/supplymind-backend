@@ -1,6 +1,7 @@
 /** In-memory store for pending orchestration gate promises keyed by gateId. */
 import { logger } from '../../config/logger';
 import { getSharedRedisClient } from '../redis/client';
+import { gateAuditRepo } from './gate-audit.repo';
 
 /** Lazily access the shared Redis client — avoids a top-level import that would
  *  fail in unit tests where Redis is mocked after module load. */
@@ -74,6 +75,16 @@ export function createGateRequest(
           'KEEPTTL',
         );
       }).catch(() => {});
+
+      // Persist audit record (fire-and-forget)
+      gateAuditRepo.insert({
+        orchestrationId,
+        stepId,
+        workspaceId,
+        outcome: 'timeout',
+        decidedBy: 'system',
+        prompt,
+      }).catch((err: unknown) => logger.warn({ err }, 'Failed to write gate audit timeout record'));
     }, timeoutMs);
 
     pendingGates.set(key, { resolve, timer, workspaceId, orchestrationId, stepId, prompt });
@@ -136,6 +147,16 @@ export function resolveGate(
     );
   }).catch((err: unknown) => logger.warn({ err }, 'Failed to update gate status in Redis'));
 
+  // Persist audit record (fire-and-forget)
+  gateAuditRepo.insert({
+    orchestrationId,
+    stepId,
+    workspaceId: pending.workspaceId,
+    outcome: approved ? 'approved' : 'rejected',
+    decidedBy: callerId,
+    prompt: pending.prompt,
+  }).catch((err: unknown) => logger.warn({ err }, 'Failed to write gate audit record'));
+
   return true;
 }
 
@@ -166,6 +187,16 @@ export async function recoverPendingGates(): Promise<void> {
         JSON.stringify({ ...parsed, status: 'timeout', decidedAt: new Date().toISOString(), decidedBy: 'system' }),
         'KEEPTTL',
       ).catch(() => {});
+
+      // Persist audit record (fire-and-forget)
+      gateAuditRepo.insert({
+        orchestrationId: parsed.orchestrationId as string,
+        stepId: parsed.stepId as string,
+        workspaceId: parsed.workspaceId as string,
+        outcome: 'timeout',
+        decidedBy: 'system',
+        prompt: parsed.prompt as string | undefined,
+      }).catch(() => {});
     }
   } while (cursor !== '0');
 }

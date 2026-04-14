@@ -917,3 +917,21 @@ export const collabActivities = pgTable('collab_activities', {
 }, (t) => [
   index('ca_board_created_idx').on(t.boardId, t.createdAt),
 ]);
+
+// ── Gate Audit Log ────────────────────────────────────────────────────────────
+
+export const gateAuditLog = pgTable('gate_audit_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orchestrationId: text('orchestration_id').notNull(),
+  stepId: text('step_id').notNull(),
+  workspaceId: uuid('workspace_id').notNull(),
+  outcome: text('outcome').notNull(), // 'approved' | 'rejected' | 'timeout'
+  decidedBy: text('decided_by'),      // userId or 'system'
+  decidedAt: timestamp('decided_at', { withTimezone: true }).notNull().defaultNow(),
+  reason: text('reason'),
+  prompt: text('prompt'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('gate_audit_orch_idx').on(t.orchestrationId),
+  index('gate_audit_workspace_created_idx').on(t.workspaceId, t.createdAt),
+]);
