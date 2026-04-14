@@ -438,6 +438,12 @@ describe('dispatchSkill gates', () => {
     expect(result.ok).toBe(true);
   });
 
+  test('non-service caller without callerId → membership gate skipped (allow)', async () => {
+    // When callerId is absent, membership check is skipped (cannot check without identity)
+    const result = await dispatchSkill('gated', {}, { ...ctx, callerId: undefined });
+    expect(result.ok).toBe(true);
+  });
+
   test('normal path: both gates pass → ok = true', async () => {
     featureFlagsService.isEnabled = async () => true;
     billingService.checkTokenBudget = async () => ({ allowed: true });
