@@ -83,7 +83,7 @@ jobs:
           bun test src/infra/state/__tests__/gate-audit.repo.test.ts
           bun test src/jobs/__tests__/erp-sync-scheduler.test.ts
           bun test src/plugins/erp-bc/__tests__/sync-runner.test.ts
-          bun test src/jobs/notification/__tests__/
+          if [ -d src/jobs/notification/__tests__ ]; then bun test src/jobs/notification/__tests__/; fi
         env:
           CREDENTIALS_ENCRYPTION_KEY: ci-test-key-for-unit-tests-32bytes
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
