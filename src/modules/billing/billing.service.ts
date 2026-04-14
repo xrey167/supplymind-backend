@@ -130,6 +130,14 @@ export class BillingService {
     return PLAN_LIMITS[planTier];
   }
 
+  async checkTokenBudget(workspaceId: string): Promise<{ allowed: boolean; reason?: string }> {
+    const plan = await this.repo.getActivePlan(workspaceId);
+    const limits = PLAN_LIMITS[plan];
+    if (limits.monthlyTokenBudgetUsd === -1) return { allowed: true }; // enterprise: unlimited
+    // TODO: query actual spend once usage tracking is implemented
+    return { allowed: true }; // safe default until spend tracking exists
+  }
+
   async enforceLimits(workspaceId: string) {
     const plan = await this.repo.getActivePlan(workspaceId);
     const limits = PLAN_LIMITS[plan];

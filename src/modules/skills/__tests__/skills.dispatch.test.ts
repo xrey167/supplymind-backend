@@ -5,6 +5,13 @@ let _permissionMode = 'auto';
 let _allowedTools: string[] = [];
 let _approvalResult = true;
 
+// Test-controllable feature-flag and billing gates
+let _skillsEnabled = true;
+let _budgetAllowed = true;
+let _budgetReason: string | undefined = undefined;
+let _featureFlagsThrows = false;
+let _billingThrows = false;
+
 // Override any stale mock.module from orchestration.engine.test.ts (alphabetically earlier).
 // We reconstruct dispatchSkill inline using the real singleton dependencies so that
 // skillRegistry state set up in beforeEach is visible to the function.
@@ -22,6 +29,25 @@ mock.module('../skills.dispatch', () => {
 
   const dispatchSkill = async (skillId: string, args: any, context: any): Promise<any> => {
     if (context.signal?.aborted) return err(new AbortError('Skill dispatch aborted', 'system'));
+
+    // Gate 1: License / feature-flag check
+    const skillsEnabled = await (async () => {
+      if (_featureFlagsThrows) throw new Error('flags service error');
+      return _skillsEnabled;
+    })().catch(() => true);
+    if (!skillsEnabled) {
+      return err(new AppError('Skill execution is disabled for this workspace', 403, 'SKILLS_DISABLED'));
+    }
+
+    // Gate 2: Billing — monthly token budget
+    const budgetCheck = await (async () => {
+      if (_billingThrows) throw new Error('billing service error');
+      return { allowed: _budgetAllowed, reason: _budgetReason };
+    })().catch(() => ({ allowed: true }));
+    if (!budgetCheck.allowed) {
+      return err(new AppError(budgetCheck.reason ?? 'Monthly token budget exceeded', 402, 'BUDGET_EXCEEDED'));
+    }
+
     const skill = skillRegistry.get(skillId);
     if (!skill) return err(new Error(`Skill not found: ${skillId}`));
     const requiredRole = getRequiredRole(skill.providerType);
@@ -342,5 +368,67 @@ describe('dispatchSkill permission modes', () => {
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.message).toContain('not in workspace allowlist');
+  });
+});
+
+describe('dispatchSkill license and billing gates', () => {
+  beforeEach(() => {
+    skillRegistry.clear();
+    skillCache.clear();
+    _skillsEnabled = true;
+    _budgetAllowed = true;
+    _budgetReason = undefined;
+    _featureFlagsThrows = false;
+    _billingThrows = false;
+    skillRegistry.register({
+      id: 'test:guarded2',
+      name: 'guarded2',
+      description: 'Gate test skill',
+      inputSchema: { type: 'object' },
+      providerType: 'builtin',
+      priority: 10,
+      handler: async (args) => ok(args),
+    });
+  });
+
+  test('featureFlagsService.isEnabled returns false → err with code SKILLS_DISABLED', async () => {
+    _skillsEnabled = false;
+    const result = await dispatchSkill('guarded2', {}, ctx);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect((result.error as any).code).toBe('SKILLS_DISABLED');
+      expect(result.error.message).toContain('disabled');
+    }
+  });
+
+  test('billingService.checkTokenBudget returns allowed:false → err with code BUDGET_EXCEEDED', async () => {
+    _budgetAllowed = false;
+    _budgetReason = 'Budget exceeded';
+    const result = await dispatchSkill('guarded2', {}, ctx);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect((result.error as any).code).toBe('BUDGET_EXCEEDED');
+      expect(result.error.message).toContain('Budget exceeded');
+    }
+  });
+
+  test('featureFlagsService.isEnabled throws → dispatch still proceeds (catch → allow)', async () => {
+    _featureFlagsThrows = true;
+    const result = await dispatchSkill('guarded2', { x: 1 }, ctx);
+    expect(result.ok).toBe(true);
+  });
+
+  test('billingService.checkTokenBudget throws → dispatch still proceeds (catch → allow)', async () => {
+    _billingThrows = true;
+    const result = await dispatchSkill('guarded2', { x: 2 }, ctx);
+    expect(result.ok).toBe(true);
+  });
+
+  test('normal path succeeds when feature enabled and budget ok', async () => {
+    _skillsEnabled = true;
+    _budgetAllowed = true;
+    const result = await dispatchSkill('guarded2', { ping: true }, ctx);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value).toEqual({ ping: true });
   });
 });

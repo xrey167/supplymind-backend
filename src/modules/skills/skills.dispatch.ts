@@ -16,6 +16,8 @@ import { hasPermission, getRequiredRole } from '../../core/security/rbac';
 import { workspaceSettingsService } from '../settings/workspace-settings/workspace-settings.service';
 import { createApprovalRequest } from '../../infra/state/tool-approvals';
 import { nanoid } from 'nanoid';
+import { featureFlagsService } from '../feature-flags/feature-flags.service';
+import { billingService } from '../billing/billing.service';
 
 
 export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
@@ -28,8 +30,17 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
     'workspace.id': context.workspaceId,
     'caller.role': context.callerRole,
   }, async (span) => {
-    // Gate 1: License check (placeholder -- always passes for now)
-    // Gate 2: Billing check (placeholder -- always passes for now)
+    // Gate 1: License / feature-flag check — skills.execution must be enabled for this workspace
+    const skillsEnabled = await featureFlagsService.isEnabled(context.workspaceId, 'skills.execution').catch(() => true);
+    if (!skillsEnabled) {
+      return err(new AppError('Skill execution is disabled for this workspace', 403, 'SKILLS_DISABLED'));
+    }
+
+    // Gate 2: Billing — monthly token budget must not be exceeded
+    const budgetCheck = await billingService.checkTokenBudget(context.workspaceId).catch(() => ({ allowed: true }));
+    if (!budgetCheck.allowed) {
+      return err(new AppError(budgetCheck.reason ?? 'Monthly token budget exceeded', 402, 'BUDGET_EXCEEDED'));
+    }
 
     // Verify skill exists (needed before RBAC to get providerType)
     const skill = skillRegistry.get(skillId);
@@ -104,7 +115,9 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
       }
     }
 
-    // Gate 4: Workspace membership check (placeholder -- always passes for now)
+    // TODO: Gate 4 — workspace membership check
+    // Requires: workspacesService.isMember(workspaceId, callerId) or equivalent
+    // Deferred: Clerk user → workspace mapping not yet implemented as a callable service method
 
     // beforeExecute hook
     const hooks = hooksRegistry.get(skillId);
