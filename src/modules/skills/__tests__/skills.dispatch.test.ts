@@ -35,23 +35,8 @@ mock.module('../../../infra/state/tool-approvals', () => ({
   createApprovalRequest: createApprovalRequestStub,
 }));
 
-// Stub membersRepo so Gate 4 does not hit the real DB.
-// Default: caller is a member. Tests can override membersRepoStub.findMember.
-const membersRepoStub = {
-  findMember: async (_workspaceId: string, _userId: string) => ({
-    id: 'mem-stub',
-    workspaceId: _workspaceId,
-    userId: _userId,
-    role: 'member' as const,
-    invitedBy: null,
-    joinedAt: new Date(),
-  }),
-};
-const _realMembersRepo = require('../../members/members.repo');
-mock.module('../../members/members.repo', () => ({
-  ..._realMembersRepo,
-  membersRepo: membersRepoStub,
-}));
+// membersRepo is a live singleton — mock.module won't intercept the reference
+// dispatchSkill already holds. Monkey-patch the method directly (see beforeEach below).
 
 // Stub for createApprovalRequest — mutable so tests can override
 function createApprovalRequestStub(
@@ -76,6 +61,7 @@ import { hooksRegistry } from '../../tools/tools.hooks';
 import { workspaceSettingsService } from '../../settings/workspace-settings/workspace-settings.service';
 import { featureFlagsService } from '../../feature-flags/feature-flags.service';
 import { billingService } from '../../billing/billing.service';
+import { membersRepo } from '../../members/members.repo';
 import { ok, err } from '../../../core/result';
 import type { DispatchContext } from '../skills.types';
 
@@ -88,6 +74,22 @@ const ctx: DispatchContext = {
   workspaceId: 'ws-1',
   callerRole: 'admin' as const,
 };
+
+const fakeMember = {
+  id: 'mem-stub',
+  workspaceId: 'ws-1',
+  userId: 'test-user',
+  role: 'member' as const,
+  invitedBy: null,
+  joinedAt: new Date(),
+};
+
+// Patch Gate 4 to allow by default for all tests in this file.
+// Monkey-patching the live singleton works because dispatchSkill holds a
+// reference to the same object — mock.module() would not intercept it.
+beforeEach(() => {
+  membersRepo.findMember = async () => fakeMember;
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
