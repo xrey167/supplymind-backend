@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 // --- Mock ioredis shared client ---
 const mockIncrbyfloat = mock((_key: string, _value: number) => Promise.resolve('0'));
@@ -162,3 +162,5 @@ describe('budget-counter', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

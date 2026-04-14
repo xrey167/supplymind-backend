@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, mock } from 'bun:test';
+import { describe, test, expect, beforeEach, mock, afterAll } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // Infrastructure stubs — mock.module for modules with no shared mutable state
@@ -438,10 +438,10 @@ describe('dispatchSkill gates', () => {
     expect(result.ok).toBe(true);
   });
 
-  test('non-service caller without callerId → membership gate skipped (allow)', async () => {
-    // When callerId is absent, membership check is skipped (cannot check without identity)
+  test('non-service caller without callerId -> CALLER_ID_REQUIRED', async () => {
     const result = await dispatchSkill('gated', {}, { ...ctx, callerId: undefined });
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect((result.error as any).code).toBe('CALLER_ID_REQUIRED');
   });
 
   test('normal path: both gates pass → ok = true', async () => {
@@ -452,3 +452,5 @@ describe('dispatchSkill gates', () => {
     if (result.ok) expect(result.value).toEqual({ ping: true });
   });
 });
+
+afterAll(() => mock.restore());

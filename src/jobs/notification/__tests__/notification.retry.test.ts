@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // Mocks — all must be declared BEFORE the dynamic import below
@@ -144,3 +144,5 @@ describe('retryFailedNotifications', () => {
     expect(retried).toBe(2);
   });
 });
+
+afterAll(() => mock.restore());

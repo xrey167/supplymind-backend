@@ -206,7 +206,7 @@ describe('dispatchSkill — Gate 4: workspace membership check', () => {
     }
   });
 
-  test('no callerId in context → membership check skipped (allow)', async () => {
+  test('no callerId in context -> err with code CALLER_ID_REQUIRED', async () => {
     membersRepo.findMember = async () => null;
     const ctxNoCallerId: DispatchContext = {
       workspaceId: 'ws-gates',
@@ -214,7 +214,9 @@ describe('dispatchSkill — Gate 4: workspace membership check', () => {
       // callerId omitted
     };
     const result = await dispatchSkill('member-gated', { x: 4 }, ctxNoCallerId);
-    // Without a callerId the gate is skipped — should succeed
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect((result.error as any).code).toBe('CALLER_ID_REQUIRED');
+    }
   });
 });

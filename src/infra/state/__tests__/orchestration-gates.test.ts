@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // Mock logger — spread to preserve debug/verbose/child for tests that run after
@@ -41,16 +41,21 @@ mock.module('../gate-audit.repo', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock orchestration.events — only override emitGateResolved (the one we
-// assert on). All other emit helpers keep their real implementations so
-// orchestration.events.test.ts (which runs later) is not contaminated.
+// Mock orchestration.events — explicit full mock (no require() spread) so
+// orchestration.events.ts is never CJS-evaluated. CJS evaluation would create
+// a separate eventBus instance, causing orchestration.events.test.ts to spy
+// on the wrong object. All helpers are stubbed; only emitGateResolved is asserted.
 // ---------------------------------------------------------------------------
 const mockEmitGateResolved = mock((_orchId: string, _stepId: string, _outcome: string, _wsId: string): void => undefined);
 
-const _realOrcEvents = require('../../../modules/orchestration/orchestration.events');
 mock.module('../../../modules/orchestration/orchestration.events', () => ({
-  ..._realOrcEvents,
   emitGateResolved: mockEmitGateResolved,
+  emitGateWaiting: mock(() => {}),
+  emitOrchestrationStarted: mock(() => {}),
+  emitOrchestrationCompleted: mock(() => {}),
+  emitOrchestrationFailed: mock(() => {}),
+  emitOrchestrationCancelled: mock(() => {}),
+  emitStepCompleted: mock(() => {}),
 }));
 
 // ---------------------------------------------------------------------------
@@ -566,3 +571,5 @@ describe('orchestration-gates', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

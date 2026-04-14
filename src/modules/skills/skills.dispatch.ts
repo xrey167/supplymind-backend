@@ -124,6 +124,9 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
     // infrastructure that may operate across workspaces. User callers (operator, admin, viewer, agent)
     // must be an active member of the target workspace.
     const isServiceCaller = (context.callerRole as string) === 'service' || context.callerRole === 'system';
+    if (!isServiceCaller && context.workspaceId && !context.callerId) {
+      return err(new AppError('Caller identity is required for workspace-scoped skill execution', 401, 'CALLER_ID_REQUIRED'));
+    }
     if (!isServiceCaller && context.workspaceId && context.callerId) {
       let isMember: boolean;
       try {
