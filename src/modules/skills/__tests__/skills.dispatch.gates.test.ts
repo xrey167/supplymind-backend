@@ -58,6 +58,7 @@ import { skillRegistry } from '../skills.registry';
 import { skillCache } from '../skills.cache';
 import { featureFlagsService } from '../../feature-flags/feature-flags.service';
 import { billingService } from '../../billing/billing.service';
+import { membersRepo } from '../../members/members.repo';
 import { ok } from '../../../core/result';
 import type { DispatchContext } from '../skills.types';
 
@@ -67,18 +68,30 @@ const ctx: DispatchContext = {
   callerRole: 'admin' as const,
 };
 
+// Member record shape returned by membersRepo
+const fakeMember = {
+  id: 'mem-1',
+  workspaceId: 'ws-gates',
+  userId: 'test-user',
+  role: 'member' as const,
+  invitedBy: null,
+  joinedAt: new Date(),
+};
+
 describe('dispatchSkill — license and billing gates (real production code)', () => {
   // Store originals so they can be restored after the suite if needed
   const _origIsEnabled = featureFlagsService.isEnabled;
   const _origCheckTokenBudget = billingService.checkTokenBudget;
+  const _origFindMember = membersRepo.findMember;
 
   beforeEach(() => {
     skillRegistry.clear();
     skillCache.clear();
 
-    // Default: both gates permissive
+    // Default: all gates permissive
     featureFlagsService.isEnabled = async () => true;
     billingService.checkTokenBudget = async () => ({ allowed: true });
+    membersRepo.findMember = async () => fakeMember;
 
     skillRegistry.register({
       id: 'test:gated',
@@ -129,5 +142,79 @@ describe('dispatchSkill — license and billing gates (real production code)', (
     const result = await dispatchSkill('gated', { ping: true }, ctx);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value).toEqual({ ping: true });
+  });
+});
+
+describe('dispatchSkill — Gate 4: workspace membership check', () => {
+  const _origFindMember = membersRepo.findMember;
+
+  beforeEach(() => {
+    skillRegistry.clear();
+    skillCache.clear();
+
+    // All upstream gates permissive
+    featureFlagsService.isEnabled = async () => true;
+    billingService.checkTokenBudget = async () => ({ allowed: true });
+    // Default: caller is a member
+    membersRepo.findMember = async () => fakeMember;
+
+    skillRegistry.register({
+      id: 'test:member-gated',
+      name: 'member-gated',
+      description: 'Membership gate test skill',
+      inputSchema: { type: 'object' },
+      providerType: 'builtin',
+      priority: 10,
+      handler: async (args) => ok(args),
+    });
+  });
+
+  test('caller is a member → dispatch succeeds', async () => {
+    membersRepo.findMember = async () => fakeMember;
+    const result = await dispatchSkill('member-gated', { x: 1 }, ctx);
+    expect(result.ok).toBe(true);
+  });
+
+  test('caller is NOT a member → err with code WORKSPACE_ACCESS_DENIED', async () => {
+    membersRepo.findMember = async () => null;
+    const result = await dispatchSkill('member-gated', { x: 1 }, ctx);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect((result.error as any).code).toBe('WORKSPACE_ACCESS_DENIED');
+      expect(result.error.message).toContain('not a member');
+    }
+  });
+
+  test('system callers (callerRole === system) bypass membership gate', async () => {
+    membersRepo.findMember = async () => null; // Would deny non-system callers
+    const systemCtx: DispatchContext = {
+      callerId: 'a2a-service',
+      workspaceId: 'ws-gates',
+      callerRole: 'system',
+    };
+    const result = await dispatchSkill('member-gated', { x: 2 }, systemCtx);
+    // System callers bypass gate 4 — result should succeed (skill handler invoked)
+    expect(result.ok).toBe(true);
+  });
+
+  test('membership check throws → err with code MEMBERSHIP_CHECK_FAILED', async () => {
+    membersRepo.findMember = async () => { throw new Error('DB connection lost'); };
+    const result = await dispatchSkill('member-gated', { x: 3 }, ctx);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect((result.error as any).code).toBe('MEMBERSHIP_CHECK_FAILED');
+    }
+  });
+
+  test('no callerId in context → membership check skipped (allow)', async () => {
+    membersRepo.findMember = async () => null;
+    const ctxNoCallerId: DispatchContext = {
+      workspaceId: 'ws-gates',
+      callerRole: 'admin' as const,
+      // callerId omitted
+    };
+    const result = await dispatchSkill('member-gated', { x: 4 }, ctxNoCallerId);
+    // Without a callerId the gate is skipped — should succeed
+    expect(result.ok).toBe(true);
   });
 });

@@ -31,7 +31,7 @@ Instructions for AI agents working on this codebase.
 
 6. **Plugin status** — `plugin_installations.status` is an enum (`'active'`, `'disabled'`), not a boolean `enabled`.
 
-7. **Tests alongside source** — place in `__tests__/` dirs next to the code, not in a top-level `tests/` dir (integration/e2e tests are the exception).
+7. **Tests alongside source** — place unit tests in `__tests__/` dirs next to the code when adding new coverage. The top-level `tests/` dir is currently used for integration, e2e, and some legacy/unit suites.
 
 8. **No domain code in core/infra** — `src/core/`, `src/infra/`, and `src/events/` are domain-agnostic. Domain-specific logic belongs in `src/modules/` or `src/plugins/`.
 
@@ -108,14 +108,17 @@ myRoutes.openapi(myRoute, async (c) => {
 3. Run `bun run db:generate` to generate a migration
 4. Run `bun run db:migrate` to apply it to dev DB
 5. Run `bun run db:migrate:test` to apply it to test DB
+6. If host port access to Postgres is broken but Docker is up, run `bun run db:migrate:docker`
 
 ## Running Checks
 
 ```bash
+bun run infra:up           # start PostgreSQL + Redis via Docker
 bun run test              # unit tests
 bun run test:integration  # integration tests (needs DB + Redis)
 bun run test:e2e          # e2e tests (needs DB + Redis)
 bunx tsc --noEmit         # type check (must be 0 errors)
+bun run infra:logs        # tail Docker service logs when debugging infra-backed tests
 ```
 
 ## Common Gotchas

@@ -35,6 +35,9 @@ mock.module('../../../infra/state/tool-approvals', () => ({
   createApprovalRequest: createApprovalRequestStub,
 }));
 
+// membersRepo is a live singleton — mock.module won't intercept the reference
+// dispatchSkill already holds. Monkey-patch the method directly (see beforeEach below).
+
 // Stub for createApprovalRequest — mutable so tests can override
 function createApprovalRequestStub(
   _approvalId: string,
@@ -58,6 +61,7 @@ import { hooksRegistry } from '../../tools/tools.hooks';
 import { workspaceSettingsService } from '../../settings/workspace-settings/workspace-settings.service';
 import { featureFlagsService } from '../../feature-flags/feature-flags.service';
 import { billingService } from '../../billing/billing.service';
+import { membersRepo } from '../../members/members.repo';
 import { ok, err } from '../../../core/result';
 import type { DispatchContext } from '../skills.types';
 
@@ -70,6 +74,22 @@ const ctx: DispatchContext = {
   workspaceId: 'ws-1',
   callerRole: 'admin' as const,
 };
+
+const fakeMember = {
+  id: 'mem-stub',
+  workspaceId: 'ws-1',
+  userId: 'test-user',
+  role: 'member' as const,
+  invitedBy: null,
+  joinedAt: new Date(),
+};
+
+// Patch Gate 4 to allow by default for all tests in this file.
+// Monkey-patching the live singleton works because dispatchSkill holds a
+// reference to the same object — mock.module() would not intercept it.
+beforeEach(() => {
+  membersRepo.findMember = async () => fakeMember;
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -415,6 +435,12 @@ describe('dispatchSkill gates', () => {
   test('checkTokenBudget throws → dispatch proceeds (fail-open)', async () => {
     billingService.checkTokenBudget = async () => { throw new Error('Billing service unavailable'); };
     const result = await dispatchSkill('gated', { x: 2 }, ctx);
+    expect(result.ok).toBe(true);
+  });
+
+  test('non-service caller without callerId → membership gate skipped (allow)', async () => {
+    // When callerId is absent, membership check is skipped (cannot check without identity)
+    const result = await dispatchSkill('gated', {}, { ...ctx, callerId: undefined });
     expect(result.ok).toBe(true);
   });
 

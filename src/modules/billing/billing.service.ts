@@ -8,6 +8,7 @@ import {
   emitInvoicePaid,
 } from './billing.events';
 import { logger } from '../../config/logger';
+import { getBudgetCounter } from '../../infra/billing/budget-counter';
 import type { PlanTier, PlanLimits, SubscriptionStatus } from './billing.types';
 
 function getStripe(): Stripe {
@@ -134,8 +135,42 @@ export class BillingService {
     const plan = await this.repo.getActivePlan(workspaceId);
     const limits = PLAN_LIMITS[plan];
     if (limits.monthlyTokenBudgetUsd === -1) return { allowed: true }; // enterprise: unlimited
-    // TODO: query actual spend once usage tracking is implemented
-    return { allowed: true }; // safe default until spend tracking exists
+    if (limits.monthlyTokenBudgetUsd === 0) return { allowed: true }; // no budget set
+
+    // Redis fast-path: if the atomic counter already shows we are over budget,
+    // return immediately without hitting the database.
+    let redisSpend = 0;
+    try {
+      redisSpend = await this.getBudgetCounter(workspaceId);
+    } catch (err) {
+      logger.warn({ workspaceId, err }, 'checkTokenBudget: Redis counter read failed, falling back to DB');
+    }
+
+    if (redisSpend >= limits.monthlyTokenBudgetUsd) {
+      return {
+        allowed: false,
+        reason: `Monthly token budget of $${limits.monthlyTokenBudgetUsd} exceeded (spent $${redisSpend.toFixed(4)})`,
+      };
+    }
+
+    // Redis counter is 0 (cold start / key expired) or below budget — confirm with DB.
+    const now = new Date();
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1); // first of current month
+    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999); // last ms of month
+
+    const spentUsd = await this.repo.totalCost(workspaceId, periodStart, periodEnd);
+    if (spentUsd >= limits.monthlyTokenBudgetUsd) {
+      return {
+        allowed: false,
+        reason: `Monthly token budget of $${limits.monthlyTokenBudgetUsd} exceeded (spent $${spentUsd.toFixed(4)})`,
+      };
+    }
+    return { allowed: true };
+  }
+
+  /** Exposed for testing — allows injecting a mock budget counter. */
+  protected async getBudgetCounter(workspaceId: string): Promise<number> {
+    return getBudgetCounter(workspaceId);
   }
 
   async enforceLimits(workspaceId: string) {

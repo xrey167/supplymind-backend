@@ -18,18 +18,20 @@ import { createApprovalRequest } from '../../infra/state/tool-approvals';
 import { nanoid } from 'nanoid';
 import { featureFlagsService } from '../feature-flags/feature-flags.service';
 import { billingService } from '../billing/billing.service';
+import { membersRepo } from '../members/members.repo';
 
 
 export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
   if (context.signal?.aborted) {
     return err(new AbortError('Skill dispatch aborted', 'system'));
   }
-  return withSpan('skill.dispatch', {
+  const spanAttrs: Record<string, string | number | boolean> = {
     'skill.name': skillId,
-    'caller.id': context.callerId,
     'workspace.id': context.workspaceId,
     'caller.role': context.callerRole,
-  }, async (span) => {
+  };
+  if (context.callerId) spanAttrs['caller.id'] = context.callerId;
+  return withSpan('skill.dispatch', spanAttrs, async (span) => {
     // Gate 1: License / feature-flag check — skills.execution must be enabled for this workspace
     const skillsEnabled = await featureFlagsService.isEnabled(context.workspaceId, 'skills.execution')
       .catch((err: unknown) => { logger.warn({ err, workspaceId: context.workspaceId }, 'featureFlagsService.isEnabled failed — allowing skill execution'); return true; });
@@ -38,7 +40,7 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
     }
 
     // Gate 2: Billing — monthly token budget must not be exceeded
-    const budgetCheck = await billingService.checkTokenBudget(context.workspaceId)
+    const budgetCheck: { allowed: boolean; reason?: string } = await billingService.checkTokenBudget(context.workspaceId)
       .catch((err: unknown) => { logger.warn({ err, workspaceId: context.workspaceId }, 'checkTokenBudget failed — allowing by default'); return { allowed: true }; });
     if (!budgetCheck.allowed) {
       return err(new AppError(budgetCheck.reason ?? 'Monthly token budget exceeded', 402, 'BUDGET_EXCEEDED'));
@@ -117,15 +119,38 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
       }
     }
 
-    // TODO: Gate 4 — workspace membership check
-    // Requires: workspacesService.isMember(workspaceId, callerId) or equivalent
-    // Deferred: Clerk user → workspace mapping not yet implemented as a callable service method
+    // Gate 4: Workspace membership check
+    // System and service callers bypass this gate — they authenticate via API key or are trusted
+    // infrastructure that may operate across workspaces. User callers (operator, admin, viewer, agent)
+    // must be an active member of the target workspace.
+    const isServiceCaller = (context.callerRole as string) === 'service' || context.callerRole === 'system';
+    if (!isServiceCaller && context.workspaceId && context.callerId) {
+      let isMember: boolean;
+      try {
+        const member = await membersRepo.findMember(context.workspaceId, context.callerId);
+        isMember = member !== null;
+      } catch (memberErr: unknown) {
+        logger.warn({ memberErr, workspaceId: context.workspaceId, callerId: context.callerId }, 'Membership check failed — denying access');
+        return err(new AppError('Unable to verify workspace membership', 503, 'MEMBERSHIP_CHECK_FAILED'));
+      }
+      if (!isMember) {
+        eventBus.publish(Topics.SECURITY_RBAC_DENIED, {
+          skillId,
+          callerRole: context.callerRole,
+          requiredRole: 'member',
+          workspaceId: context.workspaceId,
+          callerId: context.callerId,
+        });
+        return err(new AppError('Caller is not a member of this workspace', 403, 'WORKSPACE_ACCESS_DENIED'));
+      }
+    }
 
     // beforeExecute hook
     const hooks = hooksRegistry.get(skillId);
     if (hooks?.beforeExecute) {
+      const hookCallerId = context.callerId ?? 'system';
       const hookCtx = {
-        callerId: context.callerId,
+        callerId: hookCallerId,
         workspaceId: context.workspaceId,
         traceId: context.traceId,
       };
@@ -179,8 +204,9 @@ export const dispatchSkill: DispatchFn = async (skillId, args, context) => {
 
     // afterExecute hook -- errors swallowed
     if (hooks?.afterExecute) {
+      const hookCallerId = context.callerId ?? 'system';
       const hookCtx = {
-        callerId: context.callerId,
+        callerId: hookCallerId,
         workspaceId: context.workspaceId,
         traceId: context.traceId,
       };

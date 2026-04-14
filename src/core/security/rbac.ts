@@ -62,17 +62,47 @@ export function getRequiredRole(providerType: string, explicitRole?: string): Ro
 
 /** Map workspace role to RBAC role at the middleware boundary */
 const WORKSPACE_ROLE_MAP: Record<string, Role> = {
+  // Core workspace roles
   owner: 'admin',
   admin: 'admin',
   member: 'operator',
   viewer: 'viewer',
+  // Domain-specific roles are contributed by plugins via registerWorkspaceRole()
 };
 
+/** Plugin-contributed workspace roles — populated at bootstrap via registerWorkspaceRole() */
+const WORKSPACE_ROLE_EXTENSIONS = new Map<string, Role>();
+
 export function mapWorkspaceRole(workspaceRole: string): Role {
-  return WORKSPACE_ROLE_MAP[workspaceRole] ?? 'viewer';
+  return WORKSPACE_ROLE_MAP[workspaceRole] ?? WORKSPACE_ROLE_EXTENSIONS.get(workspaceRole) ?? 'viewer';
 }
 
-/** Check if a workspace role has a known mapping */
+/** Check if a workspace role has a known mapping (core or plugin-contributed) */
 export function isKnownWorkspaceRole(role: string): boolean {
-  return role in WORKSPACE_ROLE_MAP;
+  return role in WORKSPACE_ROLE_MAP || WORKSPACE_ROLE_EXTENSIONS.has(role);
+}
+
+/**
+ * Register a plugin-contributed workspace role.
+ * Called at app startup by the plugin contribution bootstrap step.
+ * Safe to call multiple times for the same role (last write wins).
+ */
+export function registerWorkspaceRole(role: string, privilege: Role): void {
+  WORKSPACE_ROLE_EXTENSIONS.set(role, privilege);
+}
+
+/**
+ * Remove a plugin-contributed workspace role.
+ * Used for testing and plugin unload scenarios.
+ */
+export function deregisterWorkspaceRole(role: string): void {
+  WORKSPACE_ROLE_EXTENSIONS.delete(role);
+}
+
+/**
+ * Reset all plugin-contributed role extensions.
+ * For test teardown only.
+ */
+export function _resetWorkspaceRoleExtensions(): void {
+  WORKSPACE_ROLE_EXTENSIONS.clear();
 }

@@ -33,10 +33,7 @@ export const Topics = {
   WORKFLOW_STEP_COMPLETED: 'workflow.step.completed',
   WORKFLOW_COMPLETED: 'workflow.completed',
   WORKFLOW_FAILED: 'workflow.failed',
-  // TODO: Domain events — deferred (build general base first)
-  // DOMAIN_ENTITY_CREATED: 'ontology.entity.created',
-  // TODO: Supply chain alerts — deferred
-  // SC_ALERT_CRITICAL: 'supply-chain.alert.critical',
+  // SC topics contributed by plugins/supply-chain — merged into Topics at bootstrap
   // Sessions
   SESSION_CREATED: 'session.created',
   SESSION_PAUSED: 'session.paused',
@@ -141,6 +138,6 @@ export const Topics = {
   WEBHOOK_RECEIVED: 'webhook.received',
   // Alert rules
   ALERT_RULE_FIRED: 'alert.rule.fired',
-} as const;
+} satisfies Record<string, string>;
 
 export type Topic = typeof Topics[keyof typeof Topics];

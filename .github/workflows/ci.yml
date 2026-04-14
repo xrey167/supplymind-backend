@@ -45,6 +45,8 @@ jobs:
           # - erp-bc/integration/*: requires Redis/BC sandbox — belongs in integration-tests job, not unit tests
           # - jobs/notification/__tests__/*: mocks notifications.service; isolated run prevents clobbering
           #   NotificationsService class export seen by notifications.service.test.ts + notification-channels.test.ts
+          # - infra/billing/__tests__/budget-counter.test.ts: mocks infra/redis/client; another test in the
+          #   same worker overwrites the mock, stripping getSharedRedisClient, causing assertion failures
           # - learning/analyzers/__tests__/* and learning/generators/__tests__/*: run with all learning tests
           #   in the isolated 'bun test src/modules/learning/' step below
           # client-pool.test.ts runs separately: ioredis ECONNREFUSED can attach to pending promises
@@ -69,7 +71,8 @@ jobs:
             -not -path '*/jobs/__tests__/erp-sync-scheduler.test.ts' \
             -not -path '*/erp-bc/__tests__/sync-runner.test.ts' \
             -not -path '*/erp-bc/__tests__/integration/*' \
-            -not -path '*/jobs/notification/__tests__/*')
+            -not -path '*/jobs/notification/__tests__/*' \
+            -not -path '*/infra/billing/__tests__/budget-counter.test.ts')
           # learning tests run in 5 isolated steps:
           # - __tests__/: mocks all analyzers/generators for engine test isolation
           # - analyzers/__tests__/: no module mocks; safe together, separate from engine mocks
@@ -89,6 +92,7 @@ jobs:
           bun test src/jobs/__tests__/erp-sync-scheduler.test.ts
           bun test src/plugins/erp-bc/__tests__/sync-runner.test.ts
           if [ -d src/jobs/notification/__tests__ ]; then bun test src/jobs/notification/__tests__/; fi
+          bun test src/infra/billing/__tests__/budget-counter.test.ts
         env:
           CREDENTIALS_ENCRYPTION_KEY: ci-test-key-for-unit-tests-32bytes
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy

@@ -5,7 +5,7 @@ import { skillRegistry } from '../modules/skills/skills.registry';
 import { wsServer } from '../infra/realtime/ws-server';
 import { skillEmbeddedMcpManager } from '../infra/mcp/embedded-manager';
 import { mcpClientPool } from '../infra/mcp/client-pool';
-import { createRedisPair } from '../infra/redis/client';
+import { createRedisPair, createWorkerRedisConnection } from '../infra/redis/client';
 import { RedisPubSub } from '../infra/redis/pubsub';
 import { initEventConsumers } from '../events/consumers';
 import { getStateStore, closeStateStore } from '../infra/state';
@@ -181,9 +181,7 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
     const { runCleanup } = await import('../jobs/cleanup');
     const { runSync } = await import('../jobs/sync');
     const { retryFailedNotifications } = await import('../jobs/notification');
-    const Redis = (await import('ioredis')).default;
-
-    const jobConnection = new Redis(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
+    const jobConnection = createWorkerRedisConnection();
 
     await cleanupQueue.upsertJobScheduler('cleanup-sweep', { pattern: '*/15 * * * *' }, { name: 'cleanup' });
     const cleanupWorker = new Worker('cleanup', async () => { await runCleanup(); }, { connection: jobConnection });
@@ -204,15 +202,49 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
     logger.warn({ err }, 'Step 12: Job schedulers failed to register');
   }
 
-  // Step 13: Start ERP sync worker (non-critical)
+  // Step 12.5: Register plugin contributions (topics, roles, permission layers, workers)
+  // contribConnection is declared outside the try so the catch block can close it if startWorkers
+  // throws after the connection is created (avoids a Redis connection leak on partial failure).
+  let contribConnection: ReturnType<typeof createWorkerRedisConnection> | null = null;
   try {
-    const syncRedis = new (await import('ioredis')).default(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null } as any);
-    const { createErpSyncWorker } = await import('../infra/queue/workers/erp-sync.worker');
-    const erpSyncWorker = createErpSyncWorker(syncRedis);
-    logger.info('ERP sync worker started');
-    (globalThis as any).__erpSyncWorker = { worker: erpSyncWorker, connection: syncRedis };
+    const { CONTRIBUTION_PLUGINS } = await import('../plugins/registry');
+    const { pluginContributionRegistry } = await import('../modules/plugins/plugin-contribution-registry');
+    for (const manifest of CONTRIBUTION_PLUGINS) {
+      if (manifest.contributions) pluginContributionRegistry.register(manifest.id, manifest.contributions);
+    }
+
+    // Merge contributed topics into the global Topics object
+    const { Topics } = await import('../events/topics');
+    Object.assign(Topics, pluginContributionRegistry.getTopics());
+
+    // Register contributed workspace roles into RBAC
+    const { registerWorkspaceRole } = await import('../core/security/rbac');
+    for (const r of pluginContributionRegistry.getRoles()) {
+      registerWorkspaceRole(r.role, r.privilege);
+    }
+
+    // Inject contributed permission layers into the global pipeline
+    const { permissionPipeline } = await import('../core/permissions/permission-pipeline');
+    for (const layer of pluginContributionRegistry.getPermissionLayers()) {
+      permissionPipeline.removeLayer(layer.name); // idempotent
+      permissionPipeline.addLayer(layer);
+    }
+
+    // Start contributed workers
+    contribConnection = createWorkerRedisConnection();
+    const contribWorkers = pluginContributionRegistry.startWorkers(contribConnection);
+    (globalThis as any).__pluginContribWorkers = { workers: contribWorkers, registry: pluginContributionRegistry, connection: contribConnection };
+    contribConnection = null; // ownership transferred to globalThis.__pluginContribWorkers
+
+    logger.info({ workerCount: contribWorkers.length }, 'Step 12.5: Plugin contributions applied');
   } catch (err) {
-    logger.warn({ err }, 'Failed to start ERP sync worker — non-critical');
+    logger.warn({ err }, 'Step 12.5: Plugin contributions failed — non-critical');
+    // Time-box the quit — maxRetriesPerRequest: null means commands wait indefinitely,
+    // so an unreachable Redis could hang startup if this has no timeout.
+    await Promise.race([
+      contribConnection?.quit().catch(() => {}),
+      new Promise<void>((r) => setTimeout(r, 5000)),
+    ]);
   }
 
   // Step 13.5: Bootstrap ERP sync cron schedules from DB (non-critical, fire-and-forget)
@@ -226,8 +258,7 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
   // Step 14: Register plugin health check repeatable job (non-critical)
   try {
     const { Queue, Worker } = await import('bullmq');
-    const Redis = (await import('ioredis')).default;
-    const healthConnection = new Redis(Bun.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null } as any);
+    const healthConnection = createWorkerRedisConnection();
     const healthQueue = new Queue('plugin-health', { connection: healthConnection });
     await healthQueue.upsertJobScheduler('plugin-health-check', { every: 5 * 60 * 1000 }, { name: 'health-check' });
     const { processHealthCheckJob } = await import('../infra/queue/workers/plugin-health.worker');
@@ -325,10 +356,10 @@ export async function destroySubsystems(): Promise<void> {
     await learningHandles.adaptationWorker.close();
   }
 
-  const erpHandles = (globalThis as any).__erpSyncWorker;
-  if (erpHandles) {
-    await erpHandles.worker.close();
-    await erpHandles.connection.quit();
+  const contribHandles = (globalThis as any).__pluginContribWorkers;
+  if (contribHandles) {
+    await contribHandles.registry.stopWorkers();
+    await contribHandles.connection.quit();
   }
 
   // Destroy all computer use sessions (close browsers)

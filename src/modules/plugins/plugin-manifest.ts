@@ -88,6 +88,13 @@ export interface PluginManifest {
    * install so the AI platform becomes domain-aware for this plugin.
    */
   domain?: DomainSchema;
+  /**
+   * Global platform contributions registered at app startup — independent of
+   * per-workspace installs. Topics are merged into the global Topics object,
+   * roles are registered into the RBAC extension map, workers are started once,
+   * and permission layers are injected into the global PermissionPipeline.
+   */
+  contributions?: import('./plugin-contribution-registry').PluginContributions;
   /** Called once when the plugin is installed for a workspace. */
   onInstall?: (workspaceId: string) => Promise<void>;
   /** Called when the plugin is uninstalled. */
