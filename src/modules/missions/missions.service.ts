@@ -8,6 +8,7 @@ import type { MissionsRepository } from './missions.repo';
 import { compileMission } from './missions.compiler';
 import type {
   MissionRun, MissionArtifact, CreateMissionInput, CreateArtifactInput,
+  MissionAnalytics, MissionRunCost,
 } from './missions.types';
 
 type EventBus = Pick<typeof defaultEventBus, 'publish'>;
@@ -139,6 +140,33 @@ export class MissionsService {
     const artifacts = await this.repo.listArtifacts(missionRunId);
     return ok(artifacts);
   }
+
+  async getAnalytics(
+    workspaceId: string,
+    opts: { period?: string; since?: string; until?: string } = {},
+  ): Promise<MissionAnalytics> {
+    const period = (opts.period ?? 'month') as 'day' | 'week' | 'month' | 'all';
+    const sinceDate = opts.since ? new Date(opts.since) : periodToDate(period);
+    const untilDate = opts.until ? new Date(opts.until) : undefined;
+
+    const byProvider = await this.repo.costByProviderAndModel(workspaceId, sinceDate, untilDate);
+    const totalCostUsd = byProvider.reduce((sum, r) => sum + r.totalCostUsd, 0);
+    const runCount = byProvider.reduce((sum, r) => sum + r.runCount, 0);
+
+    return { period, totalCostUsd, runCount, byProvider };
+  }
+
+  async getRunCost(missionRunId: string): Promise<MissionRunCost> {
+    return this.repo.costForRun(missionRunId);
+  }
+}
+
+function periodToDate(period: 'day' | 'week' | 'month' | 'all'): Date {
+  const now = new Date();
+  if (period === 'day')   return new Date(now.getTime() - 86_400_000);
+  if (period === 'week')  return new Date(now.getTime() - 7 * 86_400_000);
+  if (period === 'month') return new Date(now.getTime() - 30 * 86_400_000);
+  return new Date(0);
 }
 
 export const missionsService = new MissionsService();

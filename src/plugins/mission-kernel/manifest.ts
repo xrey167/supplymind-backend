@@ -13,6 +13,12 @@ export const missionKernelManifest: PluginManifest = {
   author: 'SupplyMind',
   contributions: {
     topics: { ...MissionTopics },
+    onBootstrap: async () => {
+      const { registerMissionBudgetTracker } = await import('./budget-tracker');
+      const { registerMissionEventPersister } = await import('./mission-event-persister');
+      registerMissionBudgetTracker();
+      registerMissionEventPersister();
+    },
     workers: [
       {
         name: 'mission-kernel:run',

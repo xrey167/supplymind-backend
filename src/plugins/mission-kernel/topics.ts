@@ -22,6 +22,7 @@ export const MissionTopics = {
   MISSION_APPROVAL_REQUIRED: 'mission.approval_required',
   MISSION_INPUT_REQUIRED: 'mission.input_required',
   MISSION_METRICS: 'mission.metrics',
+  MISSION_BUDGET_EXCEEDED: 'mission.budget_exceeded',
   AGENT_PROFILE_CREATED: 'agent_profile.created',
   AGENT_PROFILE_UPDATED: 'agent_profile.updated',
   AGENT_PROFILE_DELETED: 'agent_profile.deleted',

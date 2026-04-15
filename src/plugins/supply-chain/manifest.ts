@@ -21,6 +21,40 @@ export const supplyChainManifest: PluginManifest = {
   description: 'Supply chain domain — orders, shipments, inventory, and supplier management',
   author: 'SupplyMind',
 
+  domainPack: {
+    defaultPermissionMode: 'ask',
+    agentProfiles: [
+      {
+        name: 'Supply Chain Executor',
+        category: 'executor',
+        provider: 'anthropic',
+        model: 'claude-opus-4-6',
+        systemPrompt:
+          'You are a supply chain execution agent. Your job is to carry out specific supply chain tasks: placing purchase orders, updating shipment records, and managing inventory adjustments. Always verify quantities and supplier details before acting. Flag anomalies for human review.',
+        permissionMode: 'ask',
+        isDefault: false,
+        metadata: { plugin: 'supply-chain' },
+      },
+      {
+        name: 'Supply Chain Planner',
+        category: 'planner',
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-6',
+        systemPrompt:
+          'You are a supply chain planning agent. Analyse demand forecasts, inventory levels, and supplier lead times to produce actionable procurement and logistics plans. Coordinate with executor agents for implementation.',
+        permissionMode: 'auto',
+        isDefault: false,
+        metadata: { plugin: 'supply-chain' },
+      },
+    ],
+    approvalGates: [
+      { toolPattern: 'purchase_order.*', riskLevel: 'medium' },
+      { toolPattern: 'supplier.*',       riskLevel: 'medium' },
+      { toolPattern: 'shipment.*',       riskLevel: 'low' },
+      { toolPattern: 'inventory.*',      riskLevel: 'low' },
+    ],
+  },
+
   contributions: {
     topics: { ...SupplyChainTopics },
     roles: SUPPLY_CHAIN_ROLE_ENTRIES,

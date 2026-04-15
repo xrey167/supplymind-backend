@@ -2,27 +2,166 @@
   "version": "7",
   "dialect": "postgresql",
   "entries": [
-    { "idx": 0, "version": "7", "when": 1775347929085, "tag": "0000_outgoing_firelord", "breakpoints": true },
-    { "idx": 1, "version": "7", "when": 1775349436996, "tag": "0001_flashy_guardian", "breakpoints": true },
-    { "idx": 2, "version": "7", "when": 1775352096562, "tag": "0002_gifted_doctor_doom", "breakpoints": true },
-    { "idx": 3, "version": "7", "when": 1775364118602, "tag": "0003_panoramic_molly_hayes", "breakpoints": true },
-    { "idx": 4, "version": "7", "when": 1775414374497, "tag": "0004_unknown_owl", "breakpoints": true },
-    { "idx": 5, "version": "7", "when": 1775549808376, "tag": "0005_milky_madelyne_pryor", "breakpoints": true },
-    { "idx": 6, "version": "7", "when": 1775552899747, "tag": "0006_conscious_omega_flight", "breakpoints": true },
-    { "idx": 7, "version": "7", "when": 1775553121348, "tag": "0007_big_krista_starr", "breakpoints": true },
-    { "idx": 8, "version": "7", "when": 1775565600000, "tag": "0008_orchestration_cancelled_status", "breakpoints": true },
-    { "idx": 9, "version": "7", "when": 1775590000000, "tag": "0009_plugin_platform_core", "breakpoints": true },
-    { "idx": 10, "version": "7", "when": 1775940367676, "tag": "0010_sad_tarot", "breakpoints": true },
-    { "idx": 11, "version": "7", "when": 1776056322477, "tag": "0011_loving_smiling_tiger", "breakpoints": true },
-    { "idx": 12, "version": "7", "when": 1776076311356, "tag": "0012_calm_hulk", "breakpoints": true },
-    { "idx": 13, "version": "7", "when": 1776160000000, "tag": "0013_collab_intel_fixes", "breakpoints": true },
-    { "idx": 14, "version": "7", "when": 1776220000000, "tag": "0014_webhooks_alert_rules", "breakpoints": true },
-    { "idx": 15, "version": "7", "when": 1776310000000, "tag": "0015_notification_extensions", "breakpoints": true },
-    { "idx": 16, "version": "7", "when": 1776139503769, "tag": "0016_elite_invaders", "breakpoints": true },
-    { "idx": 17, "version": "7", "when": 1776142806583, "tag": "0017_calm_bullseye", "breakpoints": true },
-    { "idx": 18, "version": "7", "when": 1776153494403, "tag": "0018_notification_attempt_tracking", "breakpoints": true },
-    { "idx": 19, "version": "7", "when": 1776390000000, "tag": "0019_supply_chain_roles", "breakpoints": true },
-    { "idx": 20, "version": "7", "when": 1776190225809, "tag": "0020_hesitant_randall", "breakpoints": true },
-    { "idx": 21, "version": "7", "when": 1776216341617, "tag": "0021_plugin_prompts", "breakpoints": true }
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1775347929085,
+      "tag": "0000_outgoing_firelord",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775349436996,
+      "tag": "0001_flashy_guardian",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775352096562,
+      "tag": "0002_gifted_doctor_doom",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1775364118602,
+      "tag": "0003_panoramic_molly_hayes",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1775414374497,
+      "tag": "0004_unknown_owl",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1775549808376,
+      "tag": "0005_milky_madelyne_pryor",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775552899747,
+      "tag": "0006_conscious_omega_flight",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1775553121348,
+      "tag": "0007_big_krista_starr",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1775565600000,
+      "tag": "0008_orchestration_cancelled_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1775590000000,
+      "tag": "0009_plugin_platform_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1775940367676,
+      "tag": "0010_sad_tarot",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1776056322477,
+      "tag": "0011_loving_smiling_tiger",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1776076311356,
+      "tag": "0012_calm_hulk",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1776160000000,
+      "tag": "0013_collab_intel_fixes",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1776220000000,
+      "tag": "0014_webhooks_alert_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1776310000000,
+      "tag": "0015_notification_extensions",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1776139503769,
+      "tag": "0016_elite_invaders",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1776142806583,
+      "tag": "0017_calm_bullseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1776153494403,
+      "tag": "0018_notification_attempt_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1776390000000,
+      "tag": "0019_supply_chain_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1776190225809,
+      "tag": "0020_hesitant_randall",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1776216341617,
+      "tag": "0021_plugin_prompts",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1776274209943,
+      "tag": "0022_sharp_infant_terrible",
+      "breakpoints": true
+    }
   ]
 }

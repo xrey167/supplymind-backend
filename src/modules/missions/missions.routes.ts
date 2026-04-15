@@ -3,11 +3,15 @@ import { z } from 'zod';
 import type { AppEnv } from '../../core/types';
 import { AppError } from '../../core/errors';
 import { missionsService } from './missions.service';
+import { missionEventsRepo } from './mission-events.repo';
 import {
   createMissionSchema,
   missionIdParamSchema,
   listMissionsQuerySchema,
   createArtifactSchema,
+  eventsQuerySchema,
+  analyticsQuerySchema,
+  runCostParamSchema,
 } from './missions.schemas';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
@@ -17,6 +21,14 @@ function errorStatus(e: unknown): 400 | 404 | 409 | 500 {
   if (e instanceof AppError) return e.statusCode as 400 | 404 | 409 | 500;
   return 500;
 }
+
+// ── Route definitions (analytics MUST be before /{missionId} to avoid capture) ──
+
+const analyticsRoute = createRoute({
+  method: 'get', path: '/analytics',
+  request: { query: analyticsQuerySchema },
+  responses: { 200: { description: 'Cost analytics', ...jsonRes } },
+});
 
 const listRoute = createRoute({
   method: 'get', path: '/',
@@ -81,7 +93,28 @@ const createArtifactRoute = createRoute({
   responses: { 201: { description: 'Artifact created', ...jsonRes }, 404: errRes('Not found') },
 });
 
+const listEventsRoute = createRoute({
+  method: 'get', path: '/{missionId}/events',
+  request: { params: missionIdParamSchema, query: eventsQuerySchema },
+  responses: { 200: { description: 'Mission events', ...jsonRes }, 404: errRes('Not found') },
+});
+
+const runCostRoute = createRoute({
+  method: 'get', path: '/{missionId}/runs/{runId}/cost',
+  request: { params: runCostParamSchema },
+  responses: { 200: { description: 'Run cost breakdown', ...jsonRes }, 404: errRes('Not found') },
+});
+
+// ── Handlers ──────────────────────────────────────────────────────────────────
+
 export const MissionsRoutes = new OpenAPIHono<AppEnv>();
+
+MissionsRoutes.openapi(analyticsRoute, async (c) => {
+  const workspaceId = c.get('workspaceId');
+  const { period, since, until } = c.req.valid('query');
+  const result = await missionsService.getAnalytics(workspaceId, { period, since, until });
+  return c.json({ data: result });
+});
 
 MissionsRoutes.openapi(listRoute, async (c) => {
   const workspaceId = c.get('workspaceId');
@@ -139,4 +172,17 @@ MissionsRoutes.openapi(createArtifactRoute, async (c) => {
   const r = await missionsService.emitArtifact({ missionRunId: missionId, ...body });
   if (!r.ok) return c.json({ error: r.error.message }, errorStatus(r.error));
   return c.json({ data: r.value }, 201);
+});
+
+MissionsRoutes.openapi(listEventsRoute, async (c) => {
+  const { missionId } = c.req.valid('param');
+  const { limit } = c.req.valid('query');
+  const events = await missionEventsRepo.listByMissionRun(missionId, limit);
+  return c.json({ data: events });
+});
+
+MissionsRoutes.openapi(runCostRoute, async (c) => {
+  const { runId } = c.req.valid('param');
+  const result = await missionsService.getRunCost(runId);
+  return c.json({ data: result });
 });

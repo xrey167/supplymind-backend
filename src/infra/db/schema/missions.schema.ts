@@ -28,6 +28,10 @@ export const missionArtifactKindEnum = pgEnum('mission_artifact_kind', [
   'text', 'json', 'file', 'image', 'code', 'report'
 ]);
 
+export const missionTemplateStatusEnum = pgEnum('mission_template_status', [
+  'draft', 'active', 'archived'
+]);
+
 // ---------------------------------------------------------------------------
 // Tables
 // ---------------------------------------------------------------------------
@@ -52,9 +56,27 @@ export const agentProfiles = pgTable('agent_profiles', {
   index('ap_workspace_default_idx').on(t.workspaceId, t.isDefault),
 ]);
 
+export const missions = pgTable('missions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  mode: missionModeEnum('mode').notNull(),
+  goalPath: jsonb('goal_path').default({}),
+  budgetCents: integer('budget_cents'),
+  status: missionTemplateStatusEnum('status').notNull().default('draft'),
+  config: jsonb('config').default({}),
+  createdBy: text('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('m_workspace_status_idx').on(t.workspaceId, t.status),
+]);
+
 export const missionRuns = pgTable('mission_runs', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull(),
+  missionId: uuid('mission_id').references(() => missions.id, { onDelete: 'set null' }),
   name: text('name').notNull(),
   mode: missionModeEnum('mode').notNull(),
   status: missionStatusEnum('status').notNull().default('pending'),
@@ -62,6 +84,9 @@ export const missionRuns = pgTable('mission_runs', {
   output: jsonb('output'),
   metadata: jsonb('metadata').default({}),
   disciplineMaxRetries: integer('discipline_max_retries').default(3),
+  budgetCents: integer('budget_cents'),
+  spentCents: integer('spent_cents').notNull().default(0),
+  costBreakdown: jsonb('cost_breakdown').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   completedAt: timestamp('completed_at', { withTimezone: true }),
@@ -77,6 +102,7 @@ export const missionWorkers = pgTable('mission_workers', {
   phase: text('phase'),
   status: missionWorkerStatusEnum('status').notNull().default('pending'),
   agentProfileId: uuid('agent_profile_id'),
+  taskId: text('task_id'),
   output: jsonb('output'),
   metadata: jsonb('metadata').default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -99,4 +125,18 @@ export const missionArtifacts = pgTable('mission_artifacts', {
 }, (t) => [
   index('ma_mission_run_idx').on(t.missionRunId),
   index('ma_mission_run_created_idx').on(t.missionRunId, t.createdAt),
+]);
+
+export const missionEvents = pgTable('mission_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull(),
+  eventType: text('event_type').notNull(),
+  resourceType: text('resource_type').notNull(),
+  resourceId: uuid('resource_id').notNull(),
+  parentResourceId: uuid('parent_resource_id'),
+  payload: jsonb('payload').notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('me_workspace_created_idx').on(t.workspaceId, t.createdAt),
+  index('me_resource_idx').on(t.resourceType, t.resourceId),
 ]);

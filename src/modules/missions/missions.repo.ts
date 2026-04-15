@@ -1,10 +1,11 @@
-import { eq, and, lt, or, desc, sql } from 'drizzle-orm';
+import { eq, and, lt, or, desc, sql, gte, lte, isNotNull, sum, count } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
-import { missionRuns, missionWorkers, missionArtifacts } from '../../infra/db/schema';
+import { missionRuns, missionWorkers, missionArtifacts, usageRecords } from '../../infra/db/schema';
 import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type {
   MissionRun, MissionWorker, MissionArtifact,
   MissionStatus, MissionWorkerStatus, CreateArtifactInput, WorkerSpec,
+  MissionAnalytics, MissionRunCost,
 } from './missions.types';
 
 type RunRow = typeof missionRuns.$inferSelect;
@@ -16,6 +17,7 @@ function toRun(row: RunRow): MissionRun {
   return {
     id: row.id,
     workspaceId: row.workspaceId,
+    missionId: row.missionId,
     name: row.name,
     mode: row.mode,
     status: row.status,
@@ -23,6 +25,9 @@ function toRun(row: RunRow): MissionRun {
     output: row.output as Record<string, unknown> | null,
     metadata: (row.metadata as Record<string, unknown>) ?? {},
     disciplineMaxRetries: row.disciplineMaxRetries ?? 3,
+    budgetCents: row.budgetCents,
+    spentCents: row.spentCents ?? 0,
+    costBreakdown: (row.costBreakdown as Record<string, unknown>) ?? {},
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     completedAt: row.completedAt,
@@ -37,6 +42,7 @@ function toWorker(row: WorkerRow): MissionWorker {
     phase: row.phase,
     status: row.status,
     agentProfileId: row.agentProfileId,
+    taskId: row.taskId,
     output: row.output as Record<string, unknown> | null,
     metadata: (row.metadata as Record<string, unknown>) ?? {},
     createdAt: row.createdAt,
@@ -162,6 +168,83 @@ export class MissionsRepository extends BaseRepo<typeof missionRuns, RunRow, New
       .where(eq(missionArtifacts.missionRunId, missionRunId))
       .orderBy(desc(missionArtifacts.createdAt));
     return rows.map(toArtifact);
+  }
+
+  async updateRunSpent(id: string, additionalCents: number): Promise<MissionRun | null> {
+    const rows = await db.update(missionRuns)
+      .set({
+        spentCents: sql`${missionRuns.spentCents} + ${additionalCents}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(missionRuns.id, id))
+      .returning();
+    return rows[0] ? toRun(rows[0]) : null;
+  }
+
+  async findRunsByMissionId(missionId: string): Promise<MissionRun[]> {
+    const rows = await db.select().from(missionRuns)
+      .where(eq(missionRuns.missionId, missionId))
+      .orderBy(desc(missionRuns.createdAt));
+    return rows.map(toRun);
+  }
+
+  async costByProviderAndModel(
+    workspaceId: string,
+    since?: Date,
+    until?: Date,
+  ): Promise<MissionAnalytics['byProvider']> {
+    const conditions = [
+      eq(usageRecords.workspaceId, workspaceId),
+      isNotNull(usageRecords.missionRunId),
+    ];
+    if (since) conditions.push(gte(usageRecords.createdAt, since));
+    if (until) conditions.push(lte(usageRecords.createdAt, until));
+
+    const rows = await db
+      .select({
+        provider: usageRecords.provider,
+        model: usageRecords.model,
+        totalCostUsd: sum(usageRecords.costUsd).mapWith(Number),
+        runCount: count(usageRecords.missionRunId),
+      })
+      .from(usageRecords)
+      .where(and(...conditions))
+      .groupBy(usageRecords.provider, usageRecords.model);
+
+    return rows.map(r => ({
+      provider: r.provider,
+      model: r.model,
+      totalCostUsd: r.totalCostUsd ?? 0,
+      runCount: r.runCount ?? 0,
+    }));
+  }
+
+  async costForRun(missionRunId: string): Promise<MissionRunCost> {
+    const rows = await db
+      .select({
+        provider: usageRecords.provider,
+        model: usageRecords.model,
+        costUsd: sum(usageRecords.costUsd).mapWith(Number),
+        inputTokens: sum(usageRecords.inputTokens).mapWith(Number),
+        outputTokens: sum(usageRecords.outputTokens).mapWith(Number),
+        calls: count(),
+      })
+      .from(usageRecords)
+      .where(eq(usageRecords.missionRunId, missionRunId))
+      .groupBy(usageRecords.provider, usageRecords.model);
+
+    const breakdown = rows.map(r => ({
+      provider: r.provider,
+      model: r.model,
+      costUsd: r.costUsd ?? 0,
+      inputTokens: r.inputTokens ?? 0,
+      outputTokens: r.outputTokens ?? 0,
+      calls: r.calls ?? 0,
+    }));
+
+    const totalCostUsd = breakdown.reduce((acc, r) => acc + r.costUsd, 0);
+
+    return { missionRunId, totalCostUsd, breakdown };
   }
 }
 

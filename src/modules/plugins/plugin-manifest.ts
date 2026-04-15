@@ -10,6 +10,8 @@
 
 import type { HookEvent, HookHandler } from '../../core/hooks/hook-registry';
 import type { ConfigScope } from '../../core/config/scoped-config';
+import type { CreateAgentProfileInput } from '../agent-profiles/agent-profiles.types';
+import type { GateRiskLevel } from '../../engine/gates/tool-approvals';
 import { logger } from '../../config/logger';
 
 // ---------------------------------------------------------------------------
@@ -74,6 +76,29 @@ export interface PluginConfigDefinition {
   scope?: ConfigScope;
 }
 
+// ---------------------------------------------------------------------------
+// Domain pack — agent profiles + approval gates bundled with the plugin
+// ---------------------------------------------------------------------------
+
+export interface DomainPackApprovalGate {
+  toolPattern: string;
+  riskLevel: GateRiskLevel;
+}
+
+/**
+ * Declarative bundle of agent profiles and tool-approval gates that the plugin
+ * seeds on install and tears down on uninstall.
+ *
+ * `workspaceId` is injected at install time — do not set it in the manifest.
+ */
+export interface DomainPackDefinition {
+  defaultPermissionMode?: 'auto' | 'ask' | 'strict';
+  /** Agent profile templates seeded for this workspace on install. */
+  agentProfiles?: Omit<CreateAgentProfileInput, 'workspaceId'>[];
+  /** Tool-approval gates registered for this workspace on install. */
+  approvalGates?: DomainPackApprovalGate[];
+}
+
 export interface PluginManifest {
   id: string;
   name: string;
@@ -88,6 +113,12 @@ export interface PluginManifest {
    * install so the AI platform becomes domain-aware for this plugin.
    */
   domain?: DomainSchema;
+  /**
+   * Optional domain pack. When present, seeds agent profiles and registers
+   * tool-approval gates for the installing workspace on install.
+   * Profiles and gates are removed when the plugin is uninstalled.
+   */
+  domainPack?: DomainPackDefinition;
   /**
    * Global platform contributions registered at app startup — independent of
    * per-workspace installs. Topics are merged into the global Topics object,
@@ -183,6 +214,33 @@ export class PluginManager {
         const { domainKnowledgeService: svc } = await import('../domain-knowledge/domain-knowledge.service');
         await svc.remove(manifest.id, workspaceId).catch(() => { /* swallow */ });
       });
+    }
+
+    // Seed domain pack — agent profiles and approval gates
+    if (manifest.domainPack) {
+      if (manifest.domainPack.agentProfiles?.length) {
+        const { agentProfilesService } = await import('../agent-profiles/agent-profiles.service');
+        for (const profileTemplate of manifest.domainPack.agentProfiles) {
+          const result = await agentProfilesService.create(workspaceId, { ...profileTemplate, workspaceId });
+          if (result.ok) {
+            const profileId = result.value.id;
+            cleanups.push(async () => {
+              const { agentProfilesService: svc } = await import('../agent-profiles/agent-profiles.service');
+              await svc.remove(profileId).catch(() => { /* swallow */ });
+            });
+          } else {
+            logger.warn({ pluginId: manifest.id, workspaceId, profile: profileTemplate.name }, 'Domain pack agent profile seed failed (non-fatal)');
+          }
+        }
+      }
+
+      if (manifest.domainPack.approvalGates?.length) {
+        const { toolApprovalsRegistry } = await import('../../engine/gates/tool-approvals');
+        for (const gate of manifest.domainPack.approvalGates) {
+          toolApprovalsRegistry.register(workspaceId, gate.toolPattern, gate.riskLevel);
+          cleanups.push(() => toolApprovalsRegistry.unregister(workspaceId, gate.toolPattern));
+        }
+      }
     }
 
     // Create adaptation agent for this plugin
