@@ -35,7 +35,8 @@ const mockRepo = {
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
-mock.module('../webhooks.repo', () => ({ webhooksRepo: mockRepo }));
+const _realWebhooksRepo = require('../webhooks.repo');
+mock.module('../webhooks.repo', () => ({ ..._realWebhooksRepo, webhooksRepo: mockRepo }));
 
 const _realBus = require('../../../events/bus');
 mock.module('../../../events/bus', () => ({

@@ -56,7 +56,7 @@ mock.module('../../../../config/logger', () => ({
 // ---------------------------------------------------------------------------
 // Dynamic import so mocks intercept
 // ---------------------------------------------------------------------------
-const { detectSkillGaps, generateSkillForGap } = await import('../skill-generator');
+const { detectSkillGaps, generateSkillForGap } = await import('../skill-generator?fresh=1' as string);
 
 // ---------------------------------------------------------------------------
 // Helpers

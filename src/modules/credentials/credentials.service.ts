@@ -10,7 +10,7 @@ import type { Credential, CreateCredentialInput, UpdateCredentialInput } from '.
 export class CredentialsService {
   async create(input: CreateCredentialInput): Promise<Result<Credential>> {
     const { encrypted, iv, tag } = encrypt(input.value, input.workspaceId);
-    const credential = await credentialsRepo.create({
+    const credential = await credentialsRepo.createCredential({
       workspaceId: input.workspaceId,
       name: input.name,
       provider: input.provider,
@@ -62,7 +62,7 @@ export class CredentialsService {
       data.tag = tag;
     }
 
-    const updated = await credentialsRepo.update(id, data);
+    const updated = await credentialsRepo.updateCredential(id, data);
     if (!updated) return err(new Error(`Credential not found: ${id}`));
     return ok(updated);
   }

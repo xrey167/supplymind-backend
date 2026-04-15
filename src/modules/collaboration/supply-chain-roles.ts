@@ -94,12 +94,12 @@ export function supplyChainHasPermission(
   role: string,
   permission: SupplyChainPermission,
 ): boolean {
+  if (!Object.hasOwn(SUPPLY_CHAIN_PERMISSIONS, role)) return false;
   const perms = SUPPLY_CHAIN_PERMISSIONS[role as SupplyChainRole];
-  if (!perms) return false;
   return (perms as readonly string[]).includes(permission);
 }
 
 /** Return true if the given string is a known supply chain role. */
 export function isSupplyChainRole(role: string): role is SupplyChainRole {
-  return role in SUPPLY_CHAIN_PERMISSIONS;
+  return Object.hasOwn(SUPPLY_CHAIN_PERMISSIONS, role);
 }

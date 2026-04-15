@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { AnyPgTable, PgColumn } from 'drizzle-orm/pg-core';
 import { db } from '../client';
 
@@ -34,20 +34,24 @@ export abstract class BaseRepo<
   }
 
   /**
-   * Return all rows that match every key/value pair in `filters`.
-   * When `filters` is empty or omitted, returns all rows (use carefully on large tables).
+   * Return rows that match every key/value pair in `filters`.
+   * Defaults to 500 rows; pass `limit: 0` to lift the cap (use carefully on large tables).
    */
-  async findAll(filters?: Partial<TSelect>): Promise<TSelect[]> {
+  async findAll(filters?: Partial<TSelect>, limit = 500): Promise<TSelect[]> {
     let query = (db as any).select().from(this.table);
 
     if (filters) {
-      for (const [key, value] of Object.entries(filters)) {
-        const col = (this.table as any)[key];
-        if (col !== undefined && value !== undefined) {
-          query = query.where(eq(col, value));
-        }
+      const conditions = Object.entries(filters)
+        .filter(([key, value]) => (this.table as any)[key] !== undefined && value !== undefined)
+        .map(([key, value]) => eq((this.table as any)[key], value));
+      if (conditions.length === 1) {
+        query = query.where(conditions[0]);
+      } else if (conditions.length > 1) {
+        query = query.where(and(...conditions));
       }
     }
+
+    if (limit > 0) query = query.limit(limit);
 
     return query as Promise<TSelect[]>;
   }
@@ -70,7 +74,7 @@ export abstract class BaseRepo<
   async update(id: string, data: Partial<TInsert>): Promise<TSelect | null> {
     const rows = await (db as any)
       .update(this.table)
-      .set({ ...data, updatedAt: new Date() })
+      .set(data)
       .where(eq((this.table as any).id, id))
       .returning();
     return (rows[0] as TSelect) ?? null;

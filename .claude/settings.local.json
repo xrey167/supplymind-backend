@@ -82,7 +82,11 @@
       "Skill(claude-api:*)",
       "Bash(xargs head:*)",
       "Bash(chmod +x /c/Users/Xrey/AppData/Roaming/Python/Python311/Scripts/semgrep)",
-      "Bash(semgrep --version)"
+      "Bash(semgrep --version)",
+      "Bash(grep -rL \"extends BaseRepo\" src/modules/*/  --include=\"*.repo.ts\")",
+      "Bash(grep -rL \"extends BaseRepo\" src/modules/*/*/ --include=\"*.repo.ts\")",
+      "Bash(grep -rL \"extends BaseRepo\" src/engine/*/  --include=\"*.repo.ts\")",
+      "Bash(grep -rL \"extends BaseRepo\" src/infra/*/  --include=\"*.repo.ts\")"
     ]
   }
 }

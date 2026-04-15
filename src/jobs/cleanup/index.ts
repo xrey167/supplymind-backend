@@ -1,8 +1,8 @@
-import { taskRepo } from '../../infra/a2a/task-repo';
+import { taskRepo } from '../../engine/a2a/task-repo';
 import { sessionsService } from '../../modules/sessions/sessions.service';
 import { apiKeysRepo } from '../../modules/api-keys/api-keys.repo';
 import { logger } from '../../config/logger';
-import { resetAllBudgetCountersForMonth } from '../../infra/billing/budget-counter';
+import { resetAllBudgetCountersForMonth } from '../../engine/billing/budget-counter';
 
 const STALE_WORKING_MS = 30 * 60 * 1000;
 const STALE_SUBMITTED_MS = 60 * 60 * 1000;

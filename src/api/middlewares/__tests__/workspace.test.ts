@@ -1,7 +1,9 @@
 import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 import { Hono } from 'hono';
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: {
     info: mock(() => {}),
     warn: mock(() => {}),
@@ -10,7 +12,9 @@ mock.module('../../../config/logger', () => ({
   },
 }));
 
+const _realSentry = require('../../../infra/observability/sentry');
 mock.module('../../../infra/observability/sentry', () => ({
+  ..._realSentry,
   captureException: mock(() => {}),
   setUser: mock(() => {}),
   initSentry: mock(() => {}),
@@ -19,7 +23,9 @@ mock.module('../../../infra/observability/sentry', () => ({
 
 // Mock DB — tests don't hit a real database
 let mockMemberRows: { role: string }[] = [];
+const _realDbClient2 = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient2,
   db: {
     select: mock(() => ({
       from: mock(() => ({

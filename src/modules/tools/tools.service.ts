@@ -84,7 +84,7 @@ export class ToolsService {
         return async (args, ctx) => {
           try {
             // Delegate to registered agent via worker registry
-            const { workerRegistry } = await import('../../infra/a2a/worker-registry');
+            const { workerRegistry } = await import('../../engine/a2a/worker-registry');
             const agentUrl = config.agentUrl;
             if (!agentUrl) return err(new Error(`Agent handler for "${tool.name}" requires agentUrl`));
             const result = await workerRegistry.delegate(agentUrl, { skillId: tool.name, args: args as Record<string, unknown> });
@@ -128,7 +128,7 @@ export class ToolsService {
   }
 
   async create(input: CreateToolInput): Promise<Result<ToolDef>> {
-    const row = await toolsRepo.create(input);
+    const row = await toolsRepo.createTool(input);
     const tool = toToolDef(row);
 
     // Register in ToolRegistry (auto-syncs to SkillRegistry)
@@ -148,7 +148,7 @@ export class ToolsService {
   }
 
   async update(id: string, input: UpdateToolInput): Promise<Result<ToolDef>> {
-    const row = await toolsRepo.update(id, input);
+    const row = await toolsRepo.updateTool(id, input);
     if (!row) return err(new Error(`Tool not found: ${id}`));
     const tool = toToolDef(row);
 

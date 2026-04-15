@@ -1,4 +1,4 @@
-import type { AgentCard } from '../../infra/a2a/types';
+import type { AgentCard } from '../../engine/a2a/types';
 
 export interface RegisteredAgent {
   id: string;

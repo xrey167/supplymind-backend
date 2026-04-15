@@ -8,7 +8,7 @@ import {
   emitInvoicePaid,
 } from './billing.events';
 import { logger } from '../../config/logger';
-import { getBudgetCounter } from '../../infra/billing/budget-counter';
+import { getBudgetCounter } from '../../engine/billing/budget-counter';
 import type { PlanTier, PlanLimits, SubscriptionStatus } from './billing.types';
 
 function getStripe(): Stripe {

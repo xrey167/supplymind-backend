@@ -1,13 +1,19 @@
 import { eq, gte, desc, sql, and } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { usageRecords } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { InsertUsageRecord, WorkspaceSummaryRow } from './usage.types';
 
-export const usageRepo = {
+type Row = typeof usageRecords.$inferSelect;
+type NewRow = typeof usageRecords.$inferInsert;
+
+class UsageRepository extends BaseRepo<typeof usageRecords, Row, NewRow> {
+  constructor() { super(usageRecords); }
+
   async insert(data: InsertUsageRecord) {
     const rows = await db.insert(usageRecords).values(data).returning();
     return rows[0]!;
-  },
+  }
 
   async sumByWorkspace(workspaceId: string, since: Date): Promise<WorkspaceSummaryRow[]> {
     return db
@@ -22,7 +28,7 @@ export const usageRepo = {
       .from(usageRecords)
       .where(and(eq(usageRecords.workspaceId, workspaceId), gte(usageRecords.createdAt, since)))
       .groupBy(usageRecords.model, usageRecords.provider);
-  },
+  }
 
   async sumByAgent(workspaceId: string, since: Date) {
     return db
@@ -34,7 +40,7 @@ export const usageRepo = {
       .from(usageRecords)
       .where(and(eq(usageRecords.workspaceId, workspaceId), gte(usageRecords.createdAt, since)))
       .groupBy(usageRecords.agentId);
-  },
+  }
 
   async listRecent(workspaceId: string, since: Date, limit = 100) {
     return db
@@ -43,7 +49,7 @@ export const usageRepo = {
       .where(and(eq(usageRecords.workspaceId, workspaceId), gte(usageRecords.createdAt, since)))
       .orderBy(desc(usageRecords.createdAt))
       .limit(limit);
-  },
+  }
 
   async totalCost(workspaceId: string, since: Date): Promise<number> {
     const rows = await db
@@ -51,5 +57,7 @@ export const usageRepo = {
       .from(usageRecords)
       .where(and(eq(usageRecords.workspaceId, workspaceId), gte(usageRecords.createdAt, since)));
     return rows[0]?.total ?? 0;
-  },
-};
+  }
+}
+
+export const usageRepo = new UsageRepository();

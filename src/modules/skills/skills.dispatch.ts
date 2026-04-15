@@ -14,7 +14,7 @@ import { logger } from '../../config/logger';
 import { captureException } from '../../infra/observability/sentry';
 import { hasPermission, getRequiredRole } from '../../core/security/rbac';
 import { workspaceSettingsService } from '../settings/workspace-settings/workspace-settings.service';
-import { createApprovalRequest } from '../../infra/state/tool-approvals';
+import { createApprovalRequest } from '../../engine/gates/tool-approvals';
 import { nanoid } from 'nanoid';
 import { featureFlagsService } from '../feature-flags/feature-flags.service';
 import { billingService } from '../billing/billing.service';

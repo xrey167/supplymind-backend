@@ -1,10 +1,8 @@
-// src/infra/queue/workers/erp-sync.worker.ts
-
 import { Worker } from 'bullmq';
 import type Redis from 'ioredis';
 import { logger } from '../../../config/logger';
-import { db } from '../../db/client';
-import { syncJobs, pluginInstallations } from '../../db/schema';
+import { db } from '../../../infra/db/client';
+import { syncJobs, pluginInstallations } from '../../../infra/db/schema';
 import { eq } from 'drizzle-orm';
 import { credentialsService } from '../../../modules/credentials/credentials.service';
 
@@ -59,15 +57,15 @@ export function createErpSyncWorker(connection: Redis) {
         throw new Error('ERP-BC client secret not available — cannot run sync');
       }
 
-      const { getCacheProvider } = await import('../../cache');
+      const { getCacheProvider } = await import('../../../infra/cache');
       const cache = getCacheProvider();
-      const { BcClient } = await import('../../../plugins/erp-bc/connector/bc-client');
+      const { BcClient } = await import('../connector/bc-client');
       const client = new BcClient({ ...bcConfig, clientSecret }, {
         get: (k) => cache.get<string>(k).then(v => v ?? null),
         set: (k, v, t) => cache.set(k, v, t),
       });
 
-      const { runSync } = await import('../../../plugins/erp-bc/sync/sync-runner');
+      const { runSync } = await import('../sync/sync-runner');
       const { inboxService } = await import('../../../modules/inbox/inbox.service');
 
       const notify = async (workspaceId: string, title: string, body: string, sourceId: string) => {

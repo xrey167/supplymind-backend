@@ -14,7 +14,9 @@ const mockSubRetrieve = mock(() =>
   }),
 );
 
+const _realStripe = require('stripe');
 mock.module('stripe', () => ({
+  ..._realStripe,
   default: class {
     subscriptions = { retrieve: mockSubRetrieve };
   },
@@ -46,7 +48,9 @@ const mockEmitUpdated = mock(() => Promise.resolve());
 const mockEmitCanceled = mock(() => Promise.resolve());
 const mockEmitInvoicePaid = mock(() => Promise.resolve());
 
+const _realBillingEvents = require('../billing.events');
 mock.module('../billing.events', () => ({
+  ..._realBillingEvents,
   emitSubscriptionCreated: mockEmitCreated,
   emitSubscriptionUpdated: mockEmitUpdated,
   emitSubscriptionCanceled: mockEmitCanceled,
@@ -60,7 +64,8 @@ const mockLogger = {
   debug: mock(() => {}),
 };
 
-mock.module('../../../config/logger', () => ({ logger: mockLogger }));
+const _realLogger = require('../../../config/logger');
+mock.module('../../../config/logger', () => ({ ..._realLogger, logger: mockLogger }));
 
 process.env.STRIPE_SECRET_KEY = 'sk_test_fake';
 process.env.STRIPE_PRICE_STARTER = 'price_starter_123';

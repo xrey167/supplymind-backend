@@ -5,10 +5,14 @@ const mockFindStale = mock(() => Promise.resolve([] as any[]));
 const mockUpdateStatus = mock(() => Promise.resolve());
 const mockTaskRepo = { findStale: mockFindStale, updateStatus: mockUpdateStatus } as any;
 const mockDeleteExpiredKeys = mock(() => Promise.resolve(0));
+const _realApiKeysRepo = require('../../../modules/api-keys/api-keys.repo');
 mock.module('../../../modules/api-keys/api-keys.repo', () => ({
-  apiKeysRepo: { deleteExpired: mockDeleteExpiredKeys },
+  ..._realApiKeysRepo,
+  apiKeysRepo: { ..._realApiKeysRepo.apiKeysRepo, deleteExpired: mockDeleteExpiredKeys },
 }));
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { info: () => {}, warn: () => {}, error: () => {} },
 }));
 

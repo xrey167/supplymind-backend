@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, spyOn, afterAll } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 // --------------------------------------------------------------------------
 // Mock BullMQ Queue
@@ -25,8 +25,8 @@ mock.module('bullmq', () => ({
 // try to open a real socket during tests.
 // --------------------------------------------------------------------------
 
-const _realInfraBullmq = require('../../infra/queue/bullmq');
-mock.module('../../infra/queue/bullmq', () => ({
+const _realInfraBullmq = require('../../../infra/queue/bullmq');
+mock.module('../../../infra/queue/bullmq', () => ({
   ..._realInfraBullmq,
   redis: { /* stub — never used in tests */ },
 }));
@@ -42,8 +42,8 @@ const mockListScheduled = mock(() =>
   ]),
 );
 
-const _realSyncJobsRepo = require('../../plugins/erp-bc/sync/sync-jobs.repo');
-mock.module('../../plugins/erp-bc/sync/sync-jobs.repo', () => ({
+const _realSyncJobsRepo = require('../sync/sync-jobs.repo');
+mock.module('../sync/sync-jobs.repo', () => ({
   ..._realSyncJobsRepo,
   syncJobsRepo: {
     listScheduled: mockListScheduled,
@@ -58,8 +58,8 @@ const mockLoggerError = mock(() => {});
 const mockLoggerWarn = mock(() => {});
 const mockLoggerInfo = mock(() => {});
 
-const _realLogger = require('../../config/logger');
-mock.module('../../config/logger', () => ({
+const _realLogger = require('../../../config/logger');
+mock.module('../../../config/logger', () => ({
   ..._realLogger,
   logger: {
     info: mockLoggerInfo,
@@ -72,10 +72,8 @@ mock.module('../../config/logger', () => ({
 // Now import the module under test (after all mocks are set up)
 // --------------------------------------------------------------------------
 
-// We use a dynamic import so that the mocks above are in effect before the
-// module-level Queue singleton is potentially created.
 const { bootstrapErpSyncSchedules, upsertSyncSchedule, removeSyncSchedule } =
-  await import('../erp-sync-scheduler');
+  await import('../sync/erp-sync-scheduler');
 
 // --------------------------------------------------------------------------
 // Tests
@@ -123,7 +121,6 @@ describe('erp-sync-scheduler', () => {
     });
 
     it('logs an error but does NOT throw when upsertJobScheduler rejects (invalid cron)', async () => {
-      // Override listScheduled to return a job that will cause upsertJobScheduler to fail
       mockListScheduled.mockImplementationOnce(() =>
         Promise.resolve([{ id: 'bad-job', schedule: 'NOT_A_CRON', status: 'idle' }]),
       );
@@ -131,10 +128,7 @@ describe('erp-sync-scheduler', () => {
         Promise.reject(new Error('Invalid cron expression')),
       );
 
-      // Must not throw
       await expect(bootstrapErpSyncSchedules()).resolves.toBeUndefined();
-
-      // Must log an error
       expect(mockLoggerError).toHaveBeenCalledTimes(1);
     });
   });

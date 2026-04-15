@@ -1,7 +1,7 @@
 import { Worker } from 'bullmq';
 import { processMissionJob } from '../../modules/missions/missions.job';
 import { logger } from '../../config/logger';
-import type { MissionJobData } from './queue';
+import type { MissionJobData } from '../../modules/missions/missions.types';
 import type { PluginManifest } from '../../modules/plugins/plugin-manifest';
 import { MissionTopics } from './topics';
 
@@ -34,20 +34,33 @@ export const missionKernelManifest: PluginManifest = {
         op: 'mission.create',
         handler: async (req) => {
           const { missionsService } = await import('../../modules/missions/missions.service');
-          const { name, mode, input, metadata } = req.params as {
+          const { name, mode, input, metadata, disciplineMaxRetries } = req.params as {
             name: string;
             mode: string;
             input?: Record<string, unknown>;
             metadata?: Record<string, unknown>;
+            disciplineMaxRetries?: number;
           };
-          return missionsService.create(req.context.workspaceId, { name, mode, input, metadata });
+          return missionsService.create(req.context.workspaceId, {
+            name,
+            mode: mode as import('../../modules/missions/missions.types').MissionMode,
+            input,
+            metadata,
+            disciplineMaxRetries,
+          });
         },
       },
       {
         op: 'mission.start',
         handler: async (req) => {
-          const { missionsService } = await import('../../modules/missions/missions.service');
-          return missionsService.start(req.params.id as string);
+          const { enqueueMission } = await import('./queue');
+          const { ok } = await import('../../core/result');
+          // Agents fire-and-forget: enqueue the mission and return immediately.
+          // The mission-kernel:run BullMQ worker picks it up and calls missionsService.start().
+          return ok(await enqueueMission({
+            missionId: req.params.id as string,
+            workspaceId: req.context.workspaceId,
+          }));
         },
       },
       {

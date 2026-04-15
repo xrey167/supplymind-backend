@@ -23,7 +23,7 @@ class MembersService {
       const existing = await invitationsRepo.findPendingByEmail(workspaceId, input.email);
       if (existing) throw new ValidationError(`Invitation already pending for ${input.email}`);
     }
-    const result = await invitationsRepo.create(workspaceId, {
+    const result = await invitationsRepo.createInvitation(workspaceId, {
       email: input.email, type, role: input.role ?? 'member', invitedBy: input.invitedBy,
     });
     eventBus.publish(Topics.MEMBER_INVITED, {

@@ -41,9 +41,11 @@ const mockValues = mock(() => ({ returning: mockReturning }));
 const mockUpdate = mock(() => ({ set: mockSet }));
 const mockSet = mock(() => ({ where: mockUpdateWhere }));
 const mockUpdateWhere = mock(() => ({ returning: mockReturning }));
-const mockDelete = mock(() => ({ where: mock(() => Promise.resolve()) }));
+const mockDelete = mock(() => ({ where: mock(() => ({ returning: mock(() => Promise.resolve([])) })) }));
 
+const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
   db: {
     select: mockSelect,
     insert: mockInsert,
@@ -75,8 +77,8 @@ describe('AgentProfilesRepository', () => {
     mockWhere.mockClear();
   });
 
-  it('create() inserts profile and maps temperature from int*100 to float', async () => {
-    const profile = await repo.create('ws-1', {
+  it('createProfile() inserts profile and maps temperature from int*100 to float', async () => {
+    const profile = await repo.createProfile('ws-1', {
       name: 'Test Profile',
       category: 'executor',
       temperature: 0.7,
@@ -86,13 +88,13 @@ describe('AgentProfilesRepository', () => {
     expect(profile.temperature).toBeCloseTo(0.7);
   });
 
-  it('findById() returns mapped profile or null', async () => {
-    const profile = await repo.findById('ap-1');
+  it('findProfileById() returns mapped profile or null', async () => {
+    const profile = await repo.findProfileById('ap-1');
     expect(profile?.id).toBe('ap-1');
     expect(profile?.category).toBe('executor');
 
     mockWhere.mockResolvedValueOnce([]);
-    const missing = await repo.findById('nonexistent');
+    const missing = await repo.findProfileById('nonexistent');
     expect(missing).toBeNull();
   });
 
@@ -101,9 +103,9 @@ describe('AgentProfilesRepository', () => {
     expect(Array.isArray(profiles)).toBe(true);
   });
 
-  it('update() returns null when row not found', async () => {
+  it('updateProfile() returns null when row not found', async () => {
     mockReturning.mockResolvedValueOnce([]);
-    const result = await repo.update('nonexistent', { name: 'New Name' });
+    const result = await repo.updateProfile('nonexistent', { name: 'New Name' });
     expect(result).toBeNull();
   });
 

@@ -23,15 +23,15 @@ function makePrompt(overrides: Partial<Prompt> = {}): Prompt {
 
 function mockRepo(overrides: Partial<PromptsRepository> = {}): PromptsRepository {
   return {
-    create: mock(async (input: any) => makePrompt({
+    createPrompt: mock(async (input: any) => makePrompt({
       ...input,
       id: 'p-new',
       createdAt: new Date(),
       updatedAt: new Date(),
     })),
-    findById: mock(async () => null),
+    findPromptById: mock(async () => null),
     list: mock(async () => []),
-    update: mock(async (_id: string, input: any) => makePrompt(input)),
+    updatePrompt: mock(async (_id: string, input: any) => makePrompt(input)),
     delete: mock(async () => true),
     findByName: mock(async () => null),
     ...overrides,
@@ -67,8 +67,8 @@ describe('PromptsService', () => {
         content: 'Hello {{name}}, welcome to {{org}}!',
       });
 
-      expect(repo.create).toHaveBeenCalledTimes(1);
-      const callArgs = (repo.create as any).mock.calls[0][0];
+      expect(repo.createPrompt).toHaveBeenCalledTimes(1);
+      const callArgs = (repo.createPrompt as any).mock.calls[0][0];
       expect(callArgs.variables).toEqual([
         { name: 'name' },
         { name: 'org' },
@@ -86,7 +86,7 @@ describe('PromptsService', () => {
         variables: [{ name: 'name', description: 'User name', default: 'World' }],
       });
 
-      const callArgs = (repo.create as any).mock.calls[0][0];
+      const callArgs = (repo.createPrompt as any).mock.calls[0][0];
       expect(callArgs.variables).toEqual([
         { name: 'name', description: 'User name', default: 'World' },
       ]);
@@ -106,7 +106,7 @@ describe('PromptsService', () => {
         ],
       });
 
-      const callArgs = (repo.create as any).mock.calls[0][0];
+      const callArgs = (repo.createPrompt as any).mock.calls[0][0];
       expect(callArgs.variables).toHaveLength(2);
       expect(callArgs.variables[1]).toEqual({ name: 'extra', description: 'Extra var' });
     });
@@ -118,7 +118,7 @@ describe('PromptsService', () => {
         content: 'Hello {{name}}, welcome to {{org}}!',
         variables: [{ name: 'name' }, { name: 'org' }],
       });
-      const repo = mockRepo({ findById: mock(async () => prompt) });
+      const repo = mockRepo({ findPromptById: mock(async () => prompt) });
       const svc = new PromptsService(repo);
 
       const result = await svc.render('p-1', { name: 'Alice', org: 'Acme' });
@@ -136,7 +136,7 @@ describe('PromptsService', () => {
           { name: 'org', default: 'SupplyMind' },
         ],
       });
-      const repo = mockRepo({ findById: mock(async () => prompt) });
+      const repo = mockRepo({ findPromptById: mock(async () => prompt) });
       const svc = new PromptsService(repo);
 
       const result = await svc.render('p-1', { name: 'Alice' });
@@ -151,7 +151,7 @@ describe('PromptsService', () => {
         content: 'Hello {{name}}!',
         variables: [{ name: 'name' }],
       });
-      const repo = mockRepo({ findById: mock(async () => prompt) });
+      const repo = mockRepo({ findPromptById: mock(async () => prompt) });
       const svc = new PromptsService(repo);
 
       const result = await svc.render('p-1', {});
@@ -162,7 +162,7 @@ describe('PromptsService', () => {
     });
 
     it('returns error for non-existent prompt', async () => {
-      const repo = mockRepo({ findById: mock(async () => null) });
+      const repo = mockRepo({ findPromptById: mock(async () => null) });
       const svc = new PromptsService(repo);
 
       const result = await svc.render('bad-id', {});
@@ -174,9 +174,9 @@ describe('PromptsService', () => {
     it('creates new version when content changes', async () => {
       const existing = makePrompt({ id: 'p-1', version: 1, content: 'old {{x}}' });
       const repo = mockRepo({
-        findById: mock(async () => existing),
-        create: mock(async (input: any) => makePrompt({ ...input, id: 'p-2' })),
-        update: mock(async (_id: string, input: any) => makePrompt({ ...existing, ...input })),
+        findPromptById: mock(async () => existing),
+        createPrompt: mock(async (input: any) => makePrompt({ ...input, id: 'p-2' })),
+        updatePrompt: mock(async (_id: string, input: any) => makePrompt({ ...existing, ...input })),
       });
       const svc = new PromptsService(repo);
 
@@ -184,14 +184,14 @@ describe('PromptsService', () => {
       expect(result.ok).toBe(true);
 
       // Should have created a new version
-      expect(repo.create).toHaveBeenCalledTimes(1);
-      const createArgs = (repo.create as any).mock.calls[0][0];
+      expect(repo.createPrompt).toHaveBeenCalledTimes(1);
+      const createArgs = (repo.createPrompt as any).mock.calls[0][0];
       expect(createArgs.version).toBe(2);
       expect(createArgs.content).toBe('new {{y}}');
 
       // Should have deactivated old version
-      expect(repo.update).toHaveBeenCalledTimes(1);
-      const updateArgs = (repo.update as any).mock.calls[0];
+      expect(repo.updatePrompt).toHaveBeenCalledTimes(1);
+      const updateArgs = (repo.updatePrompt as any).mock.calls[0];
       expect(updateArgs[0]).toBe('p-1');
       expect(updateArgs[1]).toEqual({ isActive: false });
     });
@@ -199,16 +199,16 @@ describe('PromptsService', () => {
     it('updates in-place when content unchanged', async () => {
       const existing = makePrompt({ id: 'p-1', content: 'same' });
       const repo = mockRepo({
-        findById: mock(async () => existing),
-        update: mock(async (_id: string, input: any) => makePrompt({ ...existing, ...input })),
+        findPromptById: mock(async () => existing),
+        updatePrompt: mock(async (_id: string, input: any) => makePrompt({ ...existing, ...input })),
       });
       const svc = new PromptsService(repo);
 
       const result = await svc.update('p-1', { name: 'renamed' });
       expect(result.ok).toBe(true);
 
-      expect(repo.update).toHaveBeenCalledTimes(1);
-      expect((repo.create as any).mock.calls?.length ?? 0).toBe(0);
+      expect(repo.updatePrompt).toHaveBeenCalledTimes(1);
+      expect((repo.createPrompt as any).mock.calls?.length ?? 0).toBe(0);
     });
   });
 
@@ -221,7 +221,7 @@ describe('PromptsService', () => {
 
     it('returns prompt when found', async () => {
       const prompt = makePrompt();
-      const repo = mockRepo({ findById: mock(async () => prompt) });
+      const repo = mockRepo({ findPromptById: mock(async () => prompt) });
       const svc = new PromptsService(repo);
 
       const result = await svc.get('p-1');

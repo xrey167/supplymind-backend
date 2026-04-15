@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { tasksService } from './tasks.service';
 import { taskSendSchema, taskIdParamSchema, listTasksQuerySchema, addDependencySchema, dependencyParamSchema } from './tasks.schemas';
 import { taskEventStream } from '../../infra/realtime/sse-stream';
-import { taskRepo } from '../../infra/a2a/task-repo';
+import { taskRepo } from '../../engine/a2a/task-repo';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
 const errRes = (desc: string) => ({ description: desc, ...jsonRes });

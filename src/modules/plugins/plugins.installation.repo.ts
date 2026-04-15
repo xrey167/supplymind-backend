@@ -1,20 +1,26 @@
 import { db } from '../../infra/db/client';
 import { pluginInstallations, pluginEvents, auditLogs } from '../../infra/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { InstallationRow, PluginEventRow, PluginStatus, PluginEventType, Actor } from './plugins.types';
 import { VALID_TRANSITIONS } from './plugins.types';
 
-export const pluginInstallationRepo = {
+type Row = typeof pluginInstallations.$inferSelect;
+type NewRow = typeof pluginInstallations.$inferInsert;
+
+class PluginInstallationRepository extends BaseRepo<typeof pluginInstallations, Row, NewRow> {
+  constructor() { super(pluginInstallations); }
+
   async findByWorkspace(workspaceId: string): Promise<InstallationRow[]> {
     return db.select().from(pluginInstallations)
       .where(eq(pluginInstallations.workspaceId, workspaceId)) as unknown as Promise<InstallationRow[]>;
-  },
+  }
 
-  async findById(id: string): Promise<InstallationRow | undefined> {
+  async findInstallation(id: string): Promise<InstallationRow | undefined> {
     const [row] = await db.select().from(pluginInstallations)
       .where(eq(pluginInstallations.id, id)).limit(1);
     return row as unknown as InstallationRow | undefined;
-  },
+  }
 
   async findByWorkspaceAndPlugin(workspaceId: string, pluginId: string): Promise<InstallationRow | undefined> {
     const [row] = await db.select().from(pluginInstallations)
@@ -23,12 +29,12 @@ export const pluginInstallationRepo = {
         eq(pluginInstallations.pluginId, pluginId),
       )).limit(1);
     return row as unknown as InstallationRow | undefined;
-  },
+  }
 
   async listEnabled(): Promise<InstallationRow[]> {
     return db.select().from(pluginInstallations)
       .where(eq(pluginInstallations.status, 'active')) as unknown as Promise<InstallationRow[]>;
-  },
+  }
 
   /**
    * Write event + update projected status in one transaction.
@@ -97,9 +103,9 @@ export const pluginInstallationRepo = {
         event: event as unknown as PluginEventRow,
       };
     });
-  },
+  }
 
-  async create(data: {
+  async installPlugin(data: {
     workspaceId: string;
     pluginId: string;
     config?: Record<string, unknown>;
@@ -112,20 +118,20 @@ export const pluginInstallationRepo = {
     }).returning();
     if (!row) throw new Error('Plugin installation insert returned no rows');
     return row as unknown as InstallationRow;
-  },
+  }
 
   async getEvents(installationId: string, limit = 50): Promise<PluginEventRow[]> {
     return db.select().from(pluginEvents)
       .where(eq(pluginEvents.installationId, installationId))
       .orderBy(desc(pluginEvents.createdAt))
       .limit(limit) as unknown as Promise<PluginEventRow[]>;
-  },
+  }
 
   async updateSecretBindingIds(installationId: string, secretBindingIds: string[]): Promise<void> {
     await db.update(pluginInstallations)
       .set({ secretBindingIds, updatedAt: new Date() })
       .where(eq(pluginInstallations.id, installationId));
-  },
+  }
 
   async getLastVersionPinnedEvent(installationId: string): Promise<PluginEventRow | undefined> {
     const [row] = await db.select().from(pluginEvents)
@@ -136,5 +142,7 @@ export const pluginInstallationRepo = {
       .orderBy(desc(pluginEvents.createdAt))
       .limit(1);
     return row as unknown as PluginEventRow | undefined;
-  },
-};
+  }
+}
+
+export const pluginInstallationRepo = new PluginInstallationRepository();

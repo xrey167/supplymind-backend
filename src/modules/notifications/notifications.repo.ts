@@ -20,7 +20,7 @@ export class NotificationsRepository extends BaseRepo<
   constructor() {
     super(notifications);
   }
-  async create(input: CreateNotificationInput, channel: NotificationChannel = 'in_app') {
+  async createNotification(input: CreateNotificationInput, channel: NotificationChannel = 'in_app') {
     const rows = await db.insert(notifications).values({
       workspaceId: input.workspaceId,
       userId: input.userId ?? null,
@@ -128,7 +128,7 @@ export class NotificationsRepository extends BaseRepo<
         )
         SELECT id, workspace_id, user_id, type, title, body, metadata,
                channel, status, read_at, attempt_count, last_attempted_at,
-               created_at, updated_at
+               created_at
         FROM ranked
         WHERE rn <= ${perWsCap}
         ORDER BY last_attempted_at ASC NULLS FIRST, created_at ASC
@@ -151,7 +151,6 @@ export class NotificationsRepository extends BaseRepo<
       attemptCount: r.attempt_count,
       lastAttemptedAt: r.last_attempted_at,
       createdAt: r.created_at,
-      updatedAt: r.updated_at,
     }));
   }
 }

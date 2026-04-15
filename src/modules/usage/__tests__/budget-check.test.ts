@@ -3,8 +3,11 @@ import { describe, it, expect, mock, spyOn, beforeEach, afterAll } from 'bun:tes
 const mockTotalCost = mock(() => Promise.resolve(0));
 const mockGetTokenBudget = mock(() => Promise.resolve(null as any));
 
+const _realUsageRepo = require('../usage.repo');
 mock.module('../usage.repo', () => ({
+  ..._realUsageRepo,
   usageRepo: {
+    ..._realUsageRepo.usageRepo,
     totalCost: mockTotalCost,
     insert: mock(() => Promise.resolve()),
     sumByWorkspace: mock(() => Promise.resolve([])),
@@ -13,8 +16,11 @@ mock.module('../usage.repo', () => ({
   },
 }));
 
+const _realBudgetWsSettings = require('../../settings/workspace-settings/workspace-settings.service');
 mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
+  ..._realBudgetWsSettings,
   workspaceSettingsService: {
+    ..._realBudgetWsSettings.workspaceSettingsService,
     getTokenBudget: mockGetTokenBudget,
     getSandboxPolicy: mock(async () => ({})),
     getToolPermissionMode: mock(async () => 'auto'),

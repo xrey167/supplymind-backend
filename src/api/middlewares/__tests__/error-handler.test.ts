@@ -4,14 +4,18 @@ import { Hono } from 'hono';
 // Mock captureException so Sentry is never called for real
 const captureExceptionMock = mock(() => {});
 
+const _realSentry = require('../../../infra/observability/sentry');
 mock.module('../../../infra/observability/sentry', () => ({
+  ..._realSentry,
   captureException: captureExceptionMock,
   setUser: mock(() => {}),
   initSentry: mock(() => {}),
   Sentry: {},
 }));
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: {
     info: mock(() => {}),
     error: mock(() => {}),

@@ -1,9 +1,13 @@
 import { eq, and, lt, isNotNull } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { apiKeys } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { ApiKey } from './api-keys.types';
 
-function toApiKey(row: typeof apiKeys.$inferSelect): ApiKey {
+type Row = typeof apiKeys.$inferSelect;
+type NewRow = typeof apiKeys.$inferInsert;
+
+function toApiKey(row: Row): ApiKey {
   return {
     id: row.id,
     workspaceId: row.workspaceId,
@@ -17,17 +21,19 @@ function toApiKey(row: typeof apiKeys.$inferSelect): ApiKey {
   };
 }
 
-export const apiKeysRepo = {
+export class ApiKeysRepo extends BaseRepo<typeof apiKeys, Row, NewRow> {
+  constructor() { super(apiKeys); }
+
   async list(workspaceId: string): Promise<ApiKey[]> {
     const rows = await db.select().from(apiKeys).where(eq(apiKeys.workspaceId, workspaceId));
     return rows.map(toApiKey);
-  },
+  }
 
   async get(id: string, workspaceId: string): Promise<ApiKey | null> {
     const [row] = await db.select().from(apiKeys)
       .where(and(eq(apiKeys.id, id), eq(apiKeys.workspaceId, workspaceId)));
     return row ? toApiKey(row) : null;
-  },
+  }
 
   async revoke(id: string, workspaceId: string): Promise<boolean> {
     const result = await db.update(apiKeys)
@@ -35,19 +41,21 @@ export const apiKeysRepo = {
       .where(and(eq(apiKeys.id, id), eq(apiKeys.workspaceId, workspaceId)))
       .returning({ id: apiKeys.id });
     return result.length > 0;
-  },
+  }
 
   async deleteKey(id: string, workspaceId: string): Promise<boolean> {
     const result = await db.delete(apiKeys)
       .where(and(eq(apiKeys.id, id), eq(apiKeys.workspaceId, workspaceId)))
       .returning({ id: apiKeys.id });
     return result.length > 0;
-  },
+  }
 
   async deleteExpired(): Promise<number> {
     const result = await db.delete(apiKeys)
       .where(and(isNotNull(apiKeys.expiresAt), lt(apiKeys.expiresAt, new Date())))
       .returning({ id: apiKeys.id });
     return result.length;
-  },
-};
+  }
+}
+
+export const apiKeysRepo = new ApiKeysRepo();

@@ -36,7 +36,9 @@ const mockCountFrom = mock(() => ({ where: mockCountWhere }));
 
 let selectCallCount = 0;
 
+const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
   db: {
     insert: () => ({ values: mockValues }),
     select: (...args: any[]) => {

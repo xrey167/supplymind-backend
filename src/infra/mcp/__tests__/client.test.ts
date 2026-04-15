@@ -64,7 +64,9 @@ const mockClose = mock(async () => {});
 // Capture constructor args to verify headers are passed
 let lastStreamableHttpArgs: any[] = [];
 
+const _realMcpClientIndex = require('@modelcontextprotocol/sdk/client/index.js');
 mock.module('@modelcontextprotocol/sdk/client/index.js', () => ({
+  ..._realMcpClientIndex,
   Client: class {
     constructor() {}
     connect = mockConnect;
@@ -77,13 +79,19 @@ mock.module('@modelcontextprotocol/sdk/client/index.js', () => ({
     close = mockClose;
   },
 }));
+const _realMcpClientStdio = require('@modelcontextprotocol/sdk/client/stdio.js');
 mock.module('@modelcontextprotocol/sdk/client/stdio.js', () => ({
+  ..._realMcpClientStdio,
   StdioClientTransport: class { constructor(_opts: any) {} },
 }));
+const _realMcpClientSse = require('@modelcontextprotocol/sdk/client/sse.js');
 mock.module('@modelcontextprotocol/sdk/client/sse.js', () => ({
+  ..._realMcpClientSse,
   SSEClientTransport: class { constructor(_url: URL) {} },
 }));
+const _realMcpClientStreamableHttp = require('@modelcontextprotocol/sdk/client/streamableHttp.js');
 mock.module('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
+  ..._realMcpClientStreamableHttp,
   StreamableHTTPClientTransport: class {
     constructor(...args: any[]) { lastStreamableHttpArgs = args; }
   },

@@ -1,5 +1,5 @@
-import { db } from '../db/client';
-import { a2aTasks, taskDependencies, toolCallLogs } from '../db/schema';
+import { db } from '../../infra/db/client';
+import { a2aTasks, taskDependencies, toolCallLogs } from '../../infra/db/schema';
 import { and, eq, inArray, lt, desc } from 'drizzle-orm';
 import type { A2ATask, TaskState, ToolCallStatus } from './types';
 

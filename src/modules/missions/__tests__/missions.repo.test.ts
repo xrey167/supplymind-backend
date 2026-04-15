@@ -29,7 +29,9 @@ const mockSelectChain = {
   })),
 };
 
+const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
   db: {
     select: mock(() => mockSelectChain),
     insert: mock(() => ({ values: mock(() => ({ returning: mockReturning })) })),

@@ -1,8 +1,8 @@
 import { ok, err } from '../../core/result';
 import type { Result } from '../../core/result';
 import { logger } from '../../config/logger';
-import { workerRegistry } from '../../infra/a2a/worker-registry';
-import type { AgentCard } from '../../infra/a2a/types';
+import { workerRegistry } from '../../engine/a2a/worker-registry';
+import type { AgentCard } from '../../engine/a2a/types';
 import { agentRegistryRepo } from './agent-registry.repo';
 import type { RegisteredAgent } from './agent-registry.types';
 
@@ -18,7 +18,7 @@ export class AgentRegistryService {
   async register(workspaceId: string, url: string, apiKey?: string): Promise<Result<RegisteredAgent>> {
     try {
       // 1. Discover agent card (best-effort; registration proceeds even if discovery fails)
-      let card: import('../../infra/a2a/types').AgentCard;
+      let card: import('../../engine/a2a/types').AgentCard;
       try {
         card = await this.wReg.discover(url, apiKey);
       } catch (discoverErr) {
@@ -42,7 +42,7 @@ export class AgentRegistryService {
       }
 
       // 4. Insert new row
-      const agent = await this.repo.create({
+      const agent = await this.repo.registerAgent({
         workspaceId,
         url,
         agentCard: card as unknown as Record<string, unknown>,
@@ -59,7 +59,7 @@ export class AgentRegistryService {
   }
 
   async loadAll(): Promise<void> {
-    const agents = await this.repo.findAll();
+    const agents = await this.repo.listRegistered();
     const { logger } = await import('../../config/logger');
     for (const a of agents) {
       if (!a.enabled) continue;
@@ -83,7 +83,7 @@ export class AgentRegistryService {
 
   async remove(workspaceId: string, id: string): Promise<Result<void>> {
     try {
-      const agent = await this.repo.findById(id);
+      const agent = await this.repo.findAgentById(id);
       if (!agent) return err(new Error(`Agent not found: ${id}`));
       if (agent.workspaceId !== workspaceId) return err(new Error('Agent not found in this workspace'));
 
@@ -97,7 +97,7 @@ export class AgentRegistryService {
 
   async refresh(workspaceId: string, id: string, apiKey?: string): Promise<Result<RegisteredAgent>> {
     try {
-      const agent = await this.repo.findById(id);
+      const agent = await this.repo.findAgentById(id);
       if (!agent) return err(new Error(`Agent not found: ${id}`));
       if (agent.workspaceId !== workspaceId) return err(new Error('Agent not found in this workspace'));
 
@@ -116,7 +116,7 @@ export class AgentRegistryService {
   }
 
   async refreshAll(): Promise<{ refreshed: number; failed: number }> {
-    const agents = await this.repo.findAll();
+    const agents = await this.repo.listRegistered();
     let refreshed = 0;
     let failed = 0;
     for (const agent of agents) {

@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 /* ------------------------------------------------------------------ */
 /*  Mock: Two parallel db.select({count}).from().where() calls        */
@@ -26,7 +26,7 @@ const mockSelect = mock(() => {
 
 const mockDb = { select: mockSelect } as any;
 
-const { analyzeMemoryQuality } = await import('../memory-analyzer');
+const { analyzeMemoryQuality } = await import('../memory-analyzer?fresh=1' as string);
 
 describe('analyzeMemoryQuality', () => {
   beforeEach(() => {
@@ -94,3 +94,5 @@ describe('analyzeMemoryQuality', () => {
     expect(proposals).toEqual([]);
   });
 });
+
+afterAll(() => mock.restore());

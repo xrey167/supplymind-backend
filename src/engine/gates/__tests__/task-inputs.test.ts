@@ -1,6 +1,8 @@
 import { describe, it, expect, mock, afterAll } from 'bun:test';
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { warn: mock(() => {}), error: mock(() => {}), info: mock(() => {}), debug: mock(() => {}) },
 }));
 

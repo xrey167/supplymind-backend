@@ -1,9 +1,15 @@
 import { db } from '../../infra/db/client';
 import { orchestrations } from '../../infra/db/schema';
 import { eq, and, lt, or, desc, inArray, sql } from 'drizzle-orm';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { OrchestrationDefinition, OrchestrationStatus, StepResult } from './orchestration.types';
 
-export const orchestrationRepo = {
+type Row = typeof orchestrations.$inferSelect;
+type NewRow = typeof orchestrations.$inferInsert;
+
+class OrchestrationRepository extends BaseRepo<typeof orchestrations, Row, NewRow> {
+  constructor() { super(orchestrations); }
+
   async create(data: {
     workspaceId: string;
     sessionId?: string;
@@ -18,13 +24,13 @@ export const orchestrationRepo = {
       definition: data.definition,
       input: data.input ?? {},
     }).returning();
-    return row;
-  },
+    return row!;
+  }
 
   async get(id: string) {
     const [row] = await db.select().from(orchestrations).where(eq(orchestrations.id, id)).limit(1);
     return row;
-  },
+  }
 
   async list(workspaceId: string, opts?: { limit?: number; cursor?: string }) {
     const limit = opts?.limit ?? 20;
@@ -49,7 +55,7 @@ export const orchestrationRepo = {
       .where(and(...conditions))
       .orderBy(desc(orchestrations.createdAt), desc(orchestrations.id))
       .limit(limit);
-  },
+  }
 
   async cancel(id: string): Promise<boolean> {
     const result = await db.update(orchestrations)
@@ -60,7 +66,7 @@ export const orchestrationRepo = {
       ))
       .returning({ id: orchestrations.id });
     return result.length > 0;
-  },
+  }
 
   async updateStatus(id: string, status: OrchestrationStatus, updates?: { stepResults?: Record<string, StepResult>; currentStepId?: string | null }) {
     await db.update(orchestrations)
@@ -72,5 +78,7 @@ export const orchestrationRepo = {
         ...(status === 'completed' || status === 'failed' ? { completedAt: new Date() } : {}),
       })
       .where(eq(orchestrations.id, id));
-  },
-};
+  }
+}
+
+export const orchestrationRepo = new OrchestrationRepository();

@@ -1,28 +1,34 @@
 import { db } from '../../infra/db/client';
 import { sessions, sessionMessages } from '../../infra/db/schema';
-import { eq, and, lt, gt, lte, count, desc, asc, or } from 'drizzle-orm';
+import { eq, and, lt, gt, lte, count, desc, or } from 'drizzle-orm';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { Session, SessionMessage, AddMessageInput, SessionStatus } from './sessions.types';
 import { logger } from '../../config/logger';
+
+type Row = typeof sessions.$inferSelect;
+type NewRow = typeof sessions.$inferInsert;
 
 function estimateTokens(text: string): number {
   // ~4 chars/token for natural language, ~2.5 for code. Use 3.2 as balanced estimate.
   return Math.ceil(text.length / 3.2);
 }
 
-export const sessionsRepo = {
-  async create(data: { workspaceId: string; agentId?: string; metadata?: Record<string, unknown> }): Promise<Session> {
+class SessionsRepository extends BaseRepo<typeof sessions, Row, NewRow> {
+  constructor() { super(sessions); }
+
+  async createSession(data: { workspaceId: string; agentId?: string; metadata?: Record<string, unknown> }): Promise<Session> {
     const [row] = await db.insert(sessions).values({
       workspaceId: data.workspaceId,
       agentId: data.agentId,
       metadata: data.metadata ?? {},
     }).returning();
     return row as unknown as Session;
-  },
+  }
 
   async get(id: string): Promise<Session | undefined> {
     const [row] = await db.select().from(sessions).where(eq(sessions.id, id)).limit(1);
     return row as unknown as Session | undefined;
-  },
+  }
 
   async updateStatus(id: string, status: SessionStatus): Promise<void> {
     await db.update(sessions)
@@ -32,7 +38,7 @@ export const sessionsRepo = {
         ...(status === 'closed' && { closedAt: new Date() }),
       })
       .where(eq(sessions.id, id));
-  },
+  }
 
   async addMessage(sessionId: string, input: AddMessageInput): Promise<SessionMessage> {
     const tokenEstimate = estimateTokens(input.content);
@@ -50,7 +56,7 @@ export const sessionsRepo = {
       .where(eq(sessions.id, sessionId));
 
     return row as unknown as SessionMessage;
-  },
+  }
 
   async getMessages(sessionId: string, opts?: { limit?: number; excludeCompacted?: boolean }): Promise<SessionMessage[]> {
     const filter = opts?.excludeCompacted
@@ -61,7 +67,7 @@ export const sessionsRepo = {
       .orderBy(sessionMessages.createdAt)
       .limit(opts?.limit ?? 1000);
     return rows as unknown as SessionMessage[];
-  },
+  }
 
   async getMessagePage(
     sessionId: string,
@@ -114,7 +120,7 @@ export const sessionsRepo = {
       .limit(limit);
 
     return { messages: rows as unknown as SessionMessage[], total: Number(total) };
-  },
+  }
 
   /**
    * Mark all session messages created at or before the message with the given
@@ -142,7 +148,7 @@ export const sessionsRepo = {
         eq(sessionMessages.sessionId, sessionId),
         lte(sessionMessages.createdAt, boundary.createdAt!),
       ));
-  },
+  }
 
   async getLatestMessage(sessionId: string): Promise<SessionMessage | null> {
     const [row] = await db
@@ -152,7 +158,7 @@ export const sessionsRepo = {
       .orderBy(desc(sessionMessages.createdAt), desc(sessionMessages.id))
       .limit(1);
     return (row as unknown as SessionMessage) ?? null;
-  },
+  }
 
   async expireIdleSessions(maxIdleMs: number): Promise<number> {
     const cutoff = new Date(Date.now() - maxIdleMs);
@@ -163,5 +169,7 @@ export const sessionsRepo = {
         lt(sessions.updatedAt, cutoff),
       ));
     return (result as any).rowCount ?? 0;
-  },
-};
+  }
+}
+
+export const sessionsRepo = new SessionsRepository();

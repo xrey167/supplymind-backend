@@ -1,8 +1,12 @@
 import { eq, and, isNull, lt, sql } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { workspaceInvitations } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import { nanoid } from 'nanoid';
 import type { WorkspaceInvitation, WorkspaceRole } from './members.types';
+
+type Row = typeof workspaceInvitations.$inferSelect;
+type NewRow = typeof workspaceInvitations.$inferInsert;
 
 export function hashToken(token: string): string {
   const hash = new Bun.CryptoHasher('sha256');
@@ -10,7 +14,7 @@ export function hashToken(token: string): string {
   return hash.digest('hex');
 }
 
-function toInvitation(row: typeof workspaceInvitations.$inferSelect): WorkspaceInvitation {
+function toInvitation(row: Row): WorkspaceInvitation {
   return {
     id: row.id, workspaceId: row.workspaceId, email: row.email,
     tokenHash: row.tokenHash, type: row.type as 'email' | 'link',
@@ -21,8 +25,10 @@ function toInvitation(row: typeof workspaceInvitations.$inferSelect): WorkspaceI
 
 const DEFAULT_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 
-class InvitationsRepository {
-  async create(workspaceId: string, input: {
+class InvitationsRepository extends BaseRepo<typeof workspaceInvitations, Row, NewRow> {
+  constructor() { super(workspaceInvitations); }
+
+  async createInvitation(workspaceId: string, input: {
     email?: string; type: 'email' | 'link'; role: WorkspaceRole;
     invitedBy: string; expiresAt?: Date;
   }): Promise<{ token: string; invitation: WorkspaceInvitation }> {
@@ -112,6 +118,6 @@ class InvitationsRepository {
       and(eq(workspaceInvitations.id, id), eq(workspaceInvitations.workspaceId, workspaceId)),
     );
   }
-
 }
+
 export const invitationsRepo = new InvitationsRepository();

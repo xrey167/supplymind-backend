@@ -1,12 +1,14 @@
 import { eq, and, lt, or, desc, sql } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { missionRuns, missionWorkers, missionArtifacts } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type {
   MissionRun, MissionWorker, MissionArtifact,
   MissionStatus, MissionWorkerStatus, CreateArtifactInput, WorkerSpec,
 } from './missions.types';
 
 type RunRow = typeof missionRuns.$inferSelect;
+type NewRunRow = typeof missionRuns.$inferInsert;
 type WorkerRow = typeof missionWorkers.$inferSelect;
 type ArtifactRow = typeof missionArtifacts.$inferSelect;
 
@@ -56,7 +58,9 @@ function toArtifact(row: ArtifactRow): MissionArtifact {
   };
 }
 
-export class MissionsRepository {
+export class MissionsRepository extends BaseRepo<typeof missionRuns, RunRow, NewRunRow> {
+  constructor() { super(missionRuns); }
+
   async createRun(workspaceId: string, data: {
     name: string;
     mode: MissionRun['mode'];

@@ -1,9 +1,11 @@
 import { eq, and } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { agentProfiles } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { AgentProfile, CreateAgentProfileInput, UpdateAgentProfileInput } from './agent-profiles.types';
 
 type Row = typeof agentProfiles.$inferSelect;
+type NewRow = typeof agentProfiles.$inferInsert;
 
 function toProfile(row: Row): AgentProfile {
   return {
@@ -25,8 +27,10 @@ function toProfile(row: Row): AgentProfile {
   };
 }
 
-export class AgentProfilesRepository {
-  async create(workspaceId: string, input: CreateAgentProfileInput): Promise<AgentProfile> {
+export class AgentProfilesRepository extends BaseRepo<typeof agentProfiles, Row, NewRow> {
+  constructor() { super(agentProfiles); }
+
+  async createProfile(workspaceId: string, input: CreateAgentProfileInput): Promise<AgentProfile> {
     const rows = await db.insert(agentProfiles).values({
       workspaceId,
       name: input.name,
@@ -44,7 +48,7 @@ export class AgentProfilesRepository {
     return toProfile(rows[0]!);
   }
 
-  async findById(id: string): Promise<AgentProfile | null> {
+  async findProfileById(id: string): Promise<AgentProfile | null> {
     const rows = await db.select().from(agentProfiles).where(eq(agentProfiles.id, id));
     return rows[0] ? toProfile(rows[0]) : null;
   }
@@ -68,7 +72,7 @@ export class AgentProfilesRepository {
     return rows[0] ? toProfile(rows[0]) : null;
   }
 
-  async update(id: string, input: UpdateAgentProfileInput): Promise<AgentProfile | null> {
+  async updateProfile(id: string, input: UpdateAgentProfileInput): Promise<AgentProfile | null> {
     const set: Partial<typeof agentProfiles.$inferInsert> = { updatedAt: new Date() };
     if (input.name !== undefined) set.name = input.name;
     if (input.category !== undefined) set.category = input.category;
@@ -85,10 +89,6 @@ export class AgentProfilesRepository {
 
     const rows = await db.update(agentProfiles).set(set).where(eq(agentProfiles.id, id)).returning();
     return rows[0] ? toProfile(rows[0]) : null;
-  }
-
-  async remove(id: string): Promise<void> {
-    await db.delete(agentProfiles).where(eq(agentProfiles.id, id));
   }
 }
 

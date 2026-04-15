@@ -19,7 +19,7 @@ const mockCredentialsService = {
 
 const mockPluginInstallationRepo = {
   findByWorkspaceAndPlugin: mock(async () => undefined as any),
-  create: mock(async (data: any) => ({
+  installPlugin: mock(async (data: any) => ({
     id: 'install-abc',
     workspaceId: data.workspaceId,
     pluginId: data.pluginId,
@@ -47,7 +47,7 @@ const mockPluginInstallationRepo = {
     event: { id: 'evt-1' },
   })),
   updateSecretBindingIds: mock(async () => undefined),
-  findById: mock(async (id: string) => ({
+  findInstallation: mock(async (id: string) => ({
     id,
     workspaceId: 'ws-1',
     pluginId: 'plugin-uuid',
@@ -61,27 +61,29 @@ const mockPluginInstallationRepo = {
   })),
 };
 
-const mockPluginCatalogRepo = {
-  findById: mock(async () => ({
-    id: 'plugin-uuid',
+const mockCatalogEntry = {
+  id: 'plugin-uuid',
+  name: 'ERP Sync — Business Central',
+  version: '1.0.0',
+  kind: 'webhook',
+  capabilities: [],
+  requiredPermissions: ['workspace:read'],
+  manifest: {
+    id: 'erp-bc',
     name: 'ERP Sync — Business Central',
     version: '1.0.0',
     kind: 'webhook',
+    description: 'BC connector',
     capabilities: [],
     requiredPermissions: ['workspace:read'],
-    manifest: {
-      id: 'erp-bc',
-      name: 'ERP Sync — Business Central',
-      version: '1.0.0',
-      kind: 'webhook',
-      description: 'BC connector',
-      capabilities: [],
-      requiredPermissions: ['workspace:read'],
-    },
-    publisher: null,
-    verified: true,
-    createdAt: new Date(),
-  })),
+  },
+  publisher: null,
+  verified: true,
+  createdAt: new Date(),
+};
+
+const mockPluginCatalogRepo = {
+  findCatalogEntry: mock(async () => mockCatalogEntry),
 };
 
 const mockFeatureFlagsService = {
@@ -92,34 +94,47 @@ const mockValidatePluginConfig = mock(() => ({ valid: true as const }));
 const mockCheckPermissions = mock(() => ({ allowed: true as const, missing: [] }));
 
 // Set up module mocks before importing the service
+const _realCredentialsService = require('../../../modules/credentials/credentials.service');
 mock.module('../../../modules/credentials/credentials.service', () => ({
+  ..._realCredentialsService,
   credentialsService: mockCredentialsService,
 }));
 
+const _realPluginCatalogRepo = require('../../../modules/plugins/plugins.catalog.repo');
 mock.module('../../../modules/plugins/plugins.catalog.repo', () => ({
+  ..._realPluginCatalogRepo,
   pluginCatalogRepo: mockPluginCatalogRepo,
 }));
 
+const _realPluginInstallationRepo = require('../../../modules/plugins/plugins.installation.repo');
 mock.module('../../../modules/plugins/plugins.installation.repo', () => ({
+  ..._realPluginInstallationRepo,
   pluginInstallationRepo: mockPluginInstallationRepo,
 }));
 
+const _realPluginHealthRepo = require('../../../modules/plugins/plugins.health.repo');
 mock.module('../../../modules/plugins/plugins.health.repo', () => ({
+  ..._realPluginHealthRepo,
   pluginHealthRepo: {},
 }));
 
+const _realFeatureFlagsService = require('../../../modules/feature-flags/feature-flags.service');
 mock.module('../../../modules/feature-flags/feature-flags.service', () => ({
+  ..._realFeatureFlagsService,
   featureFlagsService: mockFeatureFlagsService,
 }));
 
+const _realPluginManifestValidator = require('../../../modules/plugins/plugins.manifest-validator');
 mock.module('../../../modules/plugins/plugins.manifest-validator', () => ({
+  ..._realPluginManifestValidator,
   validatePluginConfig: mockValidatePluginConfig,
   checkPermissions: mockCheckPermissions,
 }));
 
 const mockLoggerWarn = mock(() => {});
-
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: {
     info: () => {},
     warn: mockLoggerWarn,
@@ -155,8 +170,8 @@ describe('ERP-BC encrypted secret — install path', () => {
     mockPluginInstallationRepo.findByWorkspaceAndPlugin.mockImplementation(async () => undefined);
     mockPluginInstallationRepo.updateSecretBindingIds.mockReset();
     mockPluginInstallationRepo.updateSecretBindingIds.mockImplementation(async () => undefined);
-    mockPluginInstallationRepo.create.mockReset();
-    mockPluginInstallationRepo.create.mockImplementation(async (data: any) => ({
+    mockPluginInstallationRepo.installPlugin.mockReset();
+    mockPluginInstallationRepo.installPlugin.mockImplementation(async (data: any) => ({
       id: 'install-abc',
       workspaceId: data.workspaceId,
       pluginId: data.pluginId,
@@ -190,8 +205,8 @@ describe('ERP-BC encrypted secret — install path', () => {
     const result = await pluginsService.install('ws-1', 'plugin-uuid', erpBcConfig, actor, ['workspace:read']);
     expect(result.ok).toBe(true);
 
-    // The config passed to repo.create must NOT contain clientSecret
-    const createCall = mockPluginInstallationRepo.create.mock.calls[0];
+    // The config passed to repo.installPlugin must NOT contain clientSecret
+    const createCall = mockPluginInstallationRepo.installPlugin.mock.calls[0];
     expect(createCall).toBeDefined();
     const storedConfig = (createCall as any)[0].config;
     expect(storedConfig).not.toHaveProperty('clientSecret');
@@ -267,7 +282,7 @@ describe('ERP-BC encrypted secret — updateConfig path', () => {
   });
 
   it('calls credentialsService.update when secretBindingIds[0] exists', async () => {
-    mockPluginInstallationRepo.findById.mockImplementation(async (id: string) => ({
+    const withSecret = async (id: string) => ({
       id,
       workspaceId: 'ws-1',
       pluginId: 'plugin-uuid',
@@ -278,7 +293,8 @@ describe('ERP-BC encrypted secret — updateConfig path', () => {
       installedAt: new Date(),
       updatedAt: new Date(),
       pinnedVersion: null,
-    }));
+    });
+    mockPluginInstallationRepo.findInstallation.mockImplementation(withSecret);
 
     const newConfig = { ...erpBcConfig, clientSecret: 'new-secret' };
     const result = await pluginsService.updateConfig('ws-1', 'install-abc', newConfig, actor);
@@ -296,7 +312,7 @@ describe('ERP-BC encrypted secret — updateConfig path', () => {
   });
 
   it('calls credentialsService.create when no secretBindingIds yet', async () => {
-    mockPluginInstallationRepo.findById.mockImplementation(async (id: string) => ({
+    const withoutSecret = async (id: string) => ({
       id,
       workspaceId: 'ws-1',
       pluginId: 'plugin-uuid',
@@ -307,7 +323,8 @@ describe('ERP-BC encrypted secret — updateConfig path', () => {
       installedAt: new Date(),
       updatedAt: new Date(),
       pinnedVersion: null,
-    }));
+    });
+    mockPluginInstallationRepo.findInstallation.mockImplementation(withoutSecret);
 
     const newConfig = { ...erpBcConfig, clientSecret: 'new-secret' };
     const result = await pluginsService.updateConfig('ws-1', 'install-abc', newConfig, actor);

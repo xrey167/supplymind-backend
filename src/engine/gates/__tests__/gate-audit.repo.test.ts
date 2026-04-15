@@ -12,7 +12,9 @@ const mockWhere = mock(() => ({ orderBy: mockOrderBy }));
 const mockFrom = mock(() => ({ where: mockWhere }));
 const mockSelect = mock(() => ({ from: mockFrom }));
 
+const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
   db: {
     insert: mockInsert,
     select: mockSelect,

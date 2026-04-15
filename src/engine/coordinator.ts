@@ -16,9 +16,9 @@
  */
 import { eventBus } from '../events/bus';
 import { Topics } from '../events/topics';
-import { taskManager } from '../infra/a2a/task-manager';
-import { createCoordinatorConfig } from '../infra/a2a/coordinator-config';
-import type { A2AMessage } from '../infra/a2a/types';
+import { taskManager } from './a2a/task-manager';
+import { createCoordinatorConfig } from './a2a/coordinator-config';
+import type { A2AMessage } from './a2a/types';
 import { logger } from '../config/logger';
 
 // ---------------------------------------------------------------------------

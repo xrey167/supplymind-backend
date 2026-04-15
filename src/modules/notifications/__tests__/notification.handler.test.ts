@@ -44,8 +44,10 @@ mock.module('drizzle-orm', () => ({
   desc: mock(() => {}),
   sql: mock(() => {}),
 }));
-mock.module('../preferences/notification-preferences.repo', () => ({ notificationPreferencesRepo: { get: mock(async () => null), set: mock(async () => {}), delete: mock(async () => {}) } }));
-mock.module('../../../infra/realtime/ws-server', () => ({ wsServer: { broadcastToSubscribed: mock(() => {}) } }));
+const _realPrefRepoH = require('../preferences/notification-preferences.repo');
+mock.module('../preferences/notification-preferences.repo', () => ({ ..._realPrefRepoH, notificationPreferencesRepo: { get: mock(async () => null), set: mock(async () => {}), delete: mock(async () => {}) } }));
+const _realWsServer = require('../../../infra/realtime/ws-server');
+mock.module('../../../infra/realtime/ws-server', () => ({ ..._realWsServer, wsServer: { broadcastToSubscribed: mock(() => {}) } }));
 
 const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({

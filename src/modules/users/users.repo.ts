@@ -1,9 +1,13 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { users } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { User } from './users.types';
 
-function toUser(row: typeof users.$inferSelect): User {
+type UserRow = typeof users.$inferSelect;
+type NewUser = typeof users.$inferInsert;
+
+function toUser(row: UserRow): User {
   return {
     id: row.id,
     email: row.email,
@@ -15,7 +19,9 @@ function toUser(row: typeof users.$inferSelect): User {
   };
 }
 
-class UsersRepository {
+export class UsersRepository extends BaseRepo<typeof users, UserRow, NewUser> {
+  constructor() { super(users); }
+
   async upsert(input: { id: string; email: string; name?: string | null; avatarUrl?: string | null }): Promise<User> {
     const rows = await db.insert(users).values({
       id: input.id,

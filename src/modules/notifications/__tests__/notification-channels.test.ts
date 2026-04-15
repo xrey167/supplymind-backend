@@ -10,7 +10,7 @@ const _realRepo = require('../notifications.repo');
 mock.module('../notifications.repo', () => ({
   ..._realRepo,
   notificationsRepo: {
-    create: mockCreate,
+    createNotification: mockCreate,
     list: mock(() => Promise.resolve([])),
     markRead: mock(() => Promise.resolve(null as any)),
     markAllRead: mock(() => Promise.resolve()),
@@ -22,37 +22,31 @@ mock.module('../notifications.repo', () => ({
 
 const mockPrefGet = mock(() => Promise.resolve(null as any));
 const mockPrefGetGlobal = mock(() => Promise.resolve(null as any));
+const _realPrefRepo = require('../preferences/notification-preferences.repo');
 mock.module('../preferences/notification-preferences.repo', () => ({
-  notificationPreferencesRepo: {
-    get: mockPrefGet,
-    getGlobal: mockPrefGetGlobal,
-  },
+  ..._realPrefRepo,
+  notificationPreferencesRepo: { get: mockPrefGet, getGlobal: mockPrefGetGlobal },
 }));
 
 const mockDeliverInApp = mock(() => Promise.resolve());
-mock.module('../channels/in-app/in-app.channel', () => ({
-  deliverInApp: mockDeliverInApp,
-}));
+const _realInApp = require('../channels/in-app/in-app.channel');
+mock.module('../channels/in-app/in-app.channel', () => ({ ..._realInApp, deliverInApp: mockDeliverInApp }));
 
 const mockDeliverWebSocket = mock(() => Promise.resolve());
-mock.module('../channels/websocket/websocket.channel', () => ({
-  deliverWebSocket: mockDeliverWebSocket,
-}));
+const _realWsCh = require('../channels/websocket/websocket.channel');
+mock.module('../channels/websocket/websocket.channel', () => ({ ..._realWsCh, deliverWebSocket: mockDeliverWebSocket }));
 
 const mockDeliverEmail = mock(() => Promise.resolve());
-mock.module('../channels/email/email.channel', () => ({
-  deliverEmail: mockDeliverEmail,
-}));
+const _realEmailCh = require('../channels/email/email.channel');
+mock.module('../channels/email/email.channel', () => ({ ..._realEmailCh, deliverEmail: mockDeliverEmail }));
 
 const mockDeliverSlack = mock(() => Promise.resolve());
-mock.module('../channels/slack/slack.channel', () => ({
-  deliverSlack: mockDeliverSlack,
-}));
+const _realSlackCh = require('../channels/slack/slack.channel');
+mock.module('../channels/slack/slack.channel', () => ({ ..._realSlackCh, deliverSlack: mockDeliverSlack }));
 
 const mockDeliverTelegram = mock(() => Promise.resolve());
-mock.module('../channels/telegram/telegram.channel', () => ({
-  deliverTelegram: mockDeliverTelegram,
-}));
+const _realTelegramCh = require('../channels/telegram/telegram.channel');
+mock.module('../channels/telegram/telegram.channel', () => ({ ..._realTelegramCh, deliverTelegram: mockDeliverTelegram }));
 
 const mockGetByProvider = mock(() => Promise.resolve(null as any));
 const _realCredService = require('../../credentials/credentials.service');
@@ -84,7 +78,7 @@ mock.module('../../../config/logger', () => ({
   }),
 }));
 
-const { NotificationsService } = await import('../notifications.service');
+const { NotificationsService } = await import('../notifications.service?fresh=1' as string);
 
 const fakeNotif: Notification = {
   id: 'n1', workspaceId: 'ws-1', userId: 'u1', type: 'alert_fired',

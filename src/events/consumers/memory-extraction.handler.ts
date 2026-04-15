@@ -1,6 +1,6 @@
 import { eventBus } from '../bus';
 import { Topics } from '../topics';
-import { taskRepo } from '../../infra/a2a/task-repo';
+import { taskRepo } from '../../engine/a2a/task-repo';
 import { extractFacts, detectConflict } from '../../modules/memory/auto-extract';
 import { memoryService } from '../../modules/memory/memory.service';
 import { logger } from '../../config/logger';

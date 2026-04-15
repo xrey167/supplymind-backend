@@ -37,6 +37,7 @@ const mockDb = {
         limit: mock(() => ({ then: (_r: any) => Promise.resolve(nextReturn()).then(_r) })),
         then: (_r: any) => Promise.resolve(nextReturn()).then(_r),
       })),
+      limit: mock(() => ({ then: (_r: any) => Promise.resolve(nextReturn()).then(_r) })),
       then: (_r: any) => Promise.resolve(nextReturn()).then(_r),
     })),
   })),
@@ -83,6 +84,12 @@ const fakeTable = {
   name: Symbol('name_column'),
   updatedAt: Symbol('updatedAt_column'),
 };
+
+// ---------------------------------------------------------------------------
+// Shared row type used by test assertions
+// ---------------------------------------------------------------------------
+
+type FakeRow = { id: string; name: string; updatedAt?: Date };
 
 // ---------------------------------------------------------------------------
 // Import and instantiate a concrete BaseRepo subclass

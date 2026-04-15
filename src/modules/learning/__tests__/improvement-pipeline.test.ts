@@ -73,7 +73,8 @@ const mockDb = {
   }),
 };
 
-mock.module('../../../infra/db/client', () => ({ db: mockDb }));
+const _realDbClient = require('../../../infra/db/client');
+mock.module('../../../infra/db/client', () => ({ ..._realDbClient, db: mockDb }));
 
 // Spread the real bus so eventBus.subscribe is preserved for downstream test files
 // (notification.handler.test.ts wraps it in a proxy that intercepts subscribe).
@@ -92,7 +93,9 @@ mock.module('../../../events/bus', () => ({
 // Do NOT mock events/topics — it's just string constants and mocking it
 // globally stomps Topics used by other test files (e.g. TASK_COMPLETED).
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: {
     info: mock(() => undefined),
     warn: mock(() => undefined),
@@ -107,8 +110,11 @@ mock.module('../../../config/logger', () => ({
 // undefined → noop branch) and CRUD operations, so no mocking is needed here.
 // Avoiding mock.module for these modules prevents contamination of downstream
 // test files (skills dispatch, tools registry, memory skills, generators).
+const _realWorkspaceSettings = require('../../settings/workspace-settings/workspace-settings.service');
 mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
+  ..._realWorkspaceSettings,
   workspaceSettingsService: {
+    ..._realWorkspaceSettings.workspaceSettingsService,
     set: mock(async () => undefined),
     getRaw: mock(async () => null),
   },

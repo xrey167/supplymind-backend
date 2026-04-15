@@ -40,7 +40,7 @@ jobs:
           # Remaining isolated files and why they can't join the main batch:
           # - encrypted-secret.test.ts: mocks feature-flags.service; Linux find order puts it before
           #   feature-flags.service.test.ts — Bun cache retains stale stub, stripping .getAll/.setFlag
-          # - skills.dispatch.test.ts: mocks infra/state/tool-approvals; Bun cache retains the stub
+          # - skills.dispatch.test.ts: mocks engine/gates/tool-approvals; Bun cache retains the stub
           #   so tool-approvals.test.ts (later in batch) gets stripped no-ops instead of real impl
           # - budget-counter.test.ts: mocks infra/redis/client; rate-limit.test.ts (api/) runs first
           #   on Linux and caches a different redis mock shape — budget-counter's own factory can't
@@ -66,17 +66,17 @@ jobs:
             -not -path '*/learning/__tests__/*' \
             -not -path '*/learning/analyzers/__tests__/*' \
             -not -path '*/learning/generators/__tests__/*' \
-            -not -path '*/infra/a2a/__tests__/task-manager.test.ts' \
+            -not -path '*/engine/a2a/__tests__/task-manager.test.ts' \
             -not -path '*/plugins/__tests__/plugin-manifest.test.ts' \
             -not -path '*/settings/workspace-settings/__tests__/workspace-settings.service.test.ts' \
             -not -path '*/infra/mcp/__tests__/client-pool.test.ts' \
-            -not -path '*/infra/state/__tests__/gate-audit.repo.test.ts' \
-            -not -path '*/infra/state/__tests__/orchestration-gates.test.ts' \
+            -not -path '*/engine/gates/__tests__/gate-audit.repo.test.ts' \
+            -not -path '*/engine/gates/__tests__/orchestration-gates.test.ts' \
             -not -path '*/erp-bc/__tests__/integration/*' \
             -not -path '*/jobs/notification/__tests__/*' \
             -not -path '*/erp-bc/__tests__/encrypted-secret.test.ts' \
             -not -path '*/skills/__tests__/skills.dispatch.test.ts' \
-            -not -path '*/infra/billing/__tests__/budget-counter.test.ts' \
+            -not -path '*/engine/billing/__tests__/budget-counter.test.ts' \
             -not -path '*/missions/__tests__/missions.repo.test.ts' \
             -not -path '*/agent-profiles/__tests__/agent-profiles.repo.test.ts')
           # Remaining isolated steps (13 total):
@@ -85,14 +85,14 @@ jobs:
           bun test src/modules/learning/__tests__/
           bun test src/modules/learning/analyzers/__tests__/
           bun test src/modules/learning/generators/__tests__/
-          bun test src/infra/a2a/__tests__/task-manager.test.ts
+          bun test src/engine/a2a/__tests__/task-manager.test.ts
           bun test src/infra/mcp/__tests__/client-pool.test.ts
-          bun test src/infra/state/__tests__/gate-audit.repo.test.ts
-          bun test src/infra/state/__tests__/orchestration-gates.test.ts
+          bun test src/engine/gates/__tests__/gate-audit.repo.test.ts
+          bun test src/engine/gates/__tests__/orchestration-gates.test.ts
           if [ -d src/jobs/notification/__tests__ ]; then bun test src/jobs/notification/__tests__/; fi
           bun test src/plugins/erp-bc/__tests__/encrypted-secret.test.ts
           bun test src/modules/skills/__tests__/skills.dispatch.test.ts
-          bun test src/infra/billing/__tests__/budget-counter.test.ts
+          bun test src/engine/billing/__tests__/budget-counter.test.ts
           bun test src/modules/missions/__tests__/missions.repo.test.ts
           bun test src/modules/agent-profiles/__tests__/agent-profiles.repo.test.ts
         env:

@@ -1,5 +1,5 @@
 import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test';
-import type { A2ATask, A2AMessage } from '../../../infra/a2a/types';
+import type { A2ATask, A2AMessage } from '../../../engine/a2a/types';
 
 // --- Mock state ---
 const mockTasks = new Map<string, A2ATask>();
@@ -55,11 +55,15 @@ const mockAgentsRepo = {
 
 const mockToAgentConfig = (row: any) => row;
 
+const _realBullmqQueue = require('../../../infra/queue/bullmq');
 mock.module('../../../infra/queue/bullmq', () => ({
+  ..._realBullmqQueue,
   enqueueAgentRun: async (data: any) => { lastEnqueued = data; return { id: 'job-1' }; },
 }));
 
+const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
   db: { transaction: async (fn: any) => fn({ select: () => ({ from: () => [] }), insert: () => ({ values: () => {} }) }) },
 }));
 
@@ -69,7 +73,9 @@ mock.module('../../../infra/db/schema', () => ({
   taskDependencies: {},
 }));
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { info: () => {}, debug: () => {}, warn: () => {}, error: () => {} },
 }));
 

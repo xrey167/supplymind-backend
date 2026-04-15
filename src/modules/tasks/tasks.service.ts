@@ -1,13 +1,13 @@
 import { ok, err } from '../../core/result';
 import type { Result } from '../../core/result';
 import { NotFoundError } from '../../core/errors';
-import { taskManager } from '../../infra/a2a/task-manager';
-import { taskRepo } from '../../infra/a2a/task-repo';
+import { taskManager } from '../../engine/a2a/task-manager';
+import { taskRepo } from '../../engine/a2a/task-repo';
 import { agentsRepo as defaultAgentsRepo } from '../agents/agents.repo';
 import type { AgentsRepository } from '../agents/agents.repo';
 import { toAgentConfig as defaultToAgentConfig } from '../agents/agents.mapper';
 import { enqueueAgentRun } from '../../infra/queue/bullmq';
-import type { A2AMessage } from '../../infra/a2a/types';
+import type { A2AMessage } from '../../engine/a2a/types';
 import type { A2ATask } from './tasks.types';
 import { db } from '../../infra/db/client';
 import { taskDependencies } from '../../infra/db/schema';

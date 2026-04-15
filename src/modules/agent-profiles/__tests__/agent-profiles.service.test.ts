@@ -18,20 +18,24 @@ const mockProfile = {
 };
 
 const mockRepo = {
-  create: mock(async () => mockProfile),
-  findById: mock(async (id: string) => (id === 'ap-1' ? mockProfile : null)),
+  createProfile: mock(async () => mockProfile),
+  findProfileById: mock(async (id: string) => (id === 'ap-1' ? mockProfile : null)),
   findByWorkspace: mock(async () => [mockProfile]),
   findDefault: mock(async () => mockProfile),
-  update: mock(async (id: string) => (id === 'ap-1' ? { ...mockProfile, name: 'Updated' } : null)),
+  updateProfile: mock(async (id: string) => (id === 'ap-1' ? { ...mockProfile, name: 'Updated' } : null)),
   remove: mock(async () => undefined),
 };
 
 const mockBus = { publish: mock(async () => undefined) };
 
-mock.module('../../events/bus', () => ({ eventBus: mockBus }));
+const _realBus = require('../../../events/bus');
+mock.module('../../events/bus', () => ({ ..._realBus, eventBus: { ..._realBus.eventBus, ...mockBus } }));
 // MissionTopics imported directly from the plugin (static as const) — no mock needed
-mock.module('../agent-profiles.repo', () => ({ agentProfilesRepo: mockRepo }));
+const _realAgentProfilesRepo = require('../agent-profiles.repo');
+mock.module('../agent-profiles.repo', () => ({ ..._realAgentProfilesRepo, agentProfilesRepo: mockRepo }));
+const _realCoreErrors = require('../../../core/errors');
 mock.module('../../core/errors', () => ({
+  ..._realCoreErrors,
   NotFoundError: class NotFoundError extends Error {
     statusCode = 404;
     constructor(msg = 'Not found') { super(msg); }

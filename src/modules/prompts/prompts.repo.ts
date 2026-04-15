@@ -1,9 +1,13 @@
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { prompts } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { Prompt, CreatePromptInput, UpdatePromptInput } from './prompts.types';
 
-function toPrompt(row: typeof prompts.$inferSelect): Prompt {
+type PromptRow = typeof prompts.$inferSelect;
+type NewPrompt = typeof prompts.$inferInsert;
+
+function toPrompt(row: PromptRow): Prompt {
   return {
     id: row.id,
     workspaceId: row.workspaceId,
@@ -20,8 +24,10 @@ function toPrompt(row: typeof prompts.$inferSelect): Prompt {
   };
 }
 
-export class PromptsRepository {
-  async create(input: CreatePromptInput & { variables?: Prompt['variables']; version?: number }): Promise<Prompt> {
+export class PromptsRepository extends BaseRepo<typeof prompts, PromptRow, NewPrompt> {
+  constructor() { super(prompts); }
+
+  async createPrompt(input: CreatePromptInput & { variables?: Prompt['variables']; version?: number }): Promise<Prompt> {
     const rows = await db.insert(prompts).values({
       workspaceId: input.workspaceId,
       name: input.name,
@@ -35,7 +41,7 @@ export class PromptsRepository {
     return toPrompt(rows[0]!);
   }
 
-  async findById(id: string): Promise<Prompt | null> {
+  async findPromptById(id: string): Promise<Prompt | null> {
     const rows = await db.select().from(prompts).where(eq(prompts.id, id));
     return rows[0] ? toPrompt(rows[0]) : null;
   }
@@ -66,7 +72,7 @@ export class PromptsRepository {
     return rows.map(toPrompt);
   }
 
-  async update(id: string, input: UpdatePromptInput): Promise<Prompt> {
+  async updatePrompt(id: string, input: UpdatePromptInput): Promise<Prompt> {
     const rows = await db.update(prompts)
       .set({ ...input, updatedAt: new Date() })
       .where(eq(prompts.id, id))
@@ -74,9 +80,9 @@ export class PromptsRepository {
     return toPrompt(rows[0]!);
   }
 
+  // Keep legacy service contract stable while BaseRepo exposes `remove`.
   async delete(id: string): Promise<boolean> {
-    const rows = await db.delete(prompts).where(eq(prompts.id, id)).returning();
-    return rows.length > 0;
+    return this.remove(id);
   }
 
   async findByName(workspaceId: string, name: string): Promise<Prompt | null> {

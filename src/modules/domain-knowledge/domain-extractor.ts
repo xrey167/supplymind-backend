@@ -9,7 +9,7 @@
 
 import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
-import { taskRepo } from '../../infra/a2a/task-repo';
+import { taskRepo } from '../../engine/a2a/task-repo';
 import { domainKnowledgeService } from './domain-knowledge.service';
 import { logger } from '../../config/logger';
 import type { DomainEntity, VocabularyTerm } from '../plugins/plugin-manifest';

@@ -12,7 +12,9 @@ import type { GatewayContext, GatewayRequest } from '../gateway.types';
  * For deeper integration testing, see service-level tests.
  */
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { info: mock(() => {}), error: mock(() => {}), warn: mock(() => {}), debug: mock(() => {}) },
 }));
 

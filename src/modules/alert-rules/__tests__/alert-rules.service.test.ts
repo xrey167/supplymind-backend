@@ -34,7 +34,8 @@ const mockRepo = {
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
-mock.module('../alert-rules.repo', () => ({ alertRulesRepo: mockRepo }));
+const _realAlertRulesRepo = require('../alert-rules.repo');
+mock.module('../alert-rules.repo', () => ({ ..._realAlertRulesRepo, alertRulesRepo: mockRepo }));
 
 const _realNotifModule = require('../../notifications/notifications.service');
 mock.module('../../notifications/notifications.service', () => ({

@@ -8,8 +8,8 @@ const _realCatalogRepo = require('../plugins.catalog.repo');
 mock.module('../plugins.catalog.repo', () => ({
   ..._realCatalogRepo,
   pluginCatalogRepo: {
-    findById: async (id: string) => catalogStore.get(id),
-    findAll: async () => [...catalogStore.values()],
+    findCatalogEntry: async (id: string) => catalogStore.get(id),
+    listAll: async () => [...catalogStore.values()],
   },
 }));
 
@@ -17,12 +17,12 @@ const _realInstallRepo = require('../plugins.installation.repo');
 mock.module('../plugins.installation.repo', () => ({
   ..._realInstallRepo,
   pluginInstallationRepo: {
-    findById: async (id: string) => installStore.get(id),
+    findInstallation: async (id: string) => installStore.get(id),
     findByWorkspaceAndPlugin: async (wsId: string, pluginId: string) =>
       [...installStore.values()].find(i => i.workspaceId === wsId && i.pluginId === pluginId),
     findByWorkspace: async (wsId: string) =>
       [...installStore.values()].filter(i => i.workspaceId === wsId),
-    create: async (data: any) => {
+    installPlugin: async (data: any) => {
       const row = { id: `inst-${Math.random()}`, ...data, status: 'installing', installedAt: new Date(), updatedAt: new Date() };
       installStore.set(row.id, row);
       return row;
@@ -45,7 +45,7 @@ const _realHealthRepo = require('../plugins.health.repo');
 mock.module('../plugins.health.repo', () => ({
   ..._realHealthRepo,
   pluginHealthRepo: {
-    create: async (data: any) => ({ id: 'health-1', ...data, checkedAt: new Date() }),
+    recordHealthCheck: async (data: any) => ({ id: 'health-1', ...data, checkedAt: new Date() }),
     getLatest: async () => undefined,
   },
 }));

@@ -174,8 +174,10 @@ mock.module('../../../infra/db/client', () => ({
   },
 }));
 
-// 2. Collab repo — full replacement (only this module uses it)
+// 2. Collab repo — spread real exports, replace singleton
+const _realCollabRepo = require('../collab-intel.repo');
 mock.module('../collab-intel.repo', () => ({
+  ..._realCollabRepo,
   collabIntelRepo: mockRepo,
 }));
 

@@ -112,7 +112,7 @@ export class NotificationsService {
 
     // Insert DB record (always in_app), stashing resolved channels in metadata
     // so the retry job can re-dispatch to the same targets.
-    const record = await notificationsRepo.create({
+    const record = await notificationsRepo.createNotification({
       ...input,
       metadata: {
         ...input.metadata ?? {},

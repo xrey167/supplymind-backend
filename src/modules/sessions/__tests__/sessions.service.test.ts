@@ -14,7 +14,7 @@ const mockMessage: SessionMessage = {
 };
 
 const repoMocks = {
-  create: mock(async () => createdSession),
+  createSession: mock(async () => createdSession),
   get: mock(async (_id: string) => activeSession as Session | undefined),
   addMessage: mock(async () => mockMessage),
   getMessages: mock(async () => [mockMessage]),
@@ -29,8 +29,10 @@ const eventMocks = {
   emitSessionClosed: mock(() => {}),
 };
 
-mock.module('../sessions.repo', () => ({ sessionsRepo: repoMocks }));
-mock.module('../sessions.events', () => eventMocks);
+const _realSessionsRepo = require('../sessions.repo');
+mock.module('../sessions.repo', () => ({ ..._realSessionsRepo, sessionsRepo: repoMocks }));
+const _realSessionsEvents = require('../sessions.events');
+mock.module('../sessions.events', () => ({ ..._realSessionsEvents, ...eventMocks }));
 
 import { sessionsService } from '../sessions.service';
 
@@ -41,7 +43,7 @@ describe('sessionsService', () => {
     Object.values(eventMocks).forEach(m => m.mockClear());
     // Reset default return values
     repoMocks.get.mockImplementation(async () => activeSession);
-    repoMocks.create.mockImplementation(async () => createdSession);
+    repoMocks.createSession.mockImplementation(async () => createdSession);
     repoMocks.addMessage.mockImplementation(async () => mockMessage);
     repoMocks.expireIdleSessions.mockImplementation(async () => 0);
   });

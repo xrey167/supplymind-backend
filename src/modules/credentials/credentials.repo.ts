@@ -1,7 +1,11 @@
 import { eq, and } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { credentials } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { Credential, CredentialProvider, CredentialRow } from './credentials.types';
+
+type CredRow = typeof credentials.$inferSelect;
+type NewCred = typeof credentials.$inferInsert;
 
 function toCredential(row: any): Credential {
   return {
@@ -30,8 +34,10 @@ function toCredentialRow(row: any): CredentialRow {
   };
 }
 
-export class CredentialsRepository {
-  async create(input: {
+export class CredentialsRepository extends BaseRepo<typeof credentials, CredRow, NewCred> {
+  constructor() { super(credentials); }
+
+  async createCredential(input: {
     workspaceId: string;
     name: string;
     provider: CredentialProvider;
@@ -62,7 +68,7 @@ export class CredentialsRepository {
     return rows.map(toCredential);
   }
 
-  async update(id: string, data: Partial<{
+  async updateCredential(id: string, data: Partial<{
     name: string;
     encryptedValue: string;
     iv: string;
@@ -74,11 +80,6 @@ export class CredentialsRepository {
       .where(eq(credentials.id, id))
       .returning();
     return rows[0] ? toCredential(rows[0]) : null;
-  }
-
-  async remove(id: string): Promise<boolean> {
-    const rows = await db.delete(credentials).where(eq(credentials.id, id)).returning();
-    return rows.length > 0;
   }
 
   async findByProvider(workspaceId: string, provider: CredentialProvider): Promise<CredentialRow | null> {

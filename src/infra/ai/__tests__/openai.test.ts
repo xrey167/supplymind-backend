@@ -7,17 +7,15 @@ let mockCreate: ReturnType<typeof mock>;
 
 mockCreate = mock(async () => ({}));
 
-mock.module('openai', () => {
-  return {
-    default: class MockOpenAI {
-      chat = {
-        completions: {
-          create: (...args: unknown[]) => mockCreate(...args),
-        },
-      };
-    },
-  };
-});
+mock.module('openai', () => ({
+  default: class MockOpenAI {
+    chat = {
+      completions: {
+        create: (...args: unknown[]) => mockCreate(...args),
+      },
+    };
+  },
+}));
 
 // ---- Supporting mocks ----
 mock.module('../../config/logger', () => ({

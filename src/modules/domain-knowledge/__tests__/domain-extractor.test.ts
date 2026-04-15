@@ -7,14 +7,19 @@ import type { DomainKnowledgeGraph } from '../domain-knowledge.service';
 const mockListForWorkspace = mock<() => Promise<DomainKnowledgeGraph[]>>(() => Promise.resolve([]));
 const mockUpdateFromObservation = mock(() => Promise.resolve());
 
+const _realDomainKnowledgeService = require('../domain-knowledge.service');
 mock.module('../domain-knowledge.service', () => ({
+  ..._realDomainKnowledgeService,
   domainKnowledgeService: {
+    ..._realDomainKnowledgeService.domainKnowledgeService,
     listForWorkspace: mockListForWorkspace,
     updateFromObservation: mockUpdateFromObservation,
   },
 }));
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { warn: mock(), info: mock(), error: mock(), debug: mock() },
 }));
 

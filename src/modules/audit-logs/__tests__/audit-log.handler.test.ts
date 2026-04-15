@@ -4,8 +4,10 @@ import { Topics } from '../../../events/topics';
 
 const mockLog = mock();
 
+const _realAuditLogsService = require('../../../modules/audit-logs/audit-logs.service');
 mock.module('../../../modules/audit-logs/audit-logs.service', () => ({
-  auditLogsService: { log: mockLog },
+  ..._realAuditLogsService,
+  auditLogsService: { ..._realAuditLogsService.auditLogsService, log: mockLog },
   AuditLogsService: class {},
 }));
 

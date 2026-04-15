@@ -14,8 +14,8 @@ mock.module('../tools.repo', () => ({
   toolsRepo: {
     findById: mockFindById,
     findByWorkspace: mockFindByWorkspace,
-    create: mockCreate,
-    update: mockUpdate,
+    createTool: mockCreate,
+    updateTool: mockUpdate,
     remove: mockRemove,
   },
 }));

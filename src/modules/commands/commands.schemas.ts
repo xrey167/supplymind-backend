@@ -6,7 +6,7 @@ export type CommandSource = z.infer<typeof commandSourceSchema>;
 export const commandDtoSchema = z.object({
   name: z.string(),
   description: z.string(),
-  inputSchema: z.record(z.unknown()).optional(),
+  inputSchema: z.record(z.string(), z.unknown()).optional(),
   source: commandSourceSchema,
   providerType: z.string(),
 });

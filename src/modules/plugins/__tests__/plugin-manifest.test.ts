@@ -4,13 +4,15 @@ import { skillRegistry } from '../../skills/skills.registry';
 import { lifecycleHooks } from '../../../core/hooks/hook-registry';
 
 // Mock only the modules with external dependencies (DB)
-import { ScopedConfigStore as _ScopedConfigStore } from '../../../core/config/scoped-config';
+const _realScopedCfg = require('../../../core/config/scoped-config');
 mock.module("../../../core/config/scoped-config", () => ({
+  ..._realScopedCfg,
   scopedConfig: { set: mock(() => {}), delete: mock(() => {}), get: mock(() => undefined), getAll: mock(() => ({})), resolve: mock(() => undefined), resolveWithMeta: mock(() => undefined) },
-  ScopedConfigStore: _ScopedConfigStore,
 }));
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} },
 }));
 

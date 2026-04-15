@@ -38,14 +38,17 @@ const fakeDb = {
   select: selectFn,
 };
 
-mock.module('../../../../infra/db/client', () => ({ db: {} }));
+const _realDbClient = require('../../../../infra/db/client');
+mock.module('../../../../infra/db/client', () => ({ ..._realDbClient, db: {} }));
 const _realSchema = require('../../../../infra/db/schema');
 mock.module('../../../../infra/db/schema', () => ({
   ..._realSchema,
   learningObservations: Symbol('learningObservations'),
   skillPerformanceMetrics: { id: 'id', workspaceId: 'workspaceId', skillId: 'skillId', windowStart: 'windowStart' },
 }));
+const _realLogger = require('../../../../config/logger');
 mock.module('../../../../config/logger', () => ({
+  ..._realLogger,
   logger: { warn: mock(), info: mock(), error: mock(), debug: mock() },
 }));
 

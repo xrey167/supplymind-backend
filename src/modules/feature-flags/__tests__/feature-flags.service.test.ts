@@ -5,8 +5,11 @@ let repoGetValue: any = undefined;
 let repoGetAllValue: Record<string, any> = {};
 const repoSetCalls: [string, string, any][] = [];
 
+const _realFeatureFlagsRepo = require('../feature-flags.repo');
 mock.module('../feature-flags.repo', () => ({
+  ..._realFeatureFlagsRepo,
   featureFlagsRepo: {
+    ..._realFeatureFlagsRepo.featureFlagsRepo,
     get: mock(async () => repoGetValue),
     set: mock(async (wid: string, flag: string, val: any) => { repoSetCalls.push([wid, flag, val]); }),
     getAll: mock(async () => repoGetAllValue),
@@ -56,7 +59,9 @@ mock.module('../../../infra/cache', () => ({
   setCacheProvider: (p: any) => { _testProvider = p; },
 }));
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { warn: mock(() => {}), error: mock(() => {}), info: mock(() => {}), debug: mock(() => {}) },
 }));
 

@@ -12,7 +12,9 @@ mock.module('../missions.service', () => ({
   missionsService: { start: mockStart },
 }));
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { info: mock(() => undefined), warn: mock(() => undefined) },
 }));
 

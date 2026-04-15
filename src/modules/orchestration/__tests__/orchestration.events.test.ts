@@ -1,9 +1,11 @@
 import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 // ---------------------------------------------------------------------------
-// Mock logger — spread not needed (logger has no cross-module re-exports)
+// Mock logger — spread to prevent contamination of other test files
 // ---------------------------------------------------------------------------
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { warn: mock(() => {}), error: mock(() => {}), info: mock(() => {}), debug: mock(() => {}) },
 }));
 
@@ -13,8 +15,10 @@ mock.module('../../../config/logger', () => ({
 // ---------------------------------------------------------------------------
 const mockPublish = mock(async (_topic: string, _data: unknown) => undefined as unknown as import('../../../events/bus').BusEvent);
 
+const _realBus = require('../../../events/bus');
 mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mockPublish },
+  ..._realBus,
+  eventBus: { ..._realBus.eventBus, publish: mockPublish },
 }));
 
 // ---------------------------------------------------------------------------
@@ -28,7 +32,7 @@ const {
   emitOrchestrationFailed,
   emitOrchestrationCancelled,
   emitStepCompleted,
-} = await import('../orchestration.events');
+} = await import('../orchestration.events?fresh=1' as string);
 
 // ---------------------------------------------------------------------------
 // Tests

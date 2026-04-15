@@ -29,8 +29,8 @@ mock.module('../../../events/topics', () => ({
   ..._realTopics,
 }));
 
-const _realToolApprovals = require('../../../infra/state/tool-approvals');
-mock.module('../../../infra/state/tool-approvals', () => ({
+const _realToolApprovals = require('../../../engine/gates/tool-approvals');
+mock.module('../../../engine/gates/tool-approvals', () => ({
   ..._realToolApprovals,
   createApprovalRequest: createApprovalRequestStub,
 }));

@@ -1,9 +1,13 @@
 import { eq, and, isNull, lt } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { workspaces, workspaceMembers } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { Workspace } from './workspaces.types';
 
-function toWorkspace(row: typeof workspaces.$inferSelect): Workspace {
+type WorkspaceRow = typeof workspaces.$inferSelect;
+type NewWorkspace = typeof workspaces.$inferInsert;
+
+function toWorkspace(row: WorkspaceRow): Workspace {
   return {
     id: row.id,
     name: row.name,
@@ -15,7 +19,9 @@ function toWorkspace(row: typeof workspaces.$inferSelect): Workspace {
   };
 }
 
-class WorkspacesRepository {
+export class WorkspacesRepository extends BaseRepo<typeof workspaces, WorkspaceRow, NewWorkspace> {
+  constructor() { super(workspaces); }
+
   async create(input: { name: string; slug: string; createdBy: string }): Promise<Workspace> {
     const rows = await db.insert(workspaces).values({
       name: input.name,

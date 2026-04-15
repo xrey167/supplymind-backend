@@ -7,8 +7,11 @@ const mockGetMcpConfig = mock(async (_wid: string, _sid: string): Promise<any> =
   ok({ analytics: { type: 'streamable-http' as const, url: 'http://localhost:4000' } })
 );
 
+const _realSkillsService = require('../skills.service');
 mock.module('../skills.service', () => ({
+  ..._realSkillsService,
   skillsService: {
+    ..._realSkillsService.skillsService,
     getMcpConfig: (wid: string, sid: string) => mockGetMcpConfig(wid, sid),
   },
   SkillsService: class {},

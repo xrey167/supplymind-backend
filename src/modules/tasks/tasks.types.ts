@@ -8,4 +8,4 @@ export type {
   TaskSendParams,
   TaskGetParams,
   TaskCancelParams,
-} from '../../infra/a2a/types';
+} from '../../engine/a2a/types';

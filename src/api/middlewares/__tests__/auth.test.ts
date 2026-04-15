@@ -1,7 +1,9 @@
 import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 import { Hono } from 'hono';
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: {
     info: mock(() => {}),
     warn: mock(() => {}),
@@ -10,14 +12,18 @@ mock.module('../../../config/logger', () => ({
   },
 }));
 
+const _realSentry = require('../../../infra/observability/sentry');
 mock.module('../../../infra/observability/sentry', () => ({
+  ..._realSentry,
   captureException: mock(() => {}),
   setUser: mock(() => {}),
   initSentry: mock(() => {}),
   Sentry: {},
 }));
 
+const _realApiKey = require('../../../infra/auth/api-key');
 mock.module('../../../infra/auth/api-key', () => ({
+  ..._realApiKey,
   validateApiKey: mock(async (token: string) => {
     if (token.startsWith('a2a_k_')) {
       return { role: 'admin', workspaceId: 'ws-test', name: 'test-key' };

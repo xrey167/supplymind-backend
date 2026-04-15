@@ -21,8 +21,10 @@ mock.module('../../../infra/db/schema', () => ({ ..._realSchema, users: {} }));
 const _realDrizzle = require('drizzle-orm');
 mock.module('drizzle-orm', () => ({ ..._realDrizzle, eq: mock(() => {}) }));
 
+const _realUsersRepo = require('../users.repo');
 mock.module('../users.repo', () => ({
-  usersRepo: { upsert: mockUpsert, delete: mockDelete, updateLastSeen: mock(async () => {}) },
+  ..._realUsersRepo,
+  usersRepo: { ..._realUsersRepo.usersRepo, upsert: mockUpsert, delete: mockDelete, updateLastSeen: mock(async () => {}) },
 }));
 
 const _realBus = require('../../../events/bus');
