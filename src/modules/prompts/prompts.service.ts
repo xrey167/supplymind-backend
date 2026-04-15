@@ -35,12 +35,12 @@ export class PromptsService {
       }
     }
 
-    const prompt = await this.repo.create({ ...input, variables });
+    const prompt = await this.repo.createPrompt({ ...input, variables });
     return ok(prompt);
   }
 
   async get(id: string): Promise<Result<Prompt>> {
-    const prompt = await this.repo.findById(id);
+    const prompt = await this.repo.findPromptById(id);
     if (!prompt) return err(new Error(`Prompt not found: ${id}`));
     return ok(prompt);
   }
@@ -50,7 +50,7 @@ export class PromptsService {
   }
 
   async update(id: string, input: UpdatePromptInput): Promise<Result<Prompt>> {
-    const existing = await this.repo.findById(id);
+    const existing = await this.repo.findPromptById(id);
     if (!existing) return err(new Error(`Prompt not found: ${id}`));
 
     // If content changed, create a new version instead of updating in-place
@@ -60,7 +60,7 @@ export class PromptsService {
         this.extractVariables(input.content),
       );
 
-      const newPrompt = await this.repo.create({
+      const newPrompt = await this.repo.createPrompt({
         workspaceId: existing.workspaceId,
         name: input.name ?? existing.name,
         description: input.description ?? existing.description ?? undefined,
@@ -72,13 +72,13 @@ export class PromptsService {
       });
 
       // Deactivate old version
-      await this.repo.update(id, { isActive: false });
+      await this.repo.updatePrompt(id, { isActive: false });
 
       return ok(newPrompt);
     }
 
     // No content change — update in-place
-    const updated = await this.repo.update(id, input);
+    const updated = await this.repo.updatePrompt(id, input);
     return ok(updated);
   }
 
@@ -89,7 +89,7 @@ export class PromptsService {
   }
 
   async render(promptId: string, variables: Record<string, string>): Promise<Result<string>> {
-    const prompt = await this.repo.findById(promptId);
+    const prompt = await this.repo.findPromptById(promptId);
     if (!prompt) return err(new Error(`Prompt not found: ${promptId}`));
 
     let rendered = prompt.content;

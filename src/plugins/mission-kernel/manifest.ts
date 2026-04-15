@@ -43,7 +43,7 @@ export const missionKernelManifest: PluginManifest = {
           };
           return missionsService.create(req.context.workspaceId, {
             name,
-            mode,
+            mode: mode as import('../../modules/missions/missions.types').MissionMode,
             input,
             metadata,
             disciplineMaxRetries,

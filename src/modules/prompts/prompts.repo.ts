@@ -27,7 +27,7 @@ function toPrompt(row: PromptRow): Prompt {
 export class PromptsRepository extends BaseRepo<typeof prompts, PromptRow, NewPrompt> {
   constructor() { super(prompts); }
 
-  async create(input: CreatePromptInput & { variables?: Prompt['variables']; version?: number }): Promise<Prompt> {
+  async createPrompt(input: CreatePromptInput & { variables?: Prompt['variables']; version?: number }): Promise<Prompt> {
     const rows = await db.insert(prompts).values({
       workspaceId: input.workspaceId,
       name: input.name,
@@ -41,7 +41,7 @@ export class PromptsRepository extends BaseRepo<typeof prompts, PromptRow, NewPr
     return toPrompt(rows[0]!);
   }
 
-  async findById(id: string): Promise<Prompt | null> {
+  async findPromptById(id: string): Promise<Prompt | null> {
     const rows = await db.select().from(prompts).where(eq(prompts.id, id));
     return rows[0] ? toPrompt(rows[0]) : null;
   }
@@ -72,7 +72,7 @@ export class PromptsRepository extends BaseRepo<typeof prompts, PromptRow, NewPr
     return rows.map(toPrompt);
   }
 
-  async update(id: string, input: UpdatePromptInput): Promise<Prompt> {
+  async updatePrompt(id: string, input: UpdatePromptInput): Promise<Prompt> {
     const rows = await db.update(prompts)
       .set({ ...input, updatedAt: new Date() })
       .where(eq(prompts.id, id))

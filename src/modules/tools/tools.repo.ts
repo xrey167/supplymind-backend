@@ -19,7 +19,7 @@ export class ToolsRepository extends BaseRepo<typeof skillDefinitions, SkillRow,
     return db.select().from(skillDefinitions).where(isNull(skillDefinitions.workspaceId));
   }
 
-  async create(input: CreateToolInput): Promise<SkillRow> {
+  async createTool(input: CreateToolInput): Promise<SkillRow> {
     const rows = await db.insert(skillDefinitions).values({
       name: input.name,
       description: input.description,
@@ -33,7 +33,7 @@ export class ToolsRepository extends BaseRepo<typeof skillDefinitions, SkillRow,
     return rows[0]!;
   }
 
-  async update(id: string, input: UpdateToolInput): Promise<SkillRow | null> {
+  async updateTool(id: string, input: UpdateToolInput): Promise<SkillRow | null> {
     const rows = await db.update(skillDefinitions)
       .set({ ...input, providerType: input.providerType as any, updatedAt: new Date() })
       .where(eq(skillDefinitions.id, id))
