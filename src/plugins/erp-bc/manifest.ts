@@ -20,6 +20,31 @@ export const erpBcManifest: PluginManifest = {
         factory: (connection) => createErpSyncWorker(connection),
       },
     ],
+    commands: [
+      {
+        name: 'erp-bc:status',
+        description: 'Check ERP Business Central sync status — lists the 5 most recent sync jobs for a workspace',
+        inputSchema: {
+          type: 'object',
+          required: ['workspaceId'],
+          properties: {
+            workspaceId: { type: 'string', description: 'Workspace ID to check status for' },
+          },
+        },
+        handler: async (args) => {
+          const { db } = await import('../../infra/db/client');
+          const { syncJobs } = await import('../../infra/db/schema');
+          const { eq, desc } = await import('drizzle-orm');
+          const recentJobs = await db
+            .select()
+            .from(syncJobs)
+            .where(eq(syncJobs.workspaceId, args.workspaceId as string))
+            .orderBy(desc(syncJobs.createdAt))
+            .limit(5);
+          return { recentJobs };
+        },
+      },
+    ],
   },
   skills: [
     {
