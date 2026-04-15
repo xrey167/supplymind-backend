@@ -15,6 +15,23 @@ services:
       timeout: 5s
       retries: 15
 
+  postgres_test:
+    image: pgvector/pgvector:pg16
+    container_name: supplymind-postgres-test
+    environment:
+      POSTGRES_USER: supplymind
+      POSTGRES_PASSWORD: supplymind
+      POSTGRES_DB: supplymind_test
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data   # in-memory for fast test runs
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U supplymind -d supplymind_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   redis:
     image: redis:7-alpine
     ports:

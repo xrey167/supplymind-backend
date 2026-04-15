@@ -1,4 +1,0 @@
-No config path provided, using default 'drizzle.config.ts'
-Reading config file 'C:\Users\Xrey\SupplyMindAI\backend\drizzle.config.ts'
-Using 'postgres' driver for database querying
-[⣷] applying migrations...[2K[1G[⣷] applying migrations...
