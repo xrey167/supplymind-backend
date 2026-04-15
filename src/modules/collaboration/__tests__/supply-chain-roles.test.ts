@@ -124,6 +124,12 @@ describe('supplyChainHasPermission', () => {
     ).toBe(false);
   });
 
+  it('returns false (and does not throw) for prototype key role strings', () => {
+    expect(
+      supplyChainHasPermission('toString', 'purchase_orders:create'),
+    ).toBe(false);
+  });
+
   it('returns false for an empty string role', () => {
     expect(
       supplyChainHasPermission('', 'inventory:view'),
@@ -178,5 +184,6 @@ describe('isSupplyChainRole', () => {
   it('returns false for unknown strings', () => {
     expect(isSupplyChainRole('superadmin')).toBe(false);
     expect(isSupplyChainRole('')).toBe(false);
+    expect(isSupplyChainRole('toString')).toBe(false);
   });
 });
