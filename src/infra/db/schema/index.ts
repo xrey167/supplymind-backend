@@ -468,6 +468,8 @@ export const prompts = pgTable('prompts', {
   version: integer('version').notNull().default(1),
   isActive: boolean('is_active').notNull().default(true),
   createdBy: text('created_by'),
+  /** Set when a plugin seeds this prompt on install; used for cleanup on uninstall. */
+  pluginSource: text('plugin_source'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => [
