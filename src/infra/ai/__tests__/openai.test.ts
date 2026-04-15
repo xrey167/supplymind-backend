@@ -7,9 +7,7 @@ let mockCreate: ReturnType<typeof mock>;
 
 mockCreate = mock(async () => ({}));
 
-const _realOpenai = require('openai');
 mock.module('openai', () => ({
-  ..._realOpenai,
   default: class MockOpenAI {
     chat = {
       completions: {
