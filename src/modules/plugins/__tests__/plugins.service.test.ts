@@ -80,7 +80,8 @@ mock.module('../../credentials/credentials.service', () => ({
   },
 }));
 
-const { pluginsService } = await import('../plugins.service');
+// Force a fresh module load so prior test files' caches don't contaminate this one.
+const { pluginsService } = (await import('../plugins.service?fresh=plugins-service-test' as any)) as typeof import('../plugins.service');
 const { featureFlagsService } = await import('../../feature-flags/feature-flags.service');
 const { PluginConflictError } = await import('../plugins.types');
 
