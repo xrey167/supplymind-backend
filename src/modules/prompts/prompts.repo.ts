@@ -1,9 +1,13 @@
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { prompts } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { Prompt, CreatePromptInput, UpdatePromptInput } from './prompts.types';
 
-function toPrompt(row: typeof prompts.$inferSelect): Prompt {
+type PromptRow = typeof prompts.$inferSelect;
+type NewPrompt = typeof prompts.$inferInsert;
+
+function toPrompt(row: PromptRow): Prompt {
   return {
     id: row.id,
     workspaceId: row.workspaceId,
@@ -20,7 +24,9 @@ function toPrompt(row: typeof prompts.$inferSelect): Prompt {
   };
 }
 
-export class PromptsRepository {
+export class PromptsRepository extends BaseRepo<typeof prompts, PromptRow, NewPrompt> {
+  constructor() { super(prompts); }
+
   async create(input: CreatePromptInput & { variables?: Prompt['variables']; version?: number }): Promise<Prompt> {
     const rows = await db.insert(prompts).values({
       workspaceId: input.workspaceId,
@@ -72,11 +78,6 @@ export class PromptsRepository {
       .where(eq(prompts.id, id))
       .returning();
     return toPrompt(rows[0]!);
-  }
-
-  async delete(id: string): Promise<boolean> {
-    const rows = await db.delete(prompts).where(eq(prompts.id, id)).returning();
-    return rows.length > 0;
   }
 
   async findByName(workspaceId: string, name: string): Promise<Prompt | null> {

@@ -1,15 +1,19 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { eq, isNull } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { mcpServerConfigs } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 
 export type McpServerRow = typeof mcpServerConfigs.$inferSelect;
+type NewMcpServer = typeof mcpServerConfigs.$inferInsert;
 
 export type CreateMcpData = Omit<
   McpServerRow,
   'id' | 'createdAt' | 'updatedAt' | 'toolManifestCache' | 'cacheExpiresAt'
 >;
 
-export class McpRepo {
+export class McpRepo extends BaseRepo<typeof mcpServerConfigs, McpServerRow, NewMcpServer> {
+  constructor() { super(mcpServerConfigs); }
+
   async findByWorkspace(workspaceId: string): Promise<McpServerRow[]> {
     return db
       .select()
@@ -29,14 +33,6 @@ export class McpRepo {
       .where(isNull(mcpServerConfigs.workspaceId));
   }
 
-  async findById(id: string): Promise<McpServerRow | undefined> {
-    const rows = await db
-      .select()
-      .from(mcpServerConfigs)
-      .where(eq(mcpServerConfigs.id, id));
-    return rows[0];
-  }
-
   async create(data: CreateMcpData): Promise<McpServerRow> {
     const rows = await db
       .insert(mcpServerConfigs)
@@ -45,18 +41,14 @@ export class McpRepo {
     return rows[0]!;
   }
 
-  async update(id: string, data: Partial<McpServerRow>): Promise<McpServerRow | undefined> {
+  async update(id: string, data: Partial<McpServerRow>): Promise<McpServerRow | null> {
     const { id: _id, createdAt: _ca, ...rest } = data as Record<string, unknown>;
     const rows = await db
       .update(mcpServerConfigs)
       .set({ ...(rest as Partial<typeof mcpServerConfigs.$inferInsert>), updatedAt: new Date() })
       .where(eq(mcpServerConfigs.id, id))
       .returning();
-    return rows[0];
-  }
-
-  async remove(id: string): Promise<void> {
-    await db.delete(mcpServerConfigs).where(eq(mcpServerConfigs.id, id));
+    return rows[0] ?? null;
   }
 }
 
