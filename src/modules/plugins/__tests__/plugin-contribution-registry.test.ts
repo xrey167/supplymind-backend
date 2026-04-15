@@ -185,4 +185,135 @@ describe('PluginContributionRegistry', () => {
       expect(pluginContributionRegistry).toBeInstanceOf(PluginContributionRegistry);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // commands (new contribution type)
+  // ---------------------------------------------------------------------------
+
+  describe('getCommands', () => {
+    test('returns commands from registered plugin', () => {
+      registry.register('my-plugin', {
+        commands: [
+          { name: 'do-thing', description: 'Does a thing', handler: async () => ({ done: true }) },
+        ],
+      });
+      const cmds = registry.getCommands();
+      expect(cmds).toHaveLength(1);
+      expect(cmds[0].pluginId).toBe('my-plugin');
+      expect(cmds[0].command.name).toBe('do-thing');
+    });
+
+    test('returns empty array when no commands registered', () => {
+      registry.register('my-plugin', { topics: { FOO: 'foo.bar' } });
+      expect(registry.getCommands()).toHaveLength(0);
+    });
+
+    test('merges commands from multiple plugins', () => {
+      registry.register('plugin-a', {
+        commands: [{ name: 'cmd-a', description: 'A', handler: async () => 'a' }],
+      });
+      registry.register('plugin-b', {
+        commands: [
+          { name: 'cmd-b1', description: 'B1', handler: async () => 'b1' },
+          { name: 'cmd-b2', description: 'B2', handler: async () => 'b2' },
+        ],
+      });
+      expect(registry.getCommands()).toHaveLength(3);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // hooks (new contribution type)
+  // ---------------------------------------------------------------------------
+
+  describe('getHooks', () => {
+    test('returns hooks from registered plugin', () => {
+      registry.register('my-plugin', {
+        hooks: [
+          { name: 'audit-tool-use', event: 'pre_tool_use', handler: async () => ({ allow: true }) },
+        ],
+      });
+      const hooks = registry.getHooks();
+      expect(hooks).toHaveLength(1);
+      expect(hooks[0].pluginId).toBe('my-plugin');
+      expect(hooks[0].hook.name).toBe('audit-tool-use');
+      expect(hooks[0].hook.event).toBe('pre_tool_use');
+    });
+
+    test('returns empty array when no hooks registered', () => {
+      registry.register('my-plugin', { topics: { FOO: 'foo.bar' } });
+      expect(registry.getHooks()).toHaveLength(0);
+    });
+
+    test('supports array event on a single hook', () => {
+      registry.register('my-plugin', {
+        hooks: [
+          { name: 'multi-event', event: ['agent_start', 'agent_stop'], handler: async () => {} },
+        ],
+      });
+      const hooks = registry.getHooks();
+      expect(hooks).toHaveLength(1);
+      expect(Array.isArray(hooks[0].hook.event)).toBe(true);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // promptTemplates (new contribution type)
+  // ---------------------------------------------------------------------------
+
+  describe('getPromptTemplates', () => {
+    test('returns all templates when no pluginId filter', () => {
+      registry.register('plugin-a', {
+        promptTemplates: [{ name: 'intro', content: 'Hello {{name}}' }],
+      });
+      registry.register('plugin-b', {
+        promptTemplates: [{ name: 'summary', content: 'Summarize {{topic}}' }],
+      });
+      expect(registry.getPromptTemplates()).toHaveLength(2);
+    });
+
+    test('filters by pluginId', () => {
+      registry.register('plugin-a', {
+        promptTemplates: [{ name: 'intro', content: 'Hello' }],
+      });
+      registry.register('plugin-b', {
+        promptTemplates: [{ name: 'summary', content: 'Summarize' }],
+      });
+      const result = registry.getPromptTemplates('plugin-a');
+      expect(result).toHaveLength(1);
+      expect(result[0].pluginId).toBe('plugin-a');
+      expect(result[0].template.name).toBe('intro');
+    });
+
+    test('returns empty array for unknown pluginId', () => {
+      registry.register('plugin-a', {
+        promptTemplates: [{ name: 'intro', content: 'Hello' }],
+      });
+      expect(registry.getPromptTemplates('unknown')).toHaveLength(0);
+    });
+
+    test('returns empty when no templates registered', () => {
+      registry.register('my-plugin', { topics: { FOO: 'foo.bar' } });
+      expect(registry.getPromptTemplates()).toHaveLength(0);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // backward compatibility — new types coexist with existing ones
+  // ---------------------------------------------------------------------------
+
+  describe('backward compatibility with existing contribution types', () => {
+    test('new types coexist alongside existing types without interference', () => {
+      registry.register('my-plugin', {
+        topics: { SC_TEST: 'sc.test' },
+        commands: [{ name: 'test-cmd', description: 'Test', handler: async () => null }],
+        promptTemplates: [{ name: 'tpl', content: 'Hello' }],
+      });
+      expect(registry.getTopics()).toEqual({ SC_TEST: 'sc.test' });
+      expect(registry.getCommands()).toHaveLength(1);
+      expect(registry.getPromptTemplates()).toHaveLength(1);
+      expect(registry.getRoles()).toHaveLength(0);
+      expect(registry.getHooks()).toHaveLength(0);
+    });
+  });
 });
