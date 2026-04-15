@@ -43,7 +43,9 @@ const mockSet = mock(() => ({ where: mockUpdateWhere }));
 const mockUpdateWhere = mock(() => ({ returning: mockReturning }));
 const mockDelete = mock(() => ({ where: mock(() => ({ returning: mock(() => Promise.resolve([])) })) }));
 
+const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
   db: {
     select: mockSelect,
     insert: mockInsert,

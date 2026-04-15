@@ -28,7 +28,8 @@ const fakeDb = { insert: insertFn };
 
 // Dummy db/client mock — prevents real postgres connection on import.
 // The actual test mock (fakeDb) is passed via DI to initTaskObserver.
-mock.module('../../../../infra/db/client', () => ({ db: {} }));
+const _realDbClient = require('../../../../infra/db/client');
+mock.module('../../../../infra/db/client', () => ({ ..._realDbClient, db: {} }));
 const _realSchema = require('../../../../infra/db/schema');
 mock.module('../../../../infra/db/schema', () => ({
   ..._realSchema,

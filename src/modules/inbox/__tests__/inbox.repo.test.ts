@@ -30,7 +30,8 @@ const mockDb = {
   delete: mock(() => ({ where: mockWhere })),
 };
 
-mock.module('../../../infra/db/client', () => ({ db: mockDb }));
+const _realDbClient = require('../../../infra/db/client');
+mock.module('../../../infra/db/client', () => ({ ..._realDbClient, db: mockDb }));
 const _realSchema = require('../../../infra/db/schema');
 mock.module('../../../infra/db/schema', () => ({
   ..._realSchema,

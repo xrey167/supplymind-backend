@@ -73,7 +73,8 @@ const mockDb = {
   }),
 };
 
-mock.module('../../../infra/db/client', () => ({ db: mockDb }));
+const _realDbClient = require('../../../infra/db/client');
+mock.module('../../../infra/db/client', () => ({ ..._realDbClient, db: mockDb }));
 
 // Spread the real bus so eventBus.subscribe is preserved for downstream test files
 // (notification.handler.test.ts wraps it in a proxy that intercepts subscribe).
@@ -92,7 +93,9 @@ mock.module('../../../events/bus', () => ({
 // Do NOT mock events/topics — it's just string constants and mocking it
 // globally stomps Topics used by other test files (e.g. TASK_COMPLETED).
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: {
     info: mock(() => undefined),
     warn: mock(() => undefined),

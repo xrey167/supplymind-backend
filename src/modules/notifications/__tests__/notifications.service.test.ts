@@ -38,22 +38,19 @@ mock.module('../notifications.repo', () => ({
 const mockPrefGet = mock(() => Promise.resolve(null as any));
 const mockPrefGetGlobal = mock(() => Promise.resolve(null as any));
 
+const _realPrefRepoSvc = require('../preferences/notification-preferences.repo');
 mock.module('../preferences/notification-preferences.repo', () => ({
-  notificationPreferencesRepo: {
-    get: mockPrefGet,
-    getGlobal: mockPrefGetGlobal,
-  },
+  ..._realPrefRepoSvc,
+  notificationPreferencesRepo: { get: mockPrefGet, getGlobal: mockPrefGetGlobal },
 }));
 
 const mockDeliverInApp = mock(() => Promise.resolve());
-mock.module('../channels/in-app/in-app.channel', () => ({
-  deliverInApp: mockDeliverInApp,
-}));
+const _realInAppSvc = require('../channels/in-app/in-app.channel');
+mock.module('../channels/in-app/in-app.channel', () => ({ ..._realInAppSvc, deliverInApp: mockDeliverInApp }));
 
 const mockDeliverWebSocket = mock(() => Promise.resolve());
-mock.module('../channels/websocket/websocket.channel', () => ({
-  deliverWebSocket: mockDeliverWebSocket,
-}));
+const _realWsChSvc = require('../channels/websocket/websocket.channel');
+mock.module('../channels/websocket/websocket.channel', () => ({ ..._realWsChSvc, deliverWebSocket: mockDeliverWebSocket }));
 
 const _realBus = require('../../../events/bus');
 const _origNotifPublish = _realBus.eventBus.publish.bind(_realBus.eventBus);

@@ -12,7 +12,9 @@ mock.module('../../../config/logger', () => ({
   },
 }));
 
+const _realSentry = require('../../../infra/observability/sentry');
 mock.module('../../../infra/observability/sentry', () => ({
+  ..._realSentry,
   captureException: mock(() => {}),
   setUser: mock(() => {}),
   initSentry: mock(() => {}),
