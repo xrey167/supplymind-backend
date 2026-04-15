@@ -23,13 +23,13 @@ export const pluginCatalogRoutes = new OpenAPIHono<AppEnv>();
 pluginCatalogRoutes.use('*', authMiddleware);
 
 pluginCatalogRoutes.openapi(listRoute, async (c) => {
-  const plugins = await pluginCatalogRepo.findAll();
+  const plugins = await pluginCatalogRepo.listAll();
   return c.json({ data: plugins });
 });
 
 pluginCatalogRoutes.openapi(getRoute, async (c) => {
   const { id } = c.req.valid('param');
-  const plugin = await pluginCatalogRepo.findById(id);
+  const plugin = await pluginCatalogRepo.findCatalogEntry(id);
   if (!plugin) return c.json({ error: 'Plugin not found' }, 404);
   return c.json({ data: plugin });
 });

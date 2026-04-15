@@ -50,7 +50,7 @@ export const pluginsService = {
     const platformEnabled = await featureFlagsService.isEnabled(workspaceId, 'plugins.platform.enabled');
     if (!platformEnabled) return err(new Error('Plugin platform not enabled for this workspace'));
 
-    const catalog = await pluginCatalogRepo.findById(pluginId);
+    const catalog = await pluginCatalogRepo.findCatalogEntry(pluginId);
     if (!catalog) return err(new Error(`Plugin not found: ${pluginId}`));
 
     if (catalog.kind === 'local_sandboxed') {
@@ -91,7 +91,7 @@ export const pluginsService = {
 
     let installation: InstallationRow;
     try {
-      installation = await pluginInstallationRepo.create({ workspaceId, pluginId, config: storedConfig });
+      installation = await pluginInstallationRepo.installPlugin({ workspaceId, pluginId, config: storedConfig });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes('unique') || msg.includes('duplicate')) {
@@ -152,7 +152,7 @@ export const pluginsService = {
   },
 
   async enable(workspaceId: string, installationId: string, actor: Actor): Promise<Result<InstallationRow>> {
-    const inst = await pluginInstallationRepo.findById(installationId);
+    const inst = await pluginInstallationRepo.findInstallation(installationId);
     if (!inst || inst.workspaceId !== workspaceId) return err(new Error('Installation not found'));
     if (inst.status !== 'disabled') return err(new Error(`Cannot enable plugin in status: ${inst.status}`));
 
@@ -168,7 +168,7 @@ export const pluginsService = {
   },
 
   async disable(workspaceId: string, installationId: string, actor: Actor): Promise<Result<InstallationRow>> {
-    const inst = await pluginInstallationRepo.findById(installationId);
+    const inst = await pluginInstallationRepo.findInstallation(installationId);
     if (!inst || inst.workspaceId !== workspaceId) return err(new Error('Installation not found'));
     if (inst.status !== 'active') return err(new Error(`Cannot disable plugin in status: ${inst.status}`));
 
@@ -189,11 +189,11 @@ export const pluginsService = {
     config: Record<string, unknown>,
     actor: Actor,
   ): Promise<Result<InstallationRow>> {
-    const inst = await pluginInstallationRepo.findById(installationId);
+    const inst = await pluginInstallationRepo.findInstallation(installationId);
     if (!inst || inst.workspaceId !== workspaceId) return err(new Error('Installation not found'));
     if (inst.status !== 'active') return err(new Error(`Cannot update config in status: ${inst.status}`));
 
-    const catalog = await pluginCatalogRepo.findById(inst.pluginId);
+    const catalog = await pluginCatalogRepo.findCatalogEntry(inst.pluginId);
     if (!catalog) return err(new Error('Plugin catalog entry not found'));
     const manifest = catalog.manifest as unknown as PluginManifestV1;
     const configCheck = validatePluginConfig(config, manifest.configSchema);
@@ -258,7 +258,7 @@ export const pluginsService = {
     version: string,
     actor: Actor,
   ): Promise<Result<InstallationRow>> {
-    const inst = await pluginInstallationRepo.findById(installationId);
+    const inst = await pluginInstallationRepo.findInstallation(installationId);
     if (!inst || inst.workspaceId !== workspaceId) return err(new Error('Installation not found'));
     if (inst.status !== 'active') return err(new Error(`Cannot pin version in status: ${inst.status}`));
 
@@ -276,7 +276,7 @@ export const pluginsService = {
   },
 
   async uninstall(workspaceId: string, installationId: string, actor: Actor): Promise<Result<void>> {
-    const inst = await pluginInstallationRepo.findById(installationId);
+    const inst = await pluginInstallationRepo.findInstallation(installationId);
     if (!inst || inst.workspaceId !== workspaceId) return err(new Error('Installation not found'));
     if (inst.status !== 'active' && inst.status !== 'disabled') {
       return err(new Error(`Cannot uninstall plugin in status: ${inst.status}`));
@@ -302,7 +302,7 @@ export const pluginsService = {
   },
 
   async rollback(workspaceId: string, installationId: string, actor: Actor): Promise<Result<InstallationRow>> {
-    const inst = await pluginInstallationRepo.findById(installationId);
+    const inst = await pluginInstallationRepo.findInstallation(installationId);
     if (!inst || inst.workspaceId !== workspaceId) return err(new Error('Installation not found'));
     if (inst.status !== 'failed' && inst.status !== 'disabled') {
       return err(new Error(`Cannot rollback plugin in status: ${inst.status}`));
@@ -344,11 +344,11 @@ export const pluginsService = {
   },
 
   async runHealthCheck(workspaceId: string, installationId: string): Promise<Result<HealthCheckRow>> {
-    const inst = await pluginInstallationRepo.findById(installationId);
+    const inst = await pluginInstallationRepo.findInstallation(installationId);
     if (!inst) return err(new Error('Installation not found'));
     if (inst.workspaceId !== workspaceId) return err(new Error('Installation not found'));
 
-    const catalog = await pluginCatalogRepo.findById(inst.pluginId);
+    const catalog = await pluginCatalogRepo.findCatalogEntry(inst.pluginId);
     if (!catalog) return err(new Error('Plugin catalog entry not found'));
 
     const manifest = catalog.manifest as unknown as PluginManifestV1;
@@ -378,7 +378,7 @@ export const pluginsService = {
 
     let row: HealthCheckRow;
     try {
-      row = await pluginHealthRepo.create({ installationId, status, latencyMs, error });
+      row = await pluginHealthRepo.recordHealthCheck({ installationId, status, latencyMs, error });
     } catch (e) {
       logger.error({ err: e, installationId, status }, 'Failed to persist health check result');
       return err(new Error('Failed to persist health check result'));
@@ -402,13 +402,13 @@ export const pluginsService = {
   },
 
   async get(workspaceId: string, installationId: string): Promise<InstallationRow | undefined> {
-    const inst = await pluginInstallationRepo.findById(installationId);
+    const inst = await pluginInstallationRepo.findInstallation(installationId);
     if (!inst || inst.workspaceId !== workspaceId) return undefined;
     return inst;
   },
 
   async getEvents(workspaceId: string, installationId: string): Promise<Result<PluginEventRow[]>> {
-    const inst = await pluginInstallationRepo.findById(installationId);
+    const inst = await pluginInstallationRepo.findInstallation(installationId);
     if (!inst || inst.workspaceId !== workspaceId) return err(new Error('Installation not found'));
     const events = await pluginInstallationRepo.getEvents(installationId);
     return ok(events);

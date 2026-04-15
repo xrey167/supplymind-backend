@@ -1,9 +1,15 @@
 import { eq, desc, and, gte, lte, sum } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { billingCustomers, subscriptions, invoices, usageRecords } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { PlanTier } from './billing.types';
 
-export class BillingRepository {
+type CustomerRow = typeof billingCustomers.$inferSelect;
+type NewCustomerRow = typeof billingCustomers.$inferInsert;
+
+export class BillingRepository extends BaseRepo<typeof billingCustomers, CustomerRow, NewCustomerRow> {
+  constructor() { super(billingCustomers); }
+
   async getCustomer(workspaceId: string) {
     const rows = await db.select().from(billingCustomers).where(eq(billingCustomers.workspaceId, workspaceId));
     return rows[0] ?? null;

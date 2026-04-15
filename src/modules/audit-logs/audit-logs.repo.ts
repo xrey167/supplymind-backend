@@ -1,10 +1,16 @@
 import { eq, and, desc, sql, gte, lte, lt } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { auditLogs } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { AuditLog, AuditStats, CreateAuditLogInput, AuditLogFilter } from './audit-logs.types';
 
-export class AuditLogsRepository {
-  async create(input: CreateAuditLogInput): Promise<AuditLog> {
+type Row = typeof auditLogs.$inferSelect;
+type NewRow = typeof auditLogs.$inferInsert;
+
+export class AuditLogsRepository extends BaseRepo<typeof auditLogs, Row, NewRow> {
+  constructor() { super(auditLogs); }
+
+  async createLog(input: CreateAuditLogInput): Promise<AuditLog> {
     const rows = await db.insert(auditLogs).values({
       workspaceId: input.workspaceId,
       actorId: input.actorId,

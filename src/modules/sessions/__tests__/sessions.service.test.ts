@@ -14,7 +14,7 @@ const mockMessage: SessionMessage = {
 };
 
 const repoMocks = {
-  create: mock(async () => createdSession),
+  createSession: mock(async () => createdSession),
   get: mock(async (_id: string) => activeSession as Session | undefined),
   addMessage: mock(async () => mockMessage),
   getMessages: mock(async () => [mockMessage]),
@@ -41,7 +41,7 @@ describe('sessionsService', () => {
     Object.values(eventMocks).forEach(m => m.mockClear());
     // Reset default return values
     repoMocks.get.mockImplementation(async () => activeSession);
-    repoMocks.create.mockImplementation(async () => createdSession);
+    repoMocks.createSession.mockImplementation(async () => createdSession);
     repoMocks.addMessage.mockImplementation(async () => mockMessage);
     repoMocks.expireIdleSessions.mockImplementation(async () => 0);
   });

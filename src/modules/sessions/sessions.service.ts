@@ -8,7 +8,7 @@ const DEFAULT_IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 
 export const sessionsService = {
   async create(data: { workspaceId: string; agentId?: string; metadata?: Record<string, unknown> }): Promise<Session> {
-    const session = await sessionsRepo.create(data);
+    const session = await sessionsRepo.createSession(data);
     emitSessionCreated(session.id, session.workspaceId);
     return session;
   },

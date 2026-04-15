@@ -8,7 +8,7 @@ export class AuditLogsService {
    * Safe to call from anywhere — never throws, never blocks the caller.
    */
   log(input: CreateAuditLogInput): void {
-    auditLogsRepo.create(input).catch((err) => {
+    auditLogsRepo.createLog(input).catch((err) => {
       logger.error({ err, input }, 'Failed to write audit log');
     });
   }
