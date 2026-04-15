@@ -236,7 +236,40 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
     (globalThis as any).__pluginContribWorkers = { workers: contribWorkers, registry: pluginContributionRegistry, connection: contribConnection };
     contribConnection = null; // ownership transferred to globalThis.__pluginContribWorkers
 
-    logger.info({ workerCount: contribWorkers.length }, 'Step 12.5: Plugin contributions applied');
+    // Register contributed global commands into the skill registry
+    const { skillRegistry } = await import('../modules/skills/skills.registry');
+    const { ok: okResult } = await import('../core/result');
+    for (const { pluginId, command } of pluginContributionRegistry.getCommands()) {
+      skillRegistry.register({
+        id: `contrib:${pluginId}:${command.name}`,
+        name: command.name,
+        description: command.description,
+        inputSchema: command.inputSchema ?? { type: 'object', properties: {} },
+        providerType: 'plugin',
+        priority: 3,
+        concurrencySafe: command.concurrencySafe,
+        timeoutMs: command.timeoutMs,
+        handler: async (args) => {
+          const result = await command.handler(args);
+          return okResult(result);
+        },
+      });
+    }
+
+    // Register contributed global hooks into the lifecycle hook registry
+    const { lifecycleHooks } = await import('../core/hooks/hook-registry');
+    for (const { pluginId, hook } of pluginContributionRegistry.getHooks()) {
+      lifecycleHooks.registerGlobal({
+        id: `contrib:${pluginId}:${hook.name}`,
+        event: hook.event,
+        handler: hook.handler,
+        provider: `plugin:${pluginId}`,
+      });
+    }
+
+    const cmdCount = pluginContributionRegistry.getCommands().length;
+    const hookCount = pluginContributionRegistry.getHooks().length;
+    logger.info({ workerCount: contribWorkers.length, cmdCount, hookCount }, 'Step 12.5: Plugin contributions applied');
   } catch (err) {
     logger.warn({ err }, 'Step 12.5: Plugin contributions failed — non-critical');
     // Time-box the quit — maxRetriesPerRequest: null means commands wait indefinitely,
