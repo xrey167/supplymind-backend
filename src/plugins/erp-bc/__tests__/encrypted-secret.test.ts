@@ -144,8 +144,7 @@ mock.module('../../../config/logger', () => ({
 }));
 
 // Force a fresh module load so prior test files' caches don't contaminate this one.
-const _pluginsServiceMod = await import('../../../modules/plugins/plugins.service?fresh=erp' as unknown as string);
-const pluginsService = _pluginsServiceMod.pluginsService;
+const { pluginsService } = (await import('../../../modules/plugins/plugins.service?fresh=encrypted-secret-test' as any)) as typeof import('../../../modules/plugins/plugins.service');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
