@@ -28,12 +28,12 @@ const mockRepo = {
 
 const mockBus = { publish: mock(async () => undefined) };
 
-const _realBus = require('../../events/bus');
+const _realBus = require('../../../events/bus');
 mock.module('../../events/bus', () => ({ ..._realBus, eventBus: { ..._realBus.eventBus, ...mockBus } }));
 // MissionTopics imported directly from the plugin (static as const) — no mock needed
 const _realAgentProfilesRepo = require('../agent-profiles.repo');
 mock.module('../agent-profiles.repo', () => ({ ..._realAgentProfilesRepo, agentProfilesRepo: mockRepo }));
-const _realCoreErrors = require('../../core/errors');
+const _realCoreErrors = require('../../../core/errors');
 mock.module('../../core/errors', () => ({
   ..._realCoreErrors,
   NotFoundError: class NotFoundError extends Error {
