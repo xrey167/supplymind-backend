@@ -162,6 +162,13 @@
       "when": 1776274209943,
       "tag": "0022_sharp_infant_terrible",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1744758000000,
+      "tag": "0023_enum_spec_compliance",
+      "breakpoints": true
     }
   ]
 }

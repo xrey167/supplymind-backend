@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
+import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import type { MissionRun } from '../../../modules/missions/missions.types';
 
 // ---------------------------------------------------------------------------
@@ -148,5 +148,3 @@ describe('registerMissionBudgetTracker', () => {
     expect(mockUpdateRunStatus).not.toHaveBeenCalled();
   });
 });
-
-afterAll(() => mock.restore());

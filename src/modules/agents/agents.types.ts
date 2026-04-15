@@ -2,6 +2,7 @@ import type { AgentMode, AIProvider } from '../../infra/ai/types';
 
 export interface AgentConfig {
   id: string;
+  description: string; 
   workspaceId: string;
   name: string;
   provider: AIProvider;
@@ -12,6 +13,7 @@ export interface AgentConfig {
   maxTokens: number;
   thinkingBudget?: number;
   toolIds: string[];
+  disallowedToolIds:string[];
   metadata: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const AGENT_CATEGORIES = ['executor', 'planner', 'researcher', 'reviewer', 'deep', 'coordinator', 'custom'] as const;
+const AGENT_CATEGORIES = ['executor', 'planner', 'researcher', 'reviewer', 'visual', 'ops', 'deep', 'quick'] as const;
 const PERMISSION_MODES = ['auto', 'ask', 'strict'] as const;
 
 export const createAgentProfileSchema = z.object({

@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, afterAll } from 'bun:test';
+import { describe, it, expect, mock } from 'bun:test';
 import type { MissionRun, MissionWorker } from '../missions.types';
 
 // --- Mocks (must be declared before any import that pulls in the target modules) ---
@@ -11,7 +11,9 @@ const mockStart = mock(async (id: string) =>
 
 const mockCompile = mock(() => ({ kind: 'task', workers: [{ role: 'executor' }] }));
 const mockListWorkers = mock(async () => [] as MissionWorker[]);
-const mockExecuteMission = mock(async () => undefined);
+const mockUpdateWorkerStatus = mock(async () => undefined);
+const mockUpdateRunStatus = mock(async () => undefined);
+const mockFindRunById = mock(async () => null);
 
 mock.module('../missions.service', () => ({
   missionsService: { start: mockStart },
@@ -23,16 +25,11 @@ mock.module('../missions.compiler', () => ({
 
 mock.module('../missions.repo', () => ({
   missionsRepo: {
-    listWorkers:        mockListWorkers,
-    updateWorkerStatus: mock(async () => undefined),
-    updateRunStatus:    mock(async () => undefined),
-    findRunById:        mock(async () => null),
+    listWorkers: mockListWorkers,
+    updateWorkerStatus: mockUpdateWorkerStatus,
+    updateRunStatus: mockUpdateRunStatus,
+    findRunById: mockFindRunById,
   },
-}));
-
-// Path from test at src/modules/missions/__tests__/ → src/plugins/mission-kernel/executor
-mock.module('../../../plugins/mission-kernel/executor', () => ({
-  executeMission: mockExecuteMission,
 }));
 
 mock.module('../../../config/logger', () => ({
@@ -50,17 +47,17 @@ describe('processMissionJob', () => {
     expect(mockStart).toHaveBeenCalledWith('mr-1');
   });
 
-  it('compiles the mission and dispatches workers via executor on success', async () => {
-    mockExecuteMission.mockClear();
+  it('compiles the mission and marks run completed when no workers are available', async () => {
     mockCompile.mockClear();
     mockListWorkers.mockClear();
+    mockUpdateRunStatus.mockClear();
 
     const job = { data: { missionId: 'mr-1', workspaceId: 'ws-1' } } as any;
     await processMissionJob(job);
 
     expect(mockCompile).toHaveBeenCalledTimes(1);
     expect(mockListWorkers).toHaveBeenCalledWith('mr-1');
-    expect(mockExecuteMission).toHaveBeenCalledTimes(1);
+    expect(mockUpdateRunStatus).toHaveBeenCalledWith('mr-1', 'completed');
   });
 
   it('throws if start returns err', async () => {
@@ -68,12 +65,10 @@ describe('processMissionJob', () => {
     await expect(processMissionJob(job)).rejects.toThrow('Mission not found');
   });
 
-  it('does not call executor when start fails', async () => {
-    mockExecuteMission.mockClear();
+  it('does not update mission run status when start fails', async () => {
+    mockUpdateRunStatus.mockClear();
     const job = { data: { missionId: 'unknown', workspaceId: 'ws-1' } } as any;
     await expect(processMissionJob(job)).rejects.toThrow();
-    expect(mockExecuteMission).not.toHaveBeenCalled();
+    expect(mockUpdateRunStatus).not.toHaveBeenCalled();
   });
 });
-
-afterAll(() => mock.restore());

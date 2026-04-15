@@ -5,7 +5,7 @@ import { pgTable, pgEnum, uuid, text, jsonb, boolean, integer, timestamp, index 
 // ---------------------------------------------------------------------------
 
 export const agentCategoryEnum = pgEnum('agent_category', [
-  'executor', 'planner', 'researcher', 'reviewer', 'deep', 'coordinator', 'custom'
+  'executor', 'planner', 'researcher', 'reviewer', 'visual', 'ops', 'deep', 'quick'
 ]);
 
 export const permissionModeEnum = pgEnum('mission_permission_mode', [
@@ -25,7 +25,7 @@ export const missionWorkerStatusEnum = pgEnum('mission_worker_status', [
 ]);
 
 export const missionArtifactKindEnum = pgEnum('mission_artifact_kind', [
-  'text', 'json', 'file', 'image', 'code', 'report'
+  'plan', 'summary', 'review', 'verification', 'diff', 'table', 'json', 'approval', 'question', 'metrics'
 ]);
 
 export const missionTemplateStatusEnum = pgEnum('mission_template_status', [

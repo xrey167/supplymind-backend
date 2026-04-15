@@ -90,6 +90,29 @@ export const missionKernelManifest: PluginManifest = {
         },
       },
       {
+        op: 'mission.approve',
+        handler: async (req) => {
+          const { missionsService } = await import('../../modules/missions/missions.service');
+          const { id, approved, comment } = req.params as {
+            id: string;
+            approved: boolean;
+            comment?: string;
+          };
+          return missionsService.approve(id, approved, comment);
+        },
+      },
+      {
+        op: 'mission.input',
+        handler: async (req) => {
+          const { missionsService } = await import('../../modules/missions/missions.service');
+          const { id, input } = req.params as {
+            id: string;
+            input: Record<string, unknown>;
+          };
+          return missionsService.input(id, input);
+        },
+      },
+      {
         op: 'mission.cancel',
         handler: async (req) => {
           const { missionsService } = await import('../../modules/missions/missions.service');

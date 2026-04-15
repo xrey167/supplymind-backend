@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const MISSION_MODES = ['assist', 'interview', 'advisor', 'team', 'autopilot', 'discipline'] as const;
-const ARTIFACT_KINDS = ['text', 'json', 'file', 'image', 'code', 'report'] as const;
+const ARTIFACT_KINDS = ['plan', 'summary', 'review', 'verification', 'diff', 'table', 'json', 'approval', 'question', 'metrics'] as const;
 
 export const createMissionSchema = z.object({
   name: z.string().min(1).max(255),

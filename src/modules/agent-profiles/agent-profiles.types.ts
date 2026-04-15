@@ -3,9 +3,10 @@ export type AgentCategory =
   | 'planner'
   | 'researcher'
   | 'reviewer'
+  | 'visual'
+  | 'ops'
   | 'deep'
-  | 'coordinator'
-  | 'custom';
+  | 'quick';
 
 export type PermissionMode = 'auto' | 'ask' | 'strict';
 

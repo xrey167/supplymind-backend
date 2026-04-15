@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
+import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import type { PluginManifest } from '../plugin-manifest';
 
 // ---------------------------------------------------------------------------
@@ -138,5 +138,3 @@ describe('PluginManager.install() — domainPack', () => {
     await expect(manager.install(manifest, 'ws-fail')).resolves.toBeTypeOf('function');
   });
 });
-
-afterAll(() => mock.restore());

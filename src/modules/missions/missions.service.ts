@@ -103,6 +103,54 @@ export class MissionsService {
     return ok(updated!);
   }
 
+  async approve(id: string, approved: boolean, comment?: string): Promise<Result<MissionRun>> {
+    const mission = await this.repo.findRunById(id);
+    if (!mission) return err(new NotFoundError('Mission not found'));
+    if (mission.status !== 'paused') {
+      return err(new AppError('Only paused missions can be approved or rejected', 409, 'CONFLICT'));
+    }
+
+    if (approved) {
+      const updated = await this.repo.updateRunStatus(id, 'running');
+      this.bus.publish(MissionTopics.MISSION_RESUMED, {
+        workspaceId: mission.workspaceId,
+        missionId: id,
+        reason: 'approved',
+        comment,
+        resumedAt: new Date().toISOString(),
+      }).catch(() => undefined);
+      return ok(updated!);
+    } else {
+      const updated = await this.repo.updateRunStatus(id, 'failed');
+      this.bus.publish(MissionTopics.MISSION_FAILED, {
+        workspaceId: mission.workspaceId,
+        missionId: id,
+        reason: 'approval_rejected',
+        comment,
+        failedAt: new Date().toISOString(),
+      }).catch(() => undefined);
+      return ok(updated!);
+    }
+  }
+
+  async input(id: string, payload: Record<string, unknown>): Promise<Result<MissionRun>> {
+    const mission = await this.repo.findRunById(id);
+    if (!mission) return err(new NotFoundError('Mission not found'));
+    if (mission.status !== 'paused') {
+      return err(new AppError('Only paused missions can receive external input', 409, 'CONFLICT'));
+    }
+
+    const updated = await this.repo.updateRunStatus(id, 'running');
+    this.bus.publish(MissionTopics.MISSION_RESUMED, {
+      workspaceId: mission.workspaceId,
+      missionId: id,
+      reason: 'input_received',
+      input: payload,
+      resumedAt: new Date().toISOString(),
+    }).catch(() => undefined);
+    return ok(updated!);
+  }
+
   async complete(id: string): Promise<Result<MissionRun>> {
     const mission = await this.repo.findRunById(id);
     if (!mission) return err(new NotFoundError('Mission not found'));
