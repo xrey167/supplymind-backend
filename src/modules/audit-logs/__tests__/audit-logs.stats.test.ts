@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 // Thenable query chain — handles queries with or without .groupBy()/.orderBy()/.limit()
 function makeChain(data: any[]): any {
@@ -106,3 +106,5 @@ describe('AuditLogsRepository.getStats', () => {
     expect(count).toBe(5);
   });
 });
+
+afterAll(() => mock.restore());

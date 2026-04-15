@@ -10,7 +10,7 @@
  * Strategy: mock all transitive deps, then dynamically import the service
  * ONLY after also re-mocking the service module to pass through the real code.
  */
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, mock, afterAll } from 'bun:test';
 import { Topics } from '../../../events/topics';
 
 // --- mock db -----------------------------------------------------------------
@@ -510,3 +510,5 @@ describe('DomainKnowledgeService', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach } from 'bun:test';
 import type { AgentMemory, MemoryProposal } from '../memory.types';
 
 // --- Fixtures ---
@@ -477,3 +477,5 @@ describe('memoryService', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

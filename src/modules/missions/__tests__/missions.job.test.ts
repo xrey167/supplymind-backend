@@ -1,4 +1,4 @@
-import { describe, it, expect, mock } from 'bun:test';
+import { describe, it, expect, mock, afterAll } from 'bun:test';
 
 const mockStart = mock(async (id: string) =>
   id === 'mr-1'
@@ -30,3 +30,5 @@ describe('processMissionJob', () => {
     await expect(processMissionJob(job)).rejects.toThrow('Mission not found');
   });
 });
+
+afterAll(() => mock.restore());

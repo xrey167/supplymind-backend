@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 mock.module('../../../config/logger', () => ({
   logger: { warn: mock(() => {}), error: mock(() => {}), info: mock(() => {}), debug: mock(() => {}) },
@@ -168,3 +168,5 @@ describe('LifecycleHookRegistry', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

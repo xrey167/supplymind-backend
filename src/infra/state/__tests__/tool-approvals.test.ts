@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
 // Mock logger before importing module under test
-import { mock } from 'bun:test';
+import { mock, afterAll } from 'bun:test';
 
 mock.module('../../../config/logger', () => ({
   logger: { warn: mock(() => {}), error: mock(() => {}), info: mock(() => {}), debug: mock(() => {}) },
@@ -132,3 +132,5 @@ describe('tool-approvals', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

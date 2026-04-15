@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock, spyOn } from 'bun:test';
+import { describe, it, expect, beforeEach, mock, afterAll, spyOn } from 'bun:test';
 // Minimal EventBus stub — avoids importing the real bus module which
 // breaks under cross-file mock.module contamination in bun:test.
 interface BusEvent {
@@ -191,3 +191,5 @@ describe('skill-observer', () => {
     expect(updateFn).toHaveBeenCalled();
   });
 });
+
+afterAll(() => mock.restore());

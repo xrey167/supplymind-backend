@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 const mockProfile = {
   id: 'ap-1',
@@ -100,3 +100,5 @@ describe('AgentProfilesService', () => {
     expect(profile?.id).toBe('ap-1');
   });
 });
+
+afterAll(() => mock.restore());

@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 const mockRow = {
   id: 'mr-1',
@@ -79,3 +79,5 @@ describe('MissionsRepository', () => {
     expect(run).toBeDefined();
   });
 });
+
+afterAll(() => mock.restore());

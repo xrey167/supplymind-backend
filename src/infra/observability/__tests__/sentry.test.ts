@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach, afterEach } from 'bun:test';
 
 // Track Sentry calls
 const sentryMock = {
@@ -133,3 +133,5 @@ describe('sentry — DSN present (simulated initialization)', () => {
     delete process.env.SENTRY_DSN;
   });
 });
+
+afterAll(() => mock.restore());

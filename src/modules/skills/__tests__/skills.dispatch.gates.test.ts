@@ -13,7 +13,7 @@
  * singleton objects, replacing a method on the object is immediately visible to
  * the production code under test.
  */
-import { describe, test, expect, beforeEach, mock } from 'bun:test';
+import { describe, test, expect, beforeEach, mock, afterAll } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // Minimal infrastructure stubs — only modules with no shared mutable state
@@ -220,3 +220,5 @@ describe('dispatchSkill — Gate 4: workspace membership check', () => {
     }
   });
 });
+
+afterAll(() => mock.restore());

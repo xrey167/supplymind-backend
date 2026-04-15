@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 import { Hono } from 'hono';
 
 // Mock captureException so Sentry is never called for real
@@ -112,3 +112,5 @@ describe('errorHandler', () => {
     expect(body.error.code).toBeUndefined();
   });
 });
+
+afterAll(() => mock.restore());

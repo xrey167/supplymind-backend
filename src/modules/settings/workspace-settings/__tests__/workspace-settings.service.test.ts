@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 const mockGet = mock(async () => null as any);
 const mockGetAll = mock(async () => [] as any[]);
@@ -160,3 +160,5 @@ describe('WorkspaceSettingsService', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

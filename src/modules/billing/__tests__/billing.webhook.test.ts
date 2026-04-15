@@ -275,3 +275,5 @@ describe('BillingService.syncFromWebhook', () => {
     expect(mockInsertInvoice).not.toHaveBeenCalled();
   });
 });
+
+afterAll(() => mock.restore());

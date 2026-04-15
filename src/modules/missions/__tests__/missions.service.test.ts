@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 const mockMission = {
   id: 'mr-1',
@@ -120,3 +120,5 @@ describe('MissionsService', () => {
     expect(mockBus.publish).toHaveBeenCalledWith('mission.artifact.created', expect.anything());
   });
 });
+
+afterAll(() => mock.restore());

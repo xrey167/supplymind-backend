@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 const mockReturning = mock(() => Promise.resolve([{
   id: 'ap-1',
@@ -112,3 +112,5 @@ describe('AgentProfilesRepository', () => {
     expect(mockDelete).toHaveBeenCalled();
   });
 });
+
+afterAll(() => mock.restore());

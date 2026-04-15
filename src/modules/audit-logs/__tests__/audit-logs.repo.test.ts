@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 const mockReturning = mock(() => Promise.resolve([{
   id: 'audit-1',
@@ -111,3 +111,5 @@ describe('AuditLogsRepository', () => {
     expect(count).toBe(5);
   });
 });
+
+afterAll(() => mock.restore());

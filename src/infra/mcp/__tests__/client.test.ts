@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 import type { McpResourceDef, McpPromptDef, SkillMcpConfig, SkillMcpServerEntry } from '../types';
 
 describe('MCP types', () => {
@@ -223,3 +223,5 @@ describe('McpClient', () => {
     expect(lastStreamableHttpArgs[1].requestInit.headers).toEqual({ Authorization: 'Bearer tok' });
   });
 });
+
+afterAll(() => mock.restore());

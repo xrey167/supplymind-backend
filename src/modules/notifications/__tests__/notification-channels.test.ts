@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach, setSystemTime } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach, setSystemTime } from 'bun:test';
 import type { CreateNotificationInput, Notification } from '../notifications.types';
 
 // --- Mock all direct deps ---
@@ -191,3 +191,5 @@ describe('NotificationsService – outbound channels', () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 });
+
+afterAll(() => mock.restore());

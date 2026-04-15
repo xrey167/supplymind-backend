@@ -74,3 +74,5 @@ describe('usageService.checkBudget', () => {
     expect(result.pct).toBe(0.85);
   });
 });
+
+afterAll(() => mock.restore());

@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach, afterEach } from 'bun:test';
 import { EventBus } from '../../../events/bus';
 import { Topics } from '../../../events/topics';
 
@@ -141,3 +141,5 @@ describe('Audit Log Event Handler', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

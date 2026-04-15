@@ -1,4 +1,4 @@
-import { describe, test, expect, mock } from 'bun:test';
+import { describe, test, expect, mock, afterAll } from 'bun:test';
 
 // Mock the embedding provider
 mock.module('../memory.embedding', () => ({
@@ -48,3 +48,5 @@ describe('hybridSearch', () => {
     }
   });
 });
+
+afterAll(() => mock.restore());
