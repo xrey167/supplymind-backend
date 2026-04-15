@@ -1,7 +1,7 @@
 import { Worker } from 'bullmq';
 import { processMissionJob } from '../../modules/missions/missions.job';
 import { logger } from '../../config/logger';
-import type { MissionJobData } from './queue';
+import type { MissionJobData } from '../../modules/missions/missions.types';
 import type { PluginManifest } from '../../modules/plugins/plugin-manifest';
 import { MissionTopics } from './topics';
 
@@ -34,13 +34,20 @@ export const missionKernelManifest: PluginManifest = {
         op: 'mission.create',
         handler: async (req) => {
           const { missionsService } = await import('../../modules/missions/missions.service');
-          const { name, mode, input, metadata } = req.params as {
+          const { name, mode, input, metadata, disciplineMaxRetries } = req.params as {
             name: string;
             mode: string;
             input?: Record<string, unknown>;
             metadata?: Record<string, unknown>;
+            disciplineMaxRetries?: number;
           };
-          return missionsService.create(req.context.workspaceId, { name, mode, input, metadata });
+          return missionsService.create(req.context.workspaceId, {
+            name,
+            mode,
+            input,
+            metadata,
+            disciplineMaxRetries,
+          });
         },
       },
       {

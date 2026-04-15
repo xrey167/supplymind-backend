@@ -63,6 +63,13 @@ export interface CreateArtifactInput {
   metadata?: Record<string, unknown>;
 }
 
+// ─── Queue types ──────────────────────────────────────────────────────────────
+
+export interface MissionJobData {
+  missionId: string;
+  workspaceId: string;
+}
+
 // ─── Compiler types ───────────────────────────────────────────────────────────
 
 export type MissionPlanKind = 'task' | 'collaboration' | 'orchestration';

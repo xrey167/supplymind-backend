@@ -1,5 +1,5 @@
 import type { Job } from 'bullmq';
-import type { MissionJobData } from '../../plugins/mission-kernel';
+import type { MissionJobData } from './missions.types';
 import { missionsService } from './missions.service';
 import { logger } from '../../config/logger';
 
