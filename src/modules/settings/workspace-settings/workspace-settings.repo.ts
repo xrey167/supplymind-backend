@@ -1,8 +1,14 @@
 import { eq, and } from 'drizzle-orm';
 import { db } from '../../../infra/db/client';
 import { workspaceSettings } from '../../../infra/db/schema';
+import { BaseRepo } from '../../../infra/db/repositories/base.repo';
 
-export class WorkspaceSettingsRepository {
+type Row = typeof workspaceSettings.$inferSelect;
+type NewRow = typeof workspaceSettings.$inferInsert;
+
+export class WorkspaceSettingsRepository extends BaseRepo<typeof workspaceSettings, Row, NewRow> {
+  constructor() { super(workspaceSettings); }
+
   async get(workspaceId: string, key: string) {
     const rows = await db
       .select()

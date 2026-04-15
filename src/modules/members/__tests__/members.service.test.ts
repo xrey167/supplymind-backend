@@ -16,7 +16,7 @@ const mockMembersRepo = {
 };
 
 const mockInvitationsRepo = {
-  create: mock(async () => ({
+  createInvitation: mock(async () => ({
     token: 'tok123',
     invitation: {
       id: 'inv-1', workspaceId: 'ws-1', email: 'alice@example.com',
@@ -79,7 +79,7 @@ describe('MembersService', () => {
     mockMembersRepo.listMembers.mockClear();
     mockMembersRepo.updateRole.mockClear();
     mockMembersRepo.removeMember.mockClear();
-    mockInvitationsRepo.create.mockClear();
+    mockInvitationsRepo.createInvitation.mockClear();
     mockInvitationsRepo.findPendingByEmail.mockClear();
     mockInvitationsRepo.findByTokenHashForUpdate.mockClear();
     mockInvitationsRepo.accept.mockClear();
@@ -100,7 +100,7 @@ describe('MembersService', () => {
       });
 
       expect(mockInvitationsRepo.findPendingByEmail).toHaveBeenCalledWith('ws-1', 'alice@example.com');
-      expect(mockInvitationsRepo.create).toHaveBeenCalledWith('ws-1', {
+      expect(mockInvitationsRepo.createInvitation).toHaveBeenCalledWith('ws-1', {
         email: 'alice@example.com', type: 'email', role: 'member', invitedBy: 'owner-1',
       });
       expect(result.token).toBe('tok123');
@@ -117,7 +117,7 @@ describe('MembersService', () => {
       await membersService.invite('ws-1', { invitedBy: 'owner-1' });
 
       expect(mockInvitationsRepo.findPendingByEmail).not.toHaveBeenCalled();
-      expect(mockInvitationsRepo.create).toHaveBeenCalledWith('ws-1', expect.objectContaining({ type: 'link' }));
+      expect(mockInvitationsRepo.createInvitation).toHaveBeenCalledWith('ws-1', expect.objectContaining({ type: 'link' }));
     });
 
     it('throws ValidationError if email invitation already pending', async () => {
