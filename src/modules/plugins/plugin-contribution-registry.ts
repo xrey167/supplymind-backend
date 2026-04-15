@@ -70,6 +70,8 @@ export interface PluginContributions {
 export class PluginContributionRegistry {
   private contributions = new Map<string, PluginContributions>();
   private activeWorkers: Array<{ worker: Worker; name: string }> = [];
+  /** Lazily-built O(1) lookup cache for gateway op handlers. Invalidated on register()/clear(). */
+  private gatewayOpCache: Map<string, GatewayOpContribution['handler']> | null = null;
 
   /**
    * Register a plugin's contributions by plugin ID.
@@ -77,6 +79,7 @@ export class PluginContributionRegistry {
    */
   register(pluginId: string, contributions: PluginContributions): void {
     this.contributions.set(pluginId, contributions);
+    this.gatewayOpCache = null; // invalidate on new registration
   }
 
   /** Merged topic map from all registered plugins. */
@@ -125,6 +128,22 @@ export class PluginContributionRegistry {
   }
 
   /**
+   * O(1) gateway op handler lookup. Builds a Map cache on first call and
+   * reuses it until register() or clear() invalidates it.
+   */
+  findGatewayHandler(op: string): GatewayOpContribution['handler'] | undefined {
+    if (!this.gatewayOpCache) {
+      this.gatewayOpCache = new Map();
+      for (const contrib of this.contributions.values()) {
+        for (const entry of contrib.gatewayOps ?? []) {
+          this.gatewayOpCache.set(entry.op, entry.handler);
+        }
+      }
+    }
+    return this.gatewayOpCache.get(op);
+  }
+
+  /**
    * Start all contributed workers using the provided Redis connection.
    * Workers are tracked internally for graceful shutdown via stopWorkers().
    */
@@ -148,6 +167,7 @@ export class PluginContributionRegistry {
   clear(): void {
     this.contributions.clear();
     this.activeWorkers = [];
+    this.gatewayOpCache = null;
   }
 }
 

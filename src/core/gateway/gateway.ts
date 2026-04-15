@@ -314,8 +314,8 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
 
     default: {
       const { pluginContributionRegistry } = await import('../../modules/plugins/plugin-contribution-registry');
-      const registered = pluginContributionRegistry.getGatewayOps().find(g => g.op === op);
-      if (registered) return registered.handler(req);
+      const handler = pluginContributionRegistry.findGatewayHandler(op);
+      if (handler) return handler(req);
       return err(new Error(`Unknown gateway op: ${op}`));
     }
   }
