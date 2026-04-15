@@ -15,8 +15,13 @@ const mockUpdateWorkerStatus = mock(async () => undefined);
 const mockUpdateRunStatus = mock(async () => undefined);
 const mockFindRunById = mock(async () => null);
 
+const _realMissionsService = require('../missions.service');
 mock.module('../missions.service', () => ({
-  missionsService: { start: mockStart },
+  ..._realMissionsService,
+  missionsService: {
+    ..._realMissionsService.missionsService,
+    start: mockStart,
+  },
 }));
 
 mock.module('../missions.compiler', () => ({
