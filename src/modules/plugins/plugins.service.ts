@@ -135,6 +135,19 @@ export const pluginsService = {
       }
     }
 
+    // Seed prompt templates from contribution registry (best-effort — never fail the install)
+    try {
+      const { pluginContributionRegistry } = await import('./plugin-contribution-registry');
+      const templates = pluginContributionRegistry.getPromptTemplates(pluginId);
+      if (templates.length) {
+        const { seedPluginPrompts } = await import('./plugins.prompt-seeder');
+        await seedPluginPrompts(workspaceId, pluginId, templates.map((t) => t.template));
+        logger.info({ workspaceId, pluginId, count: templates.length }, 'Plugin prompt templates seeded');
+      }
+    } catch (e) {
+      logger.warn({ err: e, workspaceId, pluginId }, 'Prompt template seeding failed (non-fatal)');
+    }
+
     return ok(active);
   },
 
@@ -272,11 +285,20 @@ export const pluginsService = {
     try {
       await pluginInstallationRepo.transition(installationId, workspaceId, 'uninstalling', 'uninstalled', actor);
       await pluginInstallationRepo.transition(installationId, workspaceId, 'uninstalled', 'uninstalled', actor);
-      return ok(undefined);
     } catch (e) {
       logger.error({ err: e, installationId, workspaceId }, 'Plugin uninstall transition failed');
       return err(new Error('Internal error uninstalling plugin'));
     }
+
+    // Remove seeded prompt templates (best-effort — don't fail the uninstall)
+    try {
+      const { removePluginPrompts } = await import('./plugins.prompt-seeder');
+      await removePluginPrompts(workspaceId, inst.pluginId);
+    } catch (e) {
+      logger.warn({ err: e, workspaceId, pluginId: inst.pluginId }, 'Prompt template removal failed (non-fatal)');
+    }
+
+    return ok(undefined);
   },
 
   async rollback(workspaceId: string, installationId: string, actor: Actor): Promise<Result<InstallationRow>> {
