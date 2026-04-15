@@ -34,10 +34,10 @@ export abstract class BaseRepo<
   }
 
   /**
-   * Return all rows that match every key/value pair in `filters`.
-   * When `filters` is empty or omitted, returns all rows (use carefully on large tables).
+   * Return rows that match every key/value pair in `filters`.
+   * Defaults to 500 rows; pass `limit: 0` to lift the cap (use carefully on large tables).
    */
-  async findAll(filters?: Partial<TSelect>): Promise<TSelect[]> {
+  async findAll(filters?: Partial<TSelect>, limit = 500): Promise<TSelect[]> {
     let query = (db as any).select().from(this.table);
 
     if (filters) {
@@ -50,6 +50,8 @@ export abstract class BaseRepo<
         query = query.where(and(...conditions));
       }
     }
+
+    if (limit > 0) query = query.limit(limit);
 
     return query as Promise<TSelect[]>;
   }
@@ -72,7 +74,7 @@ export abstract class BaseRepo<
   async update(id: string, data: Partial<TInsert>): Promise<TSelect | null> {
     const rows = await (db as any)
       .update(this.table)
-      .set({ ...data, updatedAt: new Date() })
+      .set(data)
       .where(eq((this.table as any).id, id))
       .returning();
     return (rows[0] as TSelect) ?? null;

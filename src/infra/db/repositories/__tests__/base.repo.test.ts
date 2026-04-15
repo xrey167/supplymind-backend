@@ -37,6 +37,7 @@ const mockDb = {
         limit: mock(() => ({ then: (_r: any) => Promise.resolve(nextReturn()).then(_r) })),
         then: (_r: any) => Promise.resolve(nextReturn()).then(_r),
       })),
+      limit: mock(() => ({ then: (_r: any) => Promise.resolve(nextReturn()).then(_r) })),
       then: (_r: any) => Promise.resolve(nextReturn()).then(_r),
     })),
   })),

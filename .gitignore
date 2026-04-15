@@ -10,4 +10,5 @@ drizzle/
 .DS_Store
 .worktrees/
 .claude/worktrees/
+.claude/*.lock
 docs/superpowers/

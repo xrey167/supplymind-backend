@@ -267,6 +267,9 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
       });
     }
 
+    // Run plugin bootstrap callbacks (e.g. ERP sync schedule registration)
+    pluginContributionRegistry.runBootstrapCallbacks();
+
     const cmdCount = pluginContributionRegistry.getCommands().length;
     const hookCount = pluginContributionRegistry.getHooks().length;
     logger.info({ workerCount: contribWorkers.length, cmdCount, hookCount }, 'Step 12.5: Plugin contributions applied');

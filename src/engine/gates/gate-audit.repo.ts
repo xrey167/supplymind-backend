@@ -36,6 +36,14 @@ class GateAuditRepository extends BaseRepo<typeof gateAuditLog, Row, NewRow> {
       .where(eq(gateAuditLog.orchestrationId, orchestrationId))
       .orderBy(desc(gateAuditLog.decidedAt));
   }
+
+  override async update(): Promise<never> {
+    throw new Error('GateAuditRepository: audit records are immutable');
+  }
+
+  override async remove(): Promise<never> {
+    throw new Error('GateAuditRepository: audit records cannot be deleted');
+  }
 }
 
 export const gateAuditRepo = new GateAuditRepository();
