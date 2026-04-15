@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { AnyPgTable, PgColumn } from 'drizzle-orm/pg-core';
 import { db } from '../client';
 
@@ -41,11 +41,13 @@ export abstract class BaseRepo<
     let query = (db as any).select().from(this.table);
 
     if (filters) {
-      for (const [key, value] of Object.entries(filters)) {
-        const col = (this.table as any)[key];
-        if (col !== undefined && value !== undefined) {
-          query = query.where(eq(col, value));
-        }
+      const conditions = Object.entries(filters)
+        .filter(([key, value]) => (this.table as any)[key] !== undefined && value !== undefined)
+        .map(([key, value]) => eq((this.table as any)[key], value));
+      if (conditions.length === 1) {
+        query = query.where(conditions[0]);
+      } else if (conditions.length > 1) {
+        query = query.where(and(...conditions));
       }
     }
 
