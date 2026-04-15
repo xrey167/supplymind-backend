@@ -29,8 +29,10 @@ const eventMocks = {
   emitSessionClosed: mock(() => {}),
 };
 
-mock.module('../sessions.repo', () => ({ sessionsRepo: repoMocks }));
-mock.module('../sessions.events', () => eventMocks);
+const _realSessionsRepo = require('../sessions.repo');
+mock.module('../sessions.repo', () => ({ ..._realSessionsRepo, sessionsRepo: repoMocks }));
+const _realSessionsEvents = require('../sessions.events');
+mock.module('../sessions.events', () => ({ ..._realSessionsEvents, ...eventMocks }));
 
 import { sessionsService } from '../sessions.service';
 

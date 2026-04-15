@@ -1,15 +1,21 @@
 import { describe, test, expect, mock, afterAll, beforeEach, afterEach, spyOn } from 'bun:test';
 
 // Mock dynamic imports used by memory.service (safe — these are await import() calls)
+const _realSkillsMemoryEmbedding = require('../memory.embedding');
 mock.module('../memory.embedding', () => ({
+  ..._realSkillsMemoryEmbedding,
   getEmbeddingProvider: () => ({ embed: mock(async () => [0.1, 0.2, 0.3]) }),
 }));
 
+const _realSkillsMemoryStore = require('../memory.store');
 mock.module('../memory.store', () => ({
+  ..._realSkillsMemoryStore,
   PgVectorMemoryStore: class { upsert = mock(async () => undefined); },
 }));
 
+const _realSkillsMemorySearch = require('../memory.search');
 mock.module('../memory.search', () => ({
+  ..._realSkillsMemorySearch,
   hybridSearch: mock(async () => [{ id: 'mem-1', score: 0.9 }]),
 }));
 

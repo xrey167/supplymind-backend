@@ -55,17 +55,22 @@ const eventMocks = {
   emitMemoryRolledBack: mock(() => undefined),
 };
 
-mock.module('../memory.events', () => eventMocks);
+const _realMemoryEvents = require('../memory.events');
+mock.module('../memory.events', () => ({ ..._realMemoryEvents, ...eventMocks }));
 
 // Embedding path mocks — happy path by default
 const embedMock = mock(async () => [0.1, 0.2, 0.3]);
 const upsertMock = mock(async () => undefined);
 
+const _realMemoryEmbedding = require('../memory.embedding');
 mock.module('../memory.embedding', () => ({
+  ..._realMemoryEmbedding,
   getEmbeddingProvider: () => ({ embed: embedMock }),
 }));
 
+const _realMemoryStore = require('../memory.store');
 mock.module('../memory.store', () => ({
+  ..._realMemoryStore,
   PgVectorMemoryStore: class {
     upsert = upsertMock;
   },
@@ -74,7 +79,9 @@ mock.module('../memory.store', () => ({
 // Hybrid search mock — happy path returns a hit by default
 const hybridSearchMock = mock(async () => [{ id: 'mem-1', score: 0.9 }]);
 
+const _realMemorySearch = require('../memory.search');
 mock.module('../memory.search', () => ({
+  ..._realMemorySearch,
   hybridSearch: hybridSearchMock,
 }));
 

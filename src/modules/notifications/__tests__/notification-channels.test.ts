@@ -78,7 +78,7 @@ mock.module('../../../config/logger', () => ({
   }),
 }));
 
-const { NotificationsService } = await import('../notifications.service');
+const { NotificationsService } = await import('../notifications.service?fresh=1' as string);
 
 const fakeNotif: Notification = {
   id: 'n1', workspaceId: 'ws-1', userId: 'u1', type: 'alert_fired',

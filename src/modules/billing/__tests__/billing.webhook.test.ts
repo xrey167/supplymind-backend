@@ -14,7 +14,9 @@ const mockSubRetrieve = mock(() =>
   }),
 );
 
+const _realStripe = require('stripe');
 mock.module('stripe', () => ({
+  ..._realStripe,
   default: class {
     subscriptions = { retrieve: mockSubRetrieve };
   },
@@ -46,7 +48,9 @@ const mockEmitUpdated = mock(() => Promise.resolve());
 const mockEmitCanceled = mock(() => Promise.resolve());
 const mockEmitInvoicePaid = mock(() => Promise.resolve());
 
+const _realBillingEvents = require('../billing.events');
 mock.module('../billing.events', () => ({
+  ..._realBillingEvents,
   emitSubscriptionCreated: mockEmitCreated,
   emitSubscriptionUpdated: mockEmitUpdated,
   emitSubscriptionCanceled: mockEmitCanceled,

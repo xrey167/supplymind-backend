@@ -21,7 +21,9 @@ mock.module('../../../infra/observability/sentry', () => ({
   Sentry: {},
 }));
 
+const _realApiKey = require('../../../infra/auth/api-key');
 mock.module('../../../infra/auth/api-key', () => ({
+  ..._realApiKey,
   validateApiKey: mock(async (token: string) => {
     if (token.startsWith('a2a_k_')) {
       return { role: 'admin', workspaceId: 'ws-test', name: 'test-key' };

@@ -16,7 +16,9 @@ const mockSubRetrieve = mock(() =>
   }),
 );
 
+const _realStripe = require('stripe');
 mock.module('stripe', () => ({
+  ..._realStripe,
   default: class {
     checkout = { sessions: { create: mockCheckoutCreate } };
     billingPortal = { sessions: { create: mockPortalCreate } };
@@ -61,7 +63,9 @@ mock.module('../../../engine/billing/budget-counter', () => ({
 }));
 
 // Mock events
+const _realBillingEvents = require('../billing.events');
 mock.module('../billing.events', () => ({
+  ..._realBillingEvents,
   emitSubscriptionCreated: mock(() => Promise.resolve()),
   emitSubscriptionUpdated: mock(() => Promise.resolve()),
   emitSubscriptionCanceled: mock(() => Promise.resolve()),
@@ -170,7 +174,9 @@ describe('BillingService', () => {
     test('returns allowed when under limit', async () => {
       mockGetActivePlan.mockResolvedValueOnce('starter');
       // Mock agents module
+      const _realAgentsRepo = require('../../agents/agents.repo');
       mock.module('../../agents/agents.repo', () => ({
+        ..._realAgentsRepo,
         AgentsRepository: class {
           findByWorkspace = mock(() => Promise.resolve([{ id: '1' }, { id: '2' }]));
         },

@@ -8,7 +8,9 @@ mock.module('../../../infra/db/client', () => ({
 }));
 
 const mockPing = mock(() => Promise.resolve('PONG'));
+const _realRedisClient = require('../../../infra/redis/client');
 mock.module('../../../infra/redis/client', () => ({
+  ..._realRedisClient,
   getSharedRedisClient: () => ({ ping: mockPing }),
 }));
 

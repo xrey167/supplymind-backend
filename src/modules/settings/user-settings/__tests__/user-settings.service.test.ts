@@ -5,8 +5,11 @@ const mockGetAll = mock(async () => ({} as Record<string, unknown>));
 const mockSet = mock(async () => {});
 const mockDelete = mock(async () => true);
 
+const _realUserSettingsRepo = require('../user-settings.repo');
 mock.module('../user-settings.repo', () => ({
+  ..._realUserSettingsRepo,
   userSettingsRepo: {
+    ..._realUserSettingsRepo.userSettingsRepo,
     get: mockGet,
     getAll: mockGetAll,
     set: mockSet,

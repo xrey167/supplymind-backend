@@ -1,7 +1,9 @@
 import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 const mockTrigger = mock((_opts: any) => Promise.resolve({ acknowledged: true }));
+const _realNovuApi = require('@novu/api');
 mock.module('@novu/api', () => ({
+  ..._realNovuApi,
   Novu: class {
     constructor() {}
     trigger = mockTrigger;

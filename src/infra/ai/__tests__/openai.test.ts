@@ -7,17 +7,17 @@ let mockCreate: ReturnType<typeof mock>;
 
 mockCreate = mock(async () => ({}));
 
-mock.module('openai', () => {
-  return {
-    default: class MockOpenAI {
-      chat = {
-        completions: {
-          create: (...args: unknown[]) => mockCreate(...args),
-        },
-      };
-    },
-  };
-});
+const _realOpenai = require('openai');
+mock.module('openai', () => ({
+  ..._realOpenai,
+  default: class MockOpenAI {
+    chat = {
+      completions: {
+        create: (...args: unknown[]) => mockCreate(...args),
+      },
+    };
+  },
+}));
 
 // ---- Supporting mocks ----
 const _realLogger = require('../../config/logger');
@@ -26,16 +26,22 @@ mock.module('../../config/logger', () => ({
   logger: { warn: mock(() => {}), error: mock(() => {}), info: mock(() => {}), debug: mock(() => {}) },
 }));
 
+const _realToolFormat = require('./tool-format');
 mock.module('./tool-format', () => ({
+  ..._realToolFormat,
   toOpenAITools: (tools: unknown) => tools,
   toOpenAIToolChoice: (choice: unknown) => choice,
 }));
 
+const _realSentry = require('../observability/sentry');
 mock.module('../observability/sentry', () => ({
+  ..._realSentry,
   captureException: mock(() => {}),
 }));
 
+const _realAbortController = require('../../core/utils/abortController');
 mock.module('../../core/utils/abortController', () => ({
+  ..._realAbortController,
   combinedAbortSignal: (signals: AbortSignal[]) => signals[0] ?? new AbortController().signal,
 }));
 

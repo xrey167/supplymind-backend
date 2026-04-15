@@ -32,7 +32,7 @@ const {
   emitOrchestrationFailed,
   emitOrchestrationCancelled,
   emitStepCompleted,
-} = await import('../orchestration.events');
+} = await import('../orchestration.events?fresh=1' as string);
 
 // ---------------------------------------------------------------------------
 // Tests

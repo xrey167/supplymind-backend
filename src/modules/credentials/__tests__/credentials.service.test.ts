@@ -31,7 +31,9 @@ mock.module('../../../config/logger', () => ({
   logger: { info: () => {}, debug: () => {}, warn: () => {}, error: () => {} },
 }));
 
+const _realCredentialsRepo = require('../credentials.repo');
 mock.module('../credentials.repo', () => ({
+  ..._realCredentialsRepo,
   CredentialsRepository: class {},
   credentialsRepo: {
     createCredential: async (input: any) => {

@@ -49,7 +49,7 @@ mock.module('../../../../config/logger', () => ({
 // ---------------------------------------------------------------------------
 // Dynamic import so mocks intercept
 // ---------------------------------------------------------------------------
-const { findUnderperformingAgents, generatePromptVariant } = await import('../prompt-optimizer');
+const { findUnderperformingAgents, generatePromptVariant } = await import('../prompt-optimizer?fresh=1' as string);
 
 // ---------------------------------------------------------------------------
 // Helpers

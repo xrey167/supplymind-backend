@@ -32,8 +32,11 @@ const mockCreate = mock(async (data: unknown): Promise<McpServerRow> => makeRow(
 const mockUpdate = mock(async (_id: string, _data: unknown): Promise<McpServerRow | undefined> => makeRow());
 const mockRemoveRepo = mock(async (_id: string): Promise<void> => {});
 
+const _realMcpRepo = require('../mcp.repo');
 mock.module('../mcp.repo', () => ({
+  ..._realMcpRepo,
   mcpRepo: {
+    ..._realMcpRepo.mcpRepo,
     findGlobal: mockFindGlobal,
     findByWorkspace: mockFindByWorkspace,
     findById: mockFindById,

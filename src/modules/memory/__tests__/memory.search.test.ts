@@ -1,7 +1,9 @@
 import { describe, test, expect, mock, afterAll } from 'bun:test';
 
 // Mock the embedding provider
+const _realMemoryEmbedding = require('../memory.embedding');
 mock.module('../memory.embedding', () => ({
+  ..._realMemoryEmbedding,
   getEmbeddingProvider: () => ({
     embed: mock(() => Promise.resolve(new Array(1536).fill(0.1))),
     dimensions: 1536,
@@ -9,7 +11,9 @@ mock.module('../memory.embedding', () => ({
 }));
 
 // Mock vector store (no real pgvector in tests)
+const _realMemoryStore = require('../memory.store');
 mock.module('../memory.store', () => ({
+  ..._realMemoryStore,
   PgVectorMemoryStore: class {
     async search() { return []; }
     async upsert() {}

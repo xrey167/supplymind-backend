@@ -55,7 +55,9 @@ const mockAgentsRepo = {
 
 const mockToAgentConfig = (row: any) => row;
 
+const _realBullmqQueue = require('../../../infra/queue/bullmq');
 mock.module('../../../infra/queue/bullmq', () => ({
+  ..._realBullmqQueue,
   enqueueAgentRun: async (data: any) => { lastEnqueued = data; return { id: 'job-1' }; },
 }));
 

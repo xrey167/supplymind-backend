@@ -20,14 +20,18 @@ class MockWorker {
   }
 }
 
+const _realBullmq = require('bullmq');
 mock.module('bullmq', () => ({
+  ..._realBullmq,
   Worker: MockWorker,
   Queue: class MockQueue { constructor() {} add() { return Promise.resolve({}); } close() { return Promise.resolve(); } },
   QueueEvents: class MockQueueEvents { constructor() {} on() {} close() { return Promise.resolve(); } },
 }));
 
 // ---- Redis mock ----
+const _realIoredis = require('ioredis');
 mock.module('ioredis', () => ({
+  ..._realIoredis,
   default: class MockRedis {
     constructor() {}
   },

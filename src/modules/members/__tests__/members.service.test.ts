@@ -50,8 +50,11 @@ const mockDb = {
   transaction: mock(async (cb: (tx: any) => Promise<any>) => cb(mockTx)),
 };
 
-mock.module('../members.repo', () => ({ membersRepo: mockMembersRepo }));
+const _realMembersRepo = require('../members.repo');
+mock.module('../members.repo', () => ({ ..._realMembersRepo, membersRepo: mockMembersRepo }));
+const _realInvitationsRepo = require('../invitations.repo');
 mock.module('../invitations.repo', () => ({
+  ..._realInvitationsRepo,
   invitationsRepo: mockInvitationsRepo,
   hashToken: (token: string) => `hashed_${token}`,
 }));

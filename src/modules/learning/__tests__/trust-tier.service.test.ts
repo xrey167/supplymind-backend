@@ -6,8 +6,11 @@ const mockGetRaw = mock(async (_wsId: string, _key: string) => null as any);
 const mockSet = mock(async (_wsId: string, _key: string, _val: any) => undefined);
 
 // Mock the workspace settings service (dynamically imported by TrustTierService).
+const _realWsSettingsService = require('../../settings/workspace-settings/workspace-settings.service');
 mock.module('../../settings/workspace-settings/workspace-settings.service', () => ({
+  ..._realWsSettingsService,
   workspaceSettingsService: {
+    ..._realWsSettingsService.workspaceSettingsService,
     getRaw: mockGetRaw,
     set: mockSet,
   },

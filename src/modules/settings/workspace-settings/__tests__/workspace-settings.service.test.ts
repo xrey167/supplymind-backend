@@ -5,8 +5,11 @@ const mockGetAll = mock(async () => [] as any[]);
 const mockSet = mock(async () => ({} as any));
 const mockDelete = mock(async () => true);
 
+const _realWorkspaceSettingsRepo = require('../workspace-settings.repo');
 mock.module('../workspace-settings.repo', () => ({
+  ..._realWorkspaceSettingsRepo,
   workspaceSettingsRepo: {
+    ..._realWorkspaceSettingsRepo.workspaceSettingsRepo,
     get: mockGet,
     getAll: mockGetAll,
     set: mockSet,

@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 /* ------------------------------------------------------------------ */
 /*  Mock: db.select().from(skillPerformanceMetrics).where(...)        */
@@ -13,7 +13,7 @@ const mockSelect = mock(() => ({ from: mockFrom }));
 
 const mockDb = { select: mockSelect } as any;
 
-const { analyzeSkillWeights } = await import('../skill-weight-analyzer');
+const { analyzeSkillWeights } = await import('../skill-weight-analyzer?fresh=1' as string);
 
 describe('analyzeSkillWeights', () => {
   beforeEach(() => {
@@ -94,3 +94,5 @@ describe('analyzeSkillWeights', () => {
     expect(proposals).toEqual([]);
   });
 });
+
+afterAll(() => mock.restore());

@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 /* ------------------------------------------------------------------ */
 /*  Mock: Two parallel db.select({count}).from().where() calls        */
@@ -28,7 +28,7 @@ const mockSelect = mock(() => {
 
 const mockDb = { select: mockSelect } as any;
 
-const { analyzeRouting } = await import('../routing-analyzer');
+const { analyzeRouting } = await import('../routing-analyzer?fresh=1' as string);
 
 describe('analyzeRouting', () => {
   beforeEach(() => {
@@ -91,3 +91,5 @@ describe('analyzeRouting', () => {
     expect(proposals).toEqual([]);
   });
 });
+
+afterAll(() => mock.restore());

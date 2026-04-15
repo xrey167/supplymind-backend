@@ -12,7 +12,8 @@ mock.module('../../../modules/missions/missions.service', () => ({
 }));
 
 const enqueueMock = mock(async (data: any) => ({ queued: true as const, missionId: data.missionId }));
-mock.module('../queue', () => ({ enqueueMission: enqueueMock }));
+const _realMissionQueue = require('../queue');
+mock.module('../queue', () => ({ ..._realMissionQueue, enqueueMission: enqueueMock }));
 
 import { missionKernelManifest } from '../manifest';
 

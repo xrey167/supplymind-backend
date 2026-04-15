@@ -8,8 +8,11 @@ const mockApprove = mock(() => Promise.resolve());
 const mockReject = mock(() => Promise.resolve());
 const mockRollback = mock(() => Promise.resolve());
 
+const _realImprovementPipeline = require('../improvement-pipeline');
 mock.module('../improvement-pipeline', () => ({
+  ..._realImprovementPipeline,
   improvementPipeline: {
+    ..._realImprovementPipeline.improvementPipeline,
     listFiltered: mockListFiltered,
     getById: mockGetById,
     approve: mockApprove,
@@ -34,8 +37,11 @@ const defaultTierConfig = {
 const mockGetTierConfig = mock(() => Promise.resolve(defaultTierConfig));
 const mockSetTier = mock(() => Promise.resolve());
 
+const _realTrustTierService = require('../trust-tier.service');
 mock.module('../trust-tier.service', () => ({
+  ..._realTrustTierService,
   trustTierService: {
+    ..._realTrustTierService.trustTierService,
     getTierConfig: mockGetTierConfig,
     setTier: mockSetTier,
   },

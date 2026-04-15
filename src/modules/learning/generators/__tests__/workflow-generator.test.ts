@@ -28,7 +28,7 @@ mock.module('../../../../config/logger', () => ({
 // ---------------------------------------------------------------------------
 // Dynamic import so mocks intercept
 // ---------------------------------------------------------------------------
-const { detectRepeatedSequences, proposeWorkflowTemplate } = await import('../workflow-generator');
+const { detectRepeatedSequences, proposeWorkflowTemplate } = await import('../workflow-generator?fresh=1' as string);
 
 // ---------------------------------------------------------------------------
 // Helpers
