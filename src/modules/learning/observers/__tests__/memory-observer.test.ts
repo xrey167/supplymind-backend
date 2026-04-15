@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock, spyOn } from 'bun:test';
+import { describe, it, expect, beforeEach, mock, afterAll, spyOn } from 'bun:test';
 // Minimal EventBus stub — avoids importing the real bus module which
 // breaks under cross-file mock.module contamination in bun:test.
 interface BusEvent {
@@ -27,7 +27,9 @@ const insertFn = mock(() => ({ values: valuesFn }));
 const fakeDb = { insert: insertFn };
 
 mock.module('../../../../infra/db/client', () => ({ db: {} }));
+const _realSchema = require('../../../../infra/db/schema');
 mock.module('../../../../infra/db/schema', () => ({
+  ..._realSchema,
   learningObservations: Symbol('learningObservations'),
   skillPerformanceMetrics: { id: 'id', workspaceId: 'workspaceId', skillId: 'skillId', windowStart: 'windowStart' },
 }));
@@ -134,3 +136,5 @@ describe('memory-observer', () => {
     expect(insertFn).not.toHaveBeenCalled();
   });
 });
+
+afterAll(() => mock.restore());

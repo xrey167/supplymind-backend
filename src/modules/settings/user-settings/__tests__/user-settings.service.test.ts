@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 const mockGet = mock(async () => null as unknown);
 const mockGetAll = mock(async () => ({} as Record<string, unknown>));
@@ -178,3 +178,5 @@ describe('UserSettingsService', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

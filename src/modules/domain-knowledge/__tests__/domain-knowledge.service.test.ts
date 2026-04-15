@@ -10,7 +10,7 @@
  * Strategy: mock all transitive deps, then dynamically import the service
  * ONLY after also re-mocking the service module to pass through the real code.
  */
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, mock, afterAll } from 'bun:test';
 import { Topics } from '../../../events/topics';
 
 // --- mock db -----------------------------------------------------------------
@@ -45,7 +45,9 @@ const mockPublish = mock(() => Promise.resolve({ id: 'evt-1' }));
 
 // Wire mocks before any import of the service module -------------------------
 mock.module('../../../infra/db/client', () => ({ db: fakeDb }));
+const _realSchema = require('../../../infra/db/schema');
 mock.module('../../../infra/db/schema', () => ({
+  ..._realSchema,
   domainKnowledgeGraphs: {
     id: 'id',
     pluginId: 'plugin_id',
@@ -58,7 +60,9 @@ mock.module('../../../infra/db/schema', () => ({
     lastUpdated: 'last_updated',
   },
 }));
+const _realDrizzle = require('drizzle-orm');
 mock.module('drizzle-orm', () => ({
+  ..._realDrizzle,
   eq: (...args: any[]) => args,
   and: (...args: any[]) => args,
 }));
@@ -506,3 +510,5 @@ describe('DomainKnowledgeService', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

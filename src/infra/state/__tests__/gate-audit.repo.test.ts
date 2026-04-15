@@ -20,12 +20,16 @@ mock.module('../../../infra/db/client', () => ({
 }));
 
 // Mock schema — expose a minimal gateAuditLog stub
+const _realSchema = require('../../../infra/db/schema');
 mock.module('../../../infra/db/schema', () => ({
+  ..._realSchema,
   gateAuditLog: { orchestrationId: 'orchestration_id', decidedAt: 'decided_at' },
 }));
 
 // Mock drizzle-orm helpers — return identity values
+const _realDrizzle = require('drizzle-orm');
 mock.module('drizzle-orm', () => ({
+  ..._realDrizzle,
   eq: (_col: unknown, val: unknown) => ({ col: _col, val }),
   desc: (_col: unknown) => ({ desc: _col }),
 }));

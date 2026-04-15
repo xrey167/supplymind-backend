@@ -202,6 +202,14 @@ describe('ERP BC — real sandbox integration', () => {
     SKIP_REDIS,
     "upsertSyncSchedule registers repeatable job in BullMQ",
     async () => {
+      // Belt-and-suspenders: if bullmq was mocked by a unit test in the same
+      // process, upsertJobScheduler won't exist — skip gracefully.
+      const { Queue: ProbeQueue } = await import('bullmq');
+      if (typeof (ProbeQueue.prototype as any).upsertJobScheduler !== 'function') {
+        console.log('SKIP: upsertSyncSchedule — bullmq mocked in shared test process');
+        return;
+      }
+
       const testJobId = 'integration-test-job';
       const testPattern = '*/30 * * * *';
       const expectedKey = `erp-sync-cron:${testJobId}`;

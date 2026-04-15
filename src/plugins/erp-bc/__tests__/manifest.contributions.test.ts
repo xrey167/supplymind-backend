@@ -1,4 +1,4 @@
-import { describe, test, expect, mock } from 'bun:test';
+import { describe, test, expect, mock, afterAll } from 'bun:test';
 
 // Stub BullMQ Worker so no real Redis connection is needed
 const mockWorkerClose = mock(() => Promise.resolve());
@@ -40,3 +40,5 @@ describe('erpBcManifest contributions', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

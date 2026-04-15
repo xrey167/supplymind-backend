@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 const catalogStore = new Map<string, any>();
 const installStore = new Map<string, any>();
@@ -325,3 +325,5 @@ describe('pluginsService', () => {
     if (result.ok) expect(result.value.error).toContain('blocked');
   });
 });
+
+afterAll(() => mock.restore());

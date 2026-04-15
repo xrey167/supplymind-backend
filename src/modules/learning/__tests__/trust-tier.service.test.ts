@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 // --- Mocks ---
 
@@ -285,3 +285,5 @@ describe('TrustTierService', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

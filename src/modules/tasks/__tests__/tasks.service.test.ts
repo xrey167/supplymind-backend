@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test';
 import type { A2ATask, A2AMessage } from '../../../infra/a2a/types';
 
 // --- Mock state ---
@@ -63,7 +63,9 @@ mock.module('../../../infra/db/client', () => ({
   db: { transaction: async (fn: any) => fn({ select: () => ({ from: () => [] }), insert: () => ({ values: () => {} }) }) },
 }));
 
+const _realSchema = require('../../../infra/db/schema');
 mock.module('../../../infra/db/schema', () => ({
+  ..._realSchema,
   taskDependencies: {},
 }));
 
@@ -137,3 +139,5 @@ describe('TasksService', () => {
     }
   });
 });
+
+afterAll(() => mock.restore());

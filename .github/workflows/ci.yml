@@ -58,6 +58,10 @@ jobs:
           # TODO: Remove exclusions once pre-existing failures are fixed (tracked in GitHub Issues)
           # Files safe in main batch (each has afterAll(() => mock.restore())):
           #   erp-sync-scheduler.test.ts, sync-runner.test.ts
+          # - missions.repo.test.ts: bare mock.module(infra/db/client) — Linux find order places it
+          #   after missions.service.test.ts which caches missions.repo; dynamic import returns stale
+          #   module, MissionsRepository is undefined. Same root cause as gate-audit.repo.test.ts.
+          # - agent-profiles.repo.test.ts: same bare-mock pattern as missions.repo.test.ts
           bun test $(find src -name '*.test.ts' \
             -not -path '*/learning/__tests__/*' \
             -not -path '*/learning/analyzers/__tests__/*' \
@@ -72,8 +76,10 @@ jobs:
             -not -path '*/jobs/notification/__tests__/*' \
             -not -path '*/erp-bc/__tests__/encrypted-secret.test.ts' \
             -not -path '*/skills/__tests__/skills.dispatch.test.ts' \
-            -not -path '*/infra/billing/__tests__/budget-counter.test.ts')
-          # Remaining isolated steps (11 total):
+            -not -path '*/infra/billing/__tests__/budget-counter.test.ts' \
+            -not -path '*/missions/__tests__/missions.repo.test.ts' \
+            -not -path '*/agent-profiles/__tests__/agent-profiles.repo.test.ts')
+          # Remaining isolated steps (13 total):
           # - learning: engine, analyzers, and generators each in separate steps
           # - generators batched as one directory (each file has afterAll(() => mock.restore()))
           bun test src/modules/learning/__tests__/
@@ -87,6 +93,8 @@ jobs:
           bun test src/plugins/erp-bc/__tests__/encrypted-secret.test.ts
           bun test src/modules/skills/__tests__/skills.dispatch.test.ts
           bun test src/infra/billing/__tests__/budget-counter.test.ts
+          bun test src/modules/missions/__tests__/missions.repo.test.ts
+          bun test src/modules/agent-profiles/__tests__/agent-profiles.repo.test.ts
         env:
           CREDENTIALS_ENCRYPTION_KEY: ci-test-key-for-unit-tests-32bytes
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy

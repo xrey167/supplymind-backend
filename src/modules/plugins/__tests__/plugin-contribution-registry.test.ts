@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, mock } from 'bun:test';
+import { describe, test, expect, beforeEach, mock, afterAll } from 'bun:test';
 
 // Stub bullmq Worker so we don't need a real Redis connection
 const mockWorkerClose = mock(() => Promise.resolve());
@@ -167,6 +167,101 @@ describe('PluginContributionRegistry', () => {
     });
   });
 
+  describe('getGatewayOps', () => {
+    test('returns empty array when no plugins registered', () => {
+      expect(registry.getGatewayOps()).toEqual([]);
+    });
+
+    test('returns gateway ops from a single plugin', () => {
+      const mockHandler = mock(() => Promise.resolve({ ok: true, value: 'test' }));
+      const contrib: import('../plugin-contribution-registry').GatewayOpContribution = {
+        op: 'test.op',
+        handler: mockHandler as any,
+      };
+      registry.register('plugin-a', { gatewayOps: [contrib] });
+      const ops = registry.getGatewayOps();
+      expect(ops).toHaveLength(1);
+      expect(ops[0].op).toBe('test.op');
+    });
+
+    test('concatenates gateway ops from multiple plugins', () => {
+      const handlerA = mock(() => Promise.resolve({ ok: true, value: 'a' }));
+      const handlerB = mock(() => Promise.resolve({ ok: true, value: 'b' }));
+      registry.register('plugin-a', { gatewayOps: [{ op: 'plugin-a.op', handler: handlerA as any }] });
+      registry.register('plugin-b', { gatewayOps: [{ op: 'plugin-b.op', handler: handlerB as any }] });
+      const ops = registry.getGatewayOps();
+      expect(ops).toHaveLength(2);
+      expect(ops.map(o => o.op)).toContain('plugin-a.op');
+      expect(ops.map(o => o.op)).toContain('plugin-b.op');
+    });
+
+    test('skips plugins with no gatewayOps field', () => {
+      const mockHandler = mock(() => Promise.resolve({ ok: true, value: 'test' }));
+      registry.register('plugin-a', { gatewayOps: [{ op: 'plugin-a.op', handler: mockHandler as any }] });
+      registry.register('plugin-b', { topics: { FOO: 'foo.bar' } }); // no gatewayOps
+      const ops = registry.getGatewayOps();
+      expect(ops).toHaveLength(1);
+      expect(ops[0].op).toBe('plugin-a.op');
+    });
+  });
+
+  describe('findGatewayHandler', () => {
+    test('returns undefined for unknown op', () => {
+      expect(registry.findGatewayHandler('unknown.op')).toBeUndefined();
+    });
+
+    test('returns the handler for a registered op', () => {
+      const mockHandler = mock(() => Promise.resolve({ ok: true, value: 'found' }));
+      registry.register('plugin-a', { gatewayOps: [{ op: 'mission.create', handler: mockHandler as any }] });
+      const handler = registry.findGatewayHandler('mission.create');
+      expect(handler).toBe(mockHandler);
+    });
+
+    test('returns cached handler on second call (cache hit)', () => {
+      const mockHandler = mock(() => Promise.resolve({ ok: true, value: 'cached' }));
+      registry.register('plugin-a', { gatewayOps: [{ op: 'mission.get', handler: mockHandler as any }] });
+      // Build cache on first call
+      const h1 = registry.findGatewayHandler('mission.get');
+      // Retrieve from cache on second call
+      const h2 = registry.findGatewayHandler('mission.get');
+      expect(h1).toBe(h2);
+      expect(h1).toBe(mockHandler);
+    });
+
+    test('cache is invalidated when register() is called', () => {
+      const h1 = mock(() => Promise.resolve({ ok: true, value: 'v1' }));
+      const h2 = mock(() => Promise.resolve({ ok: true, value: 'v2' }));
+      registry.register('plugin-a', { gatewayOps: [{ op: 'mission.start', handler: h1 as any }] });
+      // Prime cache
+      expect(registry.findGatewayHandler('mission.start')).toBe(h1);
+      // Overwrite — should invalidate cache
+      registry.register('plugin-a', { gatewayOps: [{ op: 'mission.start', handler: h2 as any }] });
+      expect(registry.findGatewayHandler('mission.start')).toBe(h2);
+    });
+
+    test('cache is invalidated by clear()', () => {
+      const mockHandler = mock(() => Promise.resolve({ ok: true, value: 'ok' }));
+      registry.register('plugin-a', { gatewayOps: [{ op: 'mission.cancel', handler: mockHandler as any }] });
+      // Prime cache
+      expect(registry.findGatewayHandler('mission.cancel')).toBe(mockHandler);
+      registry.clear();
+      // After clear, op should not be found
+      expect(registry.findGatewayHandler('mission.cancel')).toBeUndefined();
+    });
+
+    test('dispatches all 5 mission-kernel ops', () => {
+      const ops = ['mission.create', 'mission.start', 'mission.get', 'mission.list', 'mission.cancel'];
+      const handlers = ops.map(op => {
+        const h = mock(() => Promise.resolve({ ok: true, value: op }));
+        return { op, handler: h as any };
+      });
+      registry.register('mission-kernel', { gatewayOps: handlers });
+      for (const { op, handler } of handlers) {
+        expect(registry.findGatewayHandler(op)).toBe(handler);
+      }
+    });
+  });
+
   describe('clear', () => {
     test('resets all contributions and active workers', async () => {
       registry.register('plugin-a', { topics: { A: 'a' }, roles: [{ role: 'r', privilege: 'agent' as const, allowedToolPrefixes: [] }] });
@@ -186,3 +281,5 @@ describe('PluginContributionRegistry', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

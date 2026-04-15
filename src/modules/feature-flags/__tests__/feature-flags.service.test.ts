@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 // Control repo behavior via shared state (closure pattern)
 let repoGetValue: any = undefined;
@@ -103,3 +103,5 @@ describe('featureFlagsService', () => {
     expect(store.has('ff:ws-1:__all__')).toBe(false);
   });
 });
+
+afterAll(() => mock.restore());

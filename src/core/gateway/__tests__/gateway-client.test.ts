@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 /**
  * Gateway client tests.
@@ -127,3 +127,5 @@ describe('GatewayClient', () => {
     expect(typeof cleanup).toBe('function');
   });
 });
+
+afterAll(() => mock.restore());

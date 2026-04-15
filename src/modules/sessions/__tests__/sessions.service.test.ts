@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach } from 'bun:test';
 import type { Session, SessionMessage } from '../sessions.types';
 
 const now = new Date();
@@ -123,3 +123,5 @@ describe('sessionsService', () => {
     expect(eventMocks.emitSessionPaused).toHaveBeenCalledWith('sess-1', 'ws-1', 'user request');
   });
 });
+
+afterAll(() => mock.restore());

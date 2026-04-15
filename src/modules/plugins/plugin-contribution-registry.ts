@@ -15,6 +15,7 @@
 
 import type { PermissionLayer } from '../../core/permissions/types';
 import type { Role } from '../../core/security/rbac';
+import type { GatewayRequest, GatewayResult } from '../../core/gateway/gateway.types';
 import type { Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
 
@@ -47,12 +48,19 @@ export interface WorkerContribution {
   factory: (connection: Redis) => Worker;
 }
 
+/** A gateway op handler contributed by a plugin. */
+export interface GatewayOpContribution {
+  op: string;
+  handler: (req: GatewayRequest) => Promise<GatewayResult>;
+}
+
 /** All contribution types a plugin manifest can declare. */
 export interface PluginContributions {
   topics?: PluginTopicContributions;
   roles?: WorkspaceRoleContribution[];
   workers?: WorkerContribution[];
   permissionLayers?: PermissionLayer[];
+  gatewayOps?: GatewayOpContribution[];
 }
 
 // ---------------------------------------------------------------------------
@@ -62,6 +70,8 @@ export interface PluginContributions {
 export class PluginContributionRegistry {
   private contributions = new Map<string, PluginContributions>();
   private activeWorkers: Array<{ worker: Worker; name: string }> = [];
+  /** Lazily-built O(1) lookup cache for gateway op handlers. Invalidated on register()/clear(). */
+  private gatewayOpCache: Map<string, GatewayOpContribution['handler']> | null = null;
 
   /**
    * Register a plugin's contributions by plugin ID.
@@ -69,6 +79,7 @@ export class PluginContributionRegistry {
    */
   register(pluginId: string, contributions: PluginContributions): void {
     this.contributions.set(pluginId, contributions);
+    this.gatewayOpCache = null; // invalidate on new registration
   }
 
   /** Merged topic map from all registered plugins. */
@@ -107,6 +118,31 @@ export class PluginContributionRegistry {
     return result;
   }
 
+  /** Flattened gateway op contribution list from all registered plugins. */
+  getGatewayOps(): GatewayOpContribution[] {
+    const result: GatewayOpContribution[] = [];
+    for (const contrib of this.contributions.values()) {
+      if (contrib.gatewayOps) result.push(...contrib.gatewayOps);
+    }
+    return result;
+  }
+
+  /**
+   * O(1) gateway op handler lookup. Builds a Map cache on first call and
+   * reuses it until register() or clear() invalidates it.
+   */
+  findGatewayHandler(op: string): GatewayOpContribution['handler'] | undefined {
+    if (!this.gatewayOpCache) {
+      this.gatewayOpCache = new Map();
+      for (const contrib of this.contributions.values()) {
+        for (const entry of contrib.gatewayOps ?? []) {
+          this.gatewayOpCache.set(entry.op, entry.handler);
+        }
+      }
+    }
+    return this.gatewayOpCache.get(op);
+  }
+
   /**
    * Start all contributed workers using the provided Redis connection.
    * Workers are tracked internally for graceful shutdown via stopWorkers().
@@ -131,6 +167,7 @@ export class PluginContributionRegistry {
   clear(): void {
     this.contributions.clear();
     this.activeWorkers = [];
+    this.gatewayOpCache = null;
   }
 }
 

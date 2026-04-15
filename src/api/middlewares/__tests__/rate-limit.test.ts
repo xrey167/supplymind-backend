@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 import { Hono } from 'hono';
 
 // ---------------------------------------------------------------------------
@@ -95,3 +95,5 @@ describe('rateLimit middleware (Redis-backed)', () => {
     );
   });
 });
+
+afterAll(() => mock.restore());

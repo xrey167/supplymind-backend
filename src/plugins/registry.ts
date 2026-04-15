@@ -13,8 +13,10 @@
 import type { PluginManifest } from '../modules/plugins/plugin-manifest';
 import { supplyChainManifest } from './supply-chain/manifest';
 import { erpBcManifest } from './erp-bc/manifest';
+import { missionKernelManifest } from './mission-kernel/manifest';
 
 export const CONTRIBUTION_PLUGINS: PluginManifest[] = [
   supplyChainManifest,
   erpBcManifest,
+  missionKernelManifest,
 ];

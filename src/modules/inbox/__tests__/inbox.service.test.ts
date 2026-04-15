@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, mock } from 'bun:test';
+import { describe, test, expect, beforeEach, mock, afterAll } from 'bun:test';
 
 // Re-export real InboxRepository via require+proxy to avoid contaminating inbox.repo.test.ts.
 const _realInboxRepo = require('../inbox.repo');
@@ -91,3 +91,5 @@ describe('InboxService', () => {
     expect(deleted).toBe(5);
   });
 });
+
+afterAll(() => mock.restore());

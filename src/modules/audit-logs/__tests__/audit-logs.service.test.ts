@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach } from 'bun:test';
 import type { CreateAuditLogInput, AuditLog, AuditLogFilter } from '../audit-logs.types';
 
 const fakeAuditLog: AuditLog = {
@@ -104,3 +104,5 @@ describe('AuditLogsService (logic)', () => {
     expect(repo.count).toHaveBeenCalledWith(filter);
   });
 });
+
+afterAll(() => mock.restore());

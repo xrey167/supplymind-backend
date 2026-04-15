@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 const mockSelect = mock(() => ({
   from: mock(() => ({
@@ -28,7 +28,9 @@ mock.module('../../../../infra/db/client', () => ({
   },
 }));
 
+const _realSchema = require('../../../../infra/db/schema');
 mock.module('../../../../infra/db/schema', () => ({
+  ..._realSchema,
   userSettings: {
     userId: 'user_id',
     key: 'key',
@@ -37,7 +39,9 @@ mock.module('../../../../infra/db/schema', () => ({
   },
 }));
 
+const _realDrizzle = require('drizzle-orm');
 mock.module('drizzle-orm', () => ({
+  ..._realDrizzle,
   eq: (a: any, b: any) => ({ col: a, val: b }),
   and: (...args: any[]) => args,
 }));
@@ -124,3 +128,5 @@ describe('UserSettingsRepository', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

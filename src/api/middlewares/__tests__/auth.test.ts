@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 import { Hono } from 'hono';
 
 mock.module('../../../config/logger', () => ({
@@ -232,3 +232,5 @@ describe('requireRole middleware', () => {
     expect(res.status).toBe(200);
   });
 });
+
+afterAll(() => mock.restore());

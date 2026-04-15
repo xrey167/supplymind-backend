@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, mock, afterAll } from 'bun:test';
 import type { DomainKnowledgeGraph } from '../domain-knowledge.service';
 
 // --- mock domainKnowledgeService ---------------------------------------------
@@ -155,3 +155,5 @@ describe('domain-context-injector', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

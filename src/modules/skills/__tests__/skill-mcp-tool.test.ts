@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 import { ok, err } from '../../../core/result';
 import type { DispatchContext } from '../skills.types';
 
@@ -231,3 +231,5 @@ describe('skill_mcp builtin skill', () => {
     expect(toolArgs).toEqual({ q: 'foo', limit: 10 });
   });
 });
+
+afterAll(() => mock.restore());

@@ -139,3 +139,5 @@ describe('notification.handler', () => {
     expect(call.body).toContain('Alice');
   });
 });
+
+afterAll(() => mock.restore());

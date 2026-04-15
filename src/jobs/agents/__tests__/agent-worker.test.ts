@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 // ---- Worker capture setup ----
 // We capture the processor and event handlers registered with the Worker constructor
@@ -162,3 +162,5 @@ describe('agent worker', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

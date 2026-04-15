@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 import type { AgentCard } from '../../../infra/a2a/types';
 import type { RegisteredAgent } from '../agent-registry.types';
 
@@ -209,3 +209,5 @@ describe('AgentRegistryService', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

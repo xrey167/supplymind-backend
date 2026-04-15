@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 // ── Mock handles ──────────────────────────────────────────────────────────────
 
@@ -153,3 +153,5 @@ describe('AlertRulesService condition filtering (handler simulation)', () => {
     expect(passes).toBe(false);
   });
 });
+
+afterAll(() => mock.restore());

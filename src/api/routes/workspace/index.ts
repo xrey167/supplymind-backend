@@ -33,6 +33,8 @@ import { alertRulesRoutes } from '../../../modules/alert-rules/alert-rules.route
 import { learningRoutes } from '../../../modules/learning/learning.routes';
 import { approvalsRoutes } from '../../../modules/approvals/approvals.routes';
 import { collabIntelRoutes } from '../../../modules/collab-intel';
+import { MissionsRoutes } from '../../../modules/missions/missions.routes';
+import { AgentProfilesRoutes } from '../../../modules/agent-profiles/agent-profiles.routes';
 
 const workspaceRoutes = new OpenAPIHono<AppEnv>();
 
@@ -72,5 +74,7 @@ workspaceRoutes.route('/alert-rules', alertRulesRoutes);
 workspaceRoutes.route('/learning', learningRoutes());
 workspaceRoutes.route('/approvals', approvalsRoutes);
 workspaceRoutes.route('/collab-intel', collabIntelRoutes);
+workspaceRoutes.route('/missions', MissionsRoutes);
+workspaceRoutes.route('/agent-profiles', AgentProfilesRoutes);
 
 export { workspaceRoutes };

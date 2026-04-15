@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, mock, beforeAll } from 'bun:test';
+import { describe, test, expect, beforeEach, mock, afterAll, beforeAll } from 'bun:test';
 import type { Credential } from '../credentials.types';
 
 beforeAll(() => {
@@ -158,3 +158,5 @@ describe('CredentialsService', () => {
     expect(deleted).toBe(false);
   });
 });
+
+afterAll(() => mock.restore());

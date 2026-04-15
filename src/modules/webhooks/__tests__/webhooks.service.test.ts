@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 // ── Mock handles ──────────────────────────────────────────────────────────────
 
@@ -142,3 +142,5 @@ describe('WebhooksService.verifyAndIngest', () => {
     expect(mockRepo.markDeliveryProcessed).not.toHaveBeenCalled();
   });
 });
+
+afterAll(() => mock.restore());

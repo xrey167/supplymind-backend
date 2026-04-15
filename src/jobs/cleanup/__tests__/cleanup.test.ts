@@ -56,3 +56,5 @@ describe('cleanup job', () => {
     expect(mockDeleteExpiredKeys).toHaveBeenCalledTimes(1);
   });
 });
+
+afterAll(() => mock.restore());

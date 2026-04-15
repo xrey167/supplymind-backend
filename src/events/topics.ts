@@ -138,6 +138,7 @@ export const Topics = {
   WEBHOOK_RECEIVED: 'webhook.received',
   // Alert rules
   ALERT_RULE_FIRED: 'alert.rule.fired',
+  // Mission/AgentProfile topics contributed by plugins/mission-kernel — merged into Topics at bootstrap
 } satisfies Record<string, string>;
 
 export type Topic = typeof Topics[keyof typeof Topics];

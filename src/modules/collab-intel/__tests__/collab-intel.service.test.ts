@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 // ── Mock function handles ─────────────────────────────────────────────────────
 
@@ -373,3 +373,5 @@ describe('CollabIntelService.respondApprovalStep', () => {
     expect(mockNotify).toHaveBeenCalledWith(expect.objectContaining({ userId: 'user-creator', type: 'collab_approval_resolved' }));
   });
 });
+
+afterAll(() => mock.restore());

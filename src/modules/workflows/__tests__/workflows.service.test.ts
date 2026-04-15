@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, mock } from 'bun:test';
+import { describe, test, expect, beforeEach, mock, afterAll } from 'bun:test';
 
 // ── Mocks (declared before module imports) ──────────────────────────────────
 
@@ -260,3 +260,5 @@ describe('workflowsService', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

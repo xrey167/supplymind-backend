@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock, spyOn } from 'bun:test';
+import { describe, it, expect, beforeEach, mock, afterAll, spyOn } from 'bun:test';
 // Minimal EventBus stub — avoids importing the real bus module which
 // breaks under cross-file mock.module contamination in bun:test.
 interface BusEvent {
@@ -29,7 +29,9 @@ const fakeDb = { insert: insertFn };
 // Dummy db/client mock — prevents real postgres connection on import.
 // The actual test mock (fakeDb) is passed via DI to initTaskObserver.
 mock.module('../../../../infra/db/client', () => ({ db: {} }));
+const _realSchema = require('../../../../infra/db/schema');
 mock.module('../../../../infra/db/schema', () => ({
+  ..._realSchema,
   learningObservations: Symbol('learningObservations'),
   skillPerformanceMetrics: { id: 'id', workspaceId: 'workspaceId', skillId: 'skillId', windowStart: 'windowStart' },
 }));
@@ -136,3 +138,5 @@ describe('task-observer', () => {
     expect(insertFn).not.toHaveBeenCalled();
   });
 });
+
+afterAll(() => mock.restore());

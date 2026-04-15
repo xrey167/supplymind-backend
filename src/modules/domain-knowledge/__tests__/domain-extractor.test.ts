@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, mock, afterAll } from 'bun:test';
 import { Topics } from '../../../events/topics';
 import type { BusEvent } from '../../../events/bus';
 import type { DomainKnowledgeGraph } from '../domain-knowledge.service';
@@ -157,3 +157,5 @@ describe('domain-extractor', () => {
     expect(mockUpdateFromObservation).not.toHaveBeenCalled();
   });
 });
+
+afterAll(() => mock.restore());

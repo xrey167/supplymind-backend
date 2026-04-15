@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach, afterEach, spyOn } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach, afterEach, spyOn } from 'bun:test';
 
 // Mock dynamic imports used by memory.service (safe — these are await import() calls)
 mock.module('../memory.embedding', () => ({

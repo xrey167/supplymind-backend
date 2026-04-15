@@ -1,4 +1,4 @@
-import { describe, it, expect, mock } from 'bun:test';
+import { describe, it, expect, mock, afterAll } from 'bun:test';
 
 mock.module('../../../config/logger', () => ({
   logger: { warn: mock(() => {}), error: mock(() => {}), info: mock(() => {}), debug: mock(() => {}) },
@@ -81,3 +81,5 @@ describe('task-inputs', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

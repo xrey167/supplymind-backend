@@ -235,3 +235,5 @@ describe('runOrchestration', () => {
     expect(decision.decision).toBe('s1');
   });
 });
+
+afterAll(() => mock.restore());

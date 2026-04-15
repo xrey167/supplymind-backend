@@ -28,7 +28,8 @@ export type GatewayOp =
   | 'plan.create'
   | 'plan.run'
   | 'plan.approve'
-  | 'plan.get';
+  | 'plan.get'
+  | (string & {}); // allows plugin-contributed ops
 
 // ---------------------------------------------------------------------------
 // Streaming events — protocol-agnostic, each transport adapter projects these
