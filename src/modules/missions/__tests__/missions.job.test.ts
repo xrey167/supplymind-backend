@@ -5,7 +5,7 @@ import type { MissionRun, MissionWorker } from '../missions.types';
 
 const mockStart = mock(async (id: string) =>
   id === 'mr-1'
-    ? { ok: true, value: { id: 'mr-1', name: 'Test', mode: 'task', status: 'running', input: {}, metadata: {}, disciplineMaxRetries: 3, spentCents: 0, costBreakdown: {}, createdAt: new Date(), updatedAt: new Date() } as MissionRun }
+    ? { ok: true, value: { id: 'mr-1', name: 'Test', mode: 'autopilot', status: 'running', input: {}, metadata: {}, disciplineMaxRetries: 3, spentCents: 0, costBreakdown: {}, createdAt: new Date(), updatedAt: new Date() } as MissionRun }
     : { ok: false, error: new Error('Mission not found') }
 );
 

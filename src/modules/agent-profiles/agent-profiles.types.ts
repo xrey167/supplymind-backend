@@ -28,7 +28,7 @@ export interface AgentProfile {
 }
 
 export interface CreateAgentProfileInput {
-  workspaceId: string;
+  workspaceId?: string;
   name: string;
   category: AgentCategory;
   provider?: string;

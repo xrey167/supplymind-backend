@@ -39,7 +39,7 @@ const listRoute = createRoute({
 const getRoute = createRoute({
   method: 'get', path: '/{missionId}',
   request: { params: missionIdParamSchema },
-  responses: { 200: { description: 'Mission', ...jsonRes }, 404: errRes('Not found') },
+  responses: { 200: { description: 'Mission', ...jsonRes }, 400: errRes('Bad request'), 404: errRes('Not found'), 409: errRes('Conflict'), 500: errRes('Internal error') },
 });
 
 const createMissionRoute = createRoute({
@@ -53,8 +53,10 @@ const startRoute = createRoute({
   request: { params: missionIdParamSchema },
   responses: {
     200: { description: 'Mission started', ...jsonRes },
+    400: errRes('Bad request'),
     404: errRes('Not found'),
     409: errRes('Conflict'),
+    500: errRes('Internal error'),
   },
 });
 
@@ -63,8 +65,10 @@ const pauseRoute = createRoute({
   request: { params: missionIdParamSchema },
   responses: {
     200: { description: 'Mission paused', ...jsonRes },
+    400: errRes('Bad request'),
     404: errRes('Not found'),
     409: errRes('Conflict'),
+    500: errRes('Internal error'),
   },
 });
 
@@ -73,15 +77,17 @@ const cancelRoute = createRoute({
   request: { params: missionIdParamSchema },
   responses: {
     200: { description: 'Mission cancelled', ...jsonRes },
+    400: errRes('Bad request'),
     404: errRes('Not found'),
     409: errRes('Conflict'),
+    500: errRes('Internal error'),
   },
 });
 
 const listArtifactsRoute = createRoute({
   method: 'get', path: '/{missionId}/artifacts',
   request: { params: missionIdParamSchema },
-  responses: { 200: { description: 'Artifacts', ...jsonRes }, 404: errRes('Not found') },
+  responses: { 200: { description: 'Artifacts', ...jsonRes }, 404: errRes('Not found'), 400: errRes('Bad request'), 409: errRes('Conflict'), 500: errRes('Internal error') },
 });
 
 const createArtifactRoute = createRoute({
@@ -90,19 +96,19 @@ const createArtifactRoute = createRoute({
     params: missionIdParamSchema,
     body: { content: { 'application/json': { schema: createArtifactSchema } } },
   },
-  responses: { 201: { description: 'Artifact created', ...jsonRes }, 404: errRes('Not found') },
+  responses: { 201: { description: 'Artifact created', ...jsonRes }, 400: errRes('Bad request'), 404: errRes('Not found'), 409: errRes('Conflict'), 500: errRes('Internal error') },
 });
 
 const listEventsRoute = createRoute({
   method: 'get', path: '/{missionId}/events',
   request: { params: missionIdParamSchema, query: eventsQuerySchema },
-  responses: { 200: { description: 'Mission events', ...jsonRes }, 404: errRes('Not found') },
+  responses: { 200: { description: 'Mission events', ...jsonRes }, 400: errRes('Bad request'), 404: errRes('Not found'), 409: errRes('Conflict'), 500: errRes('Internal error') },
 });
 
 const runCostRoute = createRoute({
   method: 'get', path: '/{missionId}/runs/{runId}/cost',
   request: { params: runCostParamSchema },
-  responses: { 200: { description: 'Run cost breakdown', ...jsonRes }, 404: errRes('Not found') },
+  responses: { 200: { description: 'Run cost breakdown', ...jsonRes }, 400: errRes('Bad request'), 404: errRes('Not found'), 409: errRes('Conflict'), 500: errRes('Internal error') },
 });
 
 // ── Handlers ──────────────────────────────────────────────────────────────────

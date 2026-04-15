@@ -62,7 +62,7 @@ function makeRun(overrides: Partial<MissionRun> = {}): MissionRun {
     id: 'run-1',
     workspaceId: 'ws-1',
     name: 'Test Mission',
-    mode: 'task',
+    mode: 'autopilot',
     status: 'running',
     input: {},
     metadata: {},
@@ -82,7 +82,7 @@ function makeWorker(overrides: Partial<MissionWorker> = {}): MissionWorker {
     missionRunId: 'run-1',
     role: 'executor',
     status: 'pending',
-    retryCount: 0,
+    metadata: {},
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -164,7 +164,7 @@ describe('executeMission', () => {
       await executeMission(run, { kind: 'orchestration' } as MissionPlan, workers);
 
       expect(mockRunPhases).toHaveBeenCalledTimes(1);
-      const arg = mockRunPhases.mock.calls[0][0] as any;
+      const arg = (mockRunPhases.mock.calls as any[][])[0][0];
       expect(arg.workspaceId).toBe('ws-1');
       expect(arg.phases).toHaveLength(2);
     });

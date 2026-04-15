@@ -119,7 +119,7 @@ describe('MissionsService', () => {
   });
 
   it('emitArtifact() creates artifact and publishes event', async () => {
-    const r = await service.emitArtifact({ missionRunId: 'mr-1', kind: 'text', content: 'hello' });
+    const r = await service.emitArtifact({ missionRunId: 'mr-1', kind: 'summary', content: 'hello' });
     expect(r.ok).toBe(true);
     expect(mockBus.publish).toHaveBeenCalledWith('mission.artifact.created', expect.anything());
   });

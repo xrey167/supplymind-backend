@@ -134,7 +134,7 @@ describe('PluginManager.install() — domainPack', () => {
   });
 
   it('does not fail install when profile creation fails (non-fatal)', async () => {
-    mockCreateProfile.mockImplementationOnce(async () => ({ ok: false, error: new Error('DB error') }));
+    mockCreateProfile.mockImplementationOnce(async () => ({ ok: false, error: new Error('DB error') }) as any);
     await expect(manager.install(manifest, 'ws-fail')).resolves.toBeTypeOf('function');
   });
 });

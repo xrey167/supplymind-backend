@@ -53,7 +53,7 @@ const { registerMissionBudgetTracker } = await import('../budget-tracker');
 
 function makeRun(overrides: Partial<MissionRun> = {}): MissionRun {
   return {
-    id: 'run-1', workspaceId: 'ws-1', name: 'Test', mode: 'task', status: 'running',
+    id: 'run-1', workspaceId: 'ws-1', name: 'Test', mode: 'autopilot', status: 'running',
     input: {}, metadata: {}, disciplineMaxRetries: 3,
     spentCents: 0, costBreakdown: {}, budgetCents: null,
     createdAt: new Date(), updatedAt: new Date(),

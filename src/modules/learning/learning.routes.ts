@@ -19,12 +19,14 @@ import {
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
 
+const errRes = (desc: string) => ({ description: desc, ...jsonRes });
+
 const listProposalsRoute = createRoute({
   method: 'get',
   path: '/proposals',
   summary: 'List improvement proposals',
   request: { query: listProposalsQuerySchema },
-  responses: { 200: { description: 'Proposals', ...jsonRes } },
+  responses: { 200: { description: 'Proposals', ...jsonRes }, 500: errRes('Internal error') },
 });
 
 const getProposalRoute = createRoute({
@@ -34,7 +36,8 @@ const getProposalRoute = createRoute({
   request: { params: proposalIdParamSchema },
   responses: {
     200: { description: 'Proposal', ...jsonRes },
-    404: { description: 'Not found', ...jsonRes },
+    404: errRes('Not found'),
+    500: errRes('Internal error'),
   },
 });
 
@@ -43,7 +46,7 @@ const approveProposalRoute = createRoute({
   path: '/proposals/{proposalId}/approve',
   summary: 'Approve an improvement proposal',
   request: { params: proposalIdParamSchema },
-  responses: { 200: { description: 'Approved', ...jsonRes } },
+  responses: { 200: { description: 'Approved', ...jsonRes }, 400: errRes('Bad request'), 404: errRes('Not found') },
 });
 
 const rejectProposalRoute = createRoute({
@@ -51,7 +54,7 @@ const rejectProposalRoute = createRoute({
   path: '/proposals/{proposalId}/reject',
   summary: 'Reject an improvement proposal',
   request: { params: proposalIdParamSchema },
-  responses: { 200: { description: 'Rejected', ...jsonRes } },
+  responses: { 200: { description: 'Rejected', ...jsonRes }, 400: errRes('Bad request'), 404: errRes('Not found') },
 });
 
 const rollbackProposalRoute = createRoute({
@@ -59,14 +62,14 @@ const rollbackProposalRoute = createRoute({
   path: '/proposals/{proposalId}/rollback',
   summary: 'Rollback an applied proposal',
   request: { params: proposalIdParamSchema },
-  responses: { 200: { description: 'Rolled back', ...jsonRes } },
+  responses: { 200: { description: 'Rolled back', ...jsonRes }, 400: errRes('Bad request'), 404: errRes('Not found') },
 });
 
 const getTrustTierRoute = createRoute({
   method: 'get',
   path: '/trust-tier',
   summary: 'Get learning trust tier config for workspace',
-  responses: { 200: { description: 'Trust tier config', ...jsonRes } },
+  responses: { 200: { description: 'Trust tier config', ...jsonRes }, 500: errRes('Internal error') },
 });
 
 const updateTrustTierRoute = createRoute({
@@ -74,7 +77,7 @@ const updateTrustTierRoute = createRoute({
   path: '/trust-tier',
   summary: 'Update workspace learning trust tier',
   request: { body: { content: { 'application/json': { schema: updateTrustTierBodySchema } } } },
-  responses: { 200: { description: 'Updated', ...jsonRes } },
+  responses: { 200: { description: 'Updated', ...jsonRes }, 500: errRes('Internal error') },
 });
 
 export function learningRoutes() {
