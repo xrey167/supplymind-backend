@@ -101,6 +101,8 @@ export interface PluginContributions {
   /** Prompt templates seeded into a workspace when the plugin is installed there. */
   promptTemplates?: PromptTemplateContribution[];
   gatewayOps?: GatewayOpContribution[];
+  /** Called once at app startup after all contributions are applied (e.g. seed scheduler state from DB). */
+  onBootstrap?: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -238,6 +240,19 @@ export class PluginContributionRegistry {
       this.activeWorkers.push({ worker, name: workerContrib.name });
     }
     return handles;
+  }
+
+  /**
+   * Run each plugin's onBootstrap callback fire-and-forget (non-blocking).
+   * Errors are swallowed per plugin so one failing callback does not block others.
+   * Bootstrap.ts wraps the outer call in its own try/catch for logging.
+   */
+  runBootstrapCallbacks(): void {
+    for (const contrib of this.contributions.values()) {
+      if (contrib.onBootstrap) {
+        contrib.onBootstrap().catch(() => { /* caller's try/catch handles logging */ });
+      }
+    }
   }
 
   /** Gracefully close all workers started via startWorkers(). */

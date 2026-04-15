@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { syncJobsRepo } from './sync-jobs.repo';
-import { upsertSyncSchedule, removeSyncSchedule } from '../../../jobs/erp-sync-scheduler';
+import { upsertSyncSchedule, removeSyncSchedule } from './erp-sync-scheduler';
 import { logger } from '../../../config/logger';
 
 const createSchema = z.object({

@@ -1,7 +1,7 @@
 import { usageRepo } from './usage.repo';
 import { calculateCost, resolveProvider } from './pricing';
 import { workspaceSettingsService } from '../settings/workspace-settings/workspace-settings.service';
-import { incrementBudgetCounter } from '../../infra/billing/budget-counter';
+import { incrementBudgetCounter } from '../../engine/billing/budget-counter';
 import { logger } from '../../config/logger';
 import type { RecordUsageInput } from './usage.types';
 

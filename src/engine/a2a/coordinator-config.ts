@@ -1,4 +1,4 @@
-import type { AIProvider, ToolChoice } from '../ai/types';
+import type { AIProvider, ToolChoice } from '../../infra/ai/types';
 
 export const COORDINATOR_SYSTEM_PROMPT = `You are a coordinator agent. Your responsibilities:
 - Synthesize findings from sub-agents into coherent, actionable output

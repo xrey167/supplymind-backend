@@ -1,5 +1,5 @@
-import { db } from '../db/client';
-import { gateAuditLog } from '../db/schema';
+import { db } from '../../infra/db/client';
+import { gateAuditLog } from '../../infra/db/schema';
 import { eq, desc } from 'drizzle-orm';
 
 export interface GateAuditRecord {

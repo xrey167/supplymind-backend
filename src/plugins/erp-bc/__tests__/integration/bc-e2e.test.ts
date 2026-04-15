@@ -17,7 +17,7 @@
 import { describe, it, expect } from 'bun:test';
 import { getToken } from '../../connector/bc-auth';
 import { BcClient } from '../../connector/bc-client';
-import { upsertSyncSchedule, removeSyncSchedule } from '../../../../jobs/erp-sync-scheduler';
+import { upsertSyncSchedule, removeSyncSchedule } from '../../sync/erp-sync-scheduler';
 
 // ---------------------------------------------------------------------------
 // Credential guards

@@ -3,7 +3,7 @@ import type { Skill, SkillProvider } from '../skills.types';
 import { logger } from '../../../config/logger';
 import { eventBus } from '../../../events/bus';
 import { Topics } from '../../../events/topics';
-import { createInputRequest } from '../../../infra/state/task-inputs';
+import { createInputRequest } from '../../../engine/gates/task-inputs';
 import { skillsService } from '../skills.service';
 import { skillEmbeddedMcpManager } from '../../../infra/mcp/embedded-manager';
 
@@ -66,7 +66,7 @@ export class BuiltinSkillProvider implements SkillProvider {
             prompt,
           });
 
-          const { taskRepo } = await import('../../../infra/a2a/task-repo');
+          const { taskRepo } = await import('../../../engine/a2a/task-repo');
           await taskRepo.updateStatus(taskId, 'input_required');
 
           // Wait for user input (5 minute timeout)

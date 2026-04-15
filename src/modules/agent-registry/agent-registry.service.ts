@@ -1,8 +1,8 @@
 import { ok, err } from '../../core/result';
 import type { Result } from '../../core/result';
 import { logger } from '../../config/logger';
-import { workerRegistry } from '../../infra/a2a/worker-registry';
-import type { AgentCard } from '../../infra/a2a/types';
+import { workerRegistry } from '../../engine/a2a/worker-registry';
+import type { AgentCard } from '../../engine/a2a/types';
 import { agentRegistryRepo } from './agent-registry.repo';
 import type { RegisteredAgent } from './agent-registry.types';
 
@@ -18,7 +18,7 @@ export class AgentRegistryService {
   async register(workspaceId: string, url: string, apiKey?: string): Promise<Result<RegisteredAgent>> {
     try {
       // 1. Discover agent card (best-effort; registration proceeds even if discovery fails)
-      let card: import('../../infra/a2a/types').AgentCard;
+      let card: import('../../engine/a2a/types').AgentCard;
       try {
         card = await this.wReg.discover(url, apiKey);
       } catch (discoverErr) {

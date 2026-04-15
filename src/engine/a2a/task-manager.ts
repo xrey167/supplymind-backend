@@ -1,11 +1,11 @@
 import { nanoid } from 'nanoid';
-import * as runtimeFactory from '../ai/runtime-factory';
-import type { AgentRuntime, AIProvider, AgentMode } from '../ai/types';
+import * as runtimeFactory from '../../infra/ai/runtime-factory';
+import type { AgentRuntime, AIProvider, AgentMode } from '../../infra/ai/types';
 import * as skillsRegistryModule from '../../modules/skills/skills.registry';
 import * as skillsDispatch from '../../modules/skills/skills.dispatch';
 import { eventBus } from '../../events/bus';
 import { Topics } from '../../events/topics';
-import type { Message, RunInput, RunResult } from '../ai/types';
+import type { Message, RunInput, RunResult } from '../../infra/ai/types';
 import type { DispatchContext } from '../../modules/skills/skills.types';
 import type { A2ATask, TaskState, TaskSendParams, A2AMessage } from './types';
 import type { AgentConfig } from './coordinator-config';
@@ -16,7 +16,7 @@ import { sessionsService } from '../../modules/sessions/sessions.service';
 import { sessionsRepo } from '../../modules/sessions/sessions.repo';
 import { taskRepo } from './task-repo';
 import { logger } from '../../config/logger';
-import { captureException } from '../observability/sentry';
+import { captureException } from '../../infra/observability/sentry';
 import { workspaceSettingsService } from '../../modules/settings/workspace-settings/workspace-settings.service';
 import { usageService } from '../../modules/usage/usage.service';
 

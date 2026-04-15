@@ -2,14 +2,14 @@
  * ERP BC Cron Scheduler
  *
  * Manages BullMQ repeatable job schedulers for sync_jobs rows that
- * have a cron `schedule` value.  The queue name must match the worker
- * in `src/infra/queue/workers/erp-sync.worker.ts` ('erp-sync').
+ * have a cron `schedule` value. The queue name must match the worker
+ * in `src/plugins/erp-bc/workers/erp-sync.worker.ts` ('erp-sync').
  */
 
 import { Queue } from 'bullmq';
-import { redis as connection } from '../infra/queue/bullmq';
-import { syncJobsRepo } from '../plugins/erp-bc/sync/sync-jobs.repo';
-import { logger } from '../config/logger';
+import { redis as connection } from '../../../infra/queue/bullmq';
+import { syncJobsRepo } from './sync-jobs.repo';
+import { logger } from '../../../config/logger';
 
 const ERP_SYNC_QUEUE_NAME = 'erp-sync';
 const SCHEDULER_KEY_PREFIX = 'erp-sync-cron';

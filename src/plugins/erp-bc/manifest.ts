@@ -4,7 +4,8 @@ import type { PluginManifest } from '../../modules/plugins/plugin-manifest';
 import { syncNow } from './skills/sync-now';
 import { getEntity } from './skills/get-entity';
 import { postAction } from './skills/post-action';
-import { createErpSyncWorker } from '../../infra/queue/workers/erp-sync.worker';
+import { createErpSyncWorker } from './workers/erp-sync.worker';
+import { bootstrapErpSyncSchedules } from './sync/erp-sync-scheduler';
 
 export const erpBcManifest: PluginManifest = {
   id: 'erp-bc',
@@ -45,6 +46,7 @@ export const erpBcManifest: PluginManifest = {
         },
       },
     ],
+    onBootstrap: bootstrapErpSyncSchedules,
   },
   skills: [
     {

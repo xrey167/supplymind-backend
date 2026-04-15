@@ -1,6 +1,6 @@
 import { describe, it, expect, mock, spyOn, beforeEach, afterAll } from 'bun:test';
 import type { CoordinatorRunInput } from '../coordinator';
-import { taskManager } from '../../infra/a2a/task-manager';
+import { taskManager } from '../../engine/a2a/task-manager';
 import { eventBus } from '../../events/bus';
 import { CoordinatorMode } from '../coordinator';
 

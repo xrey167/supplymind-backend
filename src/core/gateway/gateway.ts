@@ -105,7 +105,7 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
 
       // Route 1: tool approval response (with optional updatedInput)
       if (params.approvalId) {
-        const { resolveApproval } = await import('../../infra/state/tool-approvals');
+        const { resolveApproval } = await import('../../engine/gates/tool-approvals');
         const resolved = resolveApproval(
           params.approvalId as string,
           context.workspaceId,
@@ -119,7 +119,7 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
 
       // Route 2: orchestration gate response
       if (params.orchestrationId && params.stepId) {
-        const { resolveGate } = await import('../../infra/state/orchestration-gates');
+        const { resolveGate } = await import('../../engine/gates/orchestration-gates');
         const resolved = resolveGate(
           params.orchestrationId as string,
           params.stepId as string,
@@ -133,7 +133,7 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
       }
 
       // Route 3: generic mid-task user input
-      const { resolveInput } = await import('../../infra/state/task-inputs');
+      const { resolveInput } = await import('../../engine/gates/task-inputs');
       const resolved = resolveInput(taskId, context.workspaceId, input);
       return resolved
         ? ok({ taskId, resolved: true })
@@ -141,7 +141,7 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
     }
 
     case 'task.interrupt': {
-      const { taskManager } = await import('../../infra/a2a/task-manager');
+      const { taskManager } = await import('../../engine/a2a/task-manager');
       const interrupted = taskManager.interrupt(params.id as string);
       return interrupted
         ? ok({ id: params.id, interrupted: true })
@@ -240,7 +240,7 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
     }
 
     case 'orchestration.gate.respond': {
-      const { resolveGate } = await import('../../infra/state/orchestration-gates');
+      const { resolveGate } = await import('../../engine/gates/orchestration-gates');
       const resolved = resolveGate(
         params.orchestrationId as string,
         params.stepId as string,
@@ -257,7 +257,7 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
     // A2A Delegation (outbound to external agents)
     // ------------------------------------------------------------------
     case 'a2a.delegate': {
-      const { workerRegistry } = await import('../../infra/a2a/worker-registry');
+      const { workerRegistry } = await import('../../engine/a2a/worker-registry');
       const agentUrl = params.agentUrl as string;
       const result = await workerRegistry.delegate(agentUrl, {
         skillId: params.skillId as string | undefined,

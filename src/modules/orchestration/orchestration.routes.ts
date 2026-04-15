@@ -6,7 +6,7 @@ import { createOrchestrationSchema, orchestrationIdParamSchema } from './orchest
 import { enqueueOrchestration } from '../../infra/queue/bullmq';
 import type { OrchestrationDefinition } from './orchestration.types';
 import { AppError } from '../../core/errors';
-import { gateAuditRepo } from '../../infra/state/gate-audit.repo';
+import { gateAuditRepo } from '../../engine/gates/gate-audit.repo';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
 const errRes = (desc: string) => ({ description: desc, ...jsonRes });

@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { registeredAgents } from '../../infra/db/schema';
 import type { RegisteredAgent } from './agent-registry.types';
-import type { AgentCard } from '../../infra/a2a/types';
+import type { AgentCard } from '../../engine/a2a/types';
 
 function toRegisteredAgent(row: typeof registeredAgents.$inferSelect): RegisteredAgent {
   return {

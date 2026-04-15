@@ -1,7 +1,7 @@
 import { eventBus } from '../bus';
 import { Topics } from '../topics';
 import { logger } from '../../config/logger';
-import { taskRepo } from '../../infra/a2a/task-repo';
+import { taskRepo } from '../../engine/a2a/task-repo';
 import { enqueueAgentRun } from '../../infra/queue/bullmq';
 import { initMemoryExtractionHandler } from './memory-extraction.handler';
 import { initNotificationHandler } from './notification.handler';

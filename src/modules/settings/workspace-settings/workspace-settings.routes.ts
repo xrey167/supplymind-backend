@@ -3,7 +3,7 @@ import type { AppEnv } from '../../../core/types';
 import { z } from 'zod';
 import { workspaceSettingsService } from './workspace-settings.service';
 import { updateWorkspaceSettingsSchema, approvalIdParamSchema } from './workspace-settings.schemas';
-import { resolveApproval } from '../../../infra/state/tool-approvals';
+import { resolveApproval } from '../../../engine/gates/tool-approvals';
 import { eventBus } from '../../../events/bus';
 import { Topics } from '../../../events/topics';
 

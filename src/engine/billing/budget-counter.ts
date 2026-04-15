@@ -1,4 +1,4 @@
-import { getSharedRedisClient } from '../redis/client';
+import { getSharedRedisClient } from '../../infra/redis/client';
 
 /** Redis key for the workspace's budget accumulator for a given YYYY-MM. */
 function budgetKey(workspaceId: string, month: string): string {

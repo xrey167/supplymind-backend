@@ -51,8 +51,8 @@ const mockRepo = {
 
 // Mock budget counter (Redis) — default: counter returns 0 (cold start)
 const mockGetBudgetCounter = mock(() => Promise.resolve(0 as number));
-const _realBudgetCounter = require('../../../infra/billing/budget-counter');
-mock.module('../../../infra/billing/budget-counter', () => ({
+const _realBudgetCounter = require('../../../engine/billing/budget-counter');
+mock.module('../../../engine/billing/budget-counter', () => ({
   ..._realBudgetCounter,
   getBudgetCounter: mockGetBudgetCounter,
   incrementBudgetCounter: mock(() => Promise.resolve(0)),

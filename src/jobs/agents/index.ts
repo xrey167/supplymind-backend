@@ -1,8 +1,8 @@
 import { Worker } from 'bullmq';
 import Redis from 'ioredis';
 import type { AgentJobData } from '../../infra/queue/bullmq';
-import { taskManager } from '../../infra/a2a/task-manager';
-import { taskRepo } from '../../infra/a2a/task-repo';
+import { taskManager } from '../../engine/a2a/task-manager';
+import { taskRepo } from '../../engine/a2a/task-repo';
 import { agentsService as defaultAgentsService } from '../../modules/agents/agents.service';
 import type { AgentsService } from '../../modules/agents/agents.service';
 import { logger } from '../../config/logger';

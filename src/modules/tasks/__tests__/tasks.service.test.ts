@@ -1,5 +1,5 @@
 import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test';
-import type { A2ATask, A2AMessage } from '../../../infra/a2a/types';
+import type { A2ATask, A2AMessage } from '../../../engine/a2a/types';
 
 // --- Mock state ---
 const mockTasks = new Map<string, A2ATask>();

@@ -12,7 +12,7 @@ import { getStateStore, closeStateStore } from '../infra/state';
 import { setCacheProvider } from '../infra/cache';
 import { RedisCache } from '../infra/cache/redis-cache';
 import { registerMemorySkills } from '../modules/memory/memory.skills';
-import { taskRepo } from '../infra/a2a/task-repo';
+import { taskRepo } from '../engine/a2a/task-repo';
 
 let redisPubSub: RedisPubSub | null = null;
 let agentWorkerHandles: { worker: import('bullmq').Worker; connection: import('ioredis').default } | null = null;
@@ -138,7 +138,7 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
 
   // Step 7.5: Recover orchestration gates that were pending before restart (non-critical)
   try {
-    const { recoverPendingGates } = await import('../infra/state/orchestration-gates');
+    const { recoverPendingGates } = await import('../engine/gates/orchestration-gates');
     recoverPendingGates().catch((err: unknown) => logger.warn({ err }, 'Gate recovery failed at startup — continuing'));
   } catch (err) {
     logger.warn({ err }, 'Gate recovery import failed — continuing');
@@ -278,14 +278,6 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
       contribConnection?.quit().catch(() => {}),
       new Promise<void>((r) => setTimeout(r, 5000)),
     ]);
-  }
-
-  // Step 13.5: Bootstrap ERP sync cron schedules from DB (non-critical, fire-and-forget)
-  try {
-    const { bootstrapErpSyncSchedules } = await import('../jobs/erp-sync-scheduler');
-    bootstrapErpSyncSchedules().catch((err: unknown) => logger.warn({ err }, 'ERP sync schedule bootstrap failed'));
-  } catch (err) {
-    logger.warn({ err }, 'Failed to import erp-sync-scheduler — cron schedules will not be registered');
   }
 
   // Step 14: Register plugin health check repeatable job (non-critical)

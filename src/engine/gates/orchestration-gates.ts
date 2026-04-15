@@ -1,6 +1,6 @@
 /** In-memory store for pending orchestration gate promises keyed by gateId. */
 import { logger } from '../../config/logger';
-import { getSharedRedisClient } from '../redis/client';
+import { getSharedRedisClient } from '../../infra/redis/client';
 import { gateAuditRepo } from './gate-audit.repo';
 import { emitGateResolved } from '../../modules/orchestration/orchestration.events';
 
