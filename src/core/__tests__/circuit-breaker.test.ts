@@ -104,9 +104,14 @@ describe('CircuitBreaker', () => {
     });
 
     it('reopens on failure in HALF_OPEN', async () => {
-      const cb = await openThenWait();
-      await cb.execute(fail).catch(() => {});
-      expect(cb.getState()).toBe('OPEN');
+      // Use a longer re-open timeout so getState() in the assertion
+      // cannot immediately re-transition from OPEN → HALF_OPEN.
+      const cb = new CircuitBreaker({ name: 'test', failureThreshold: 1, successThreshold: 2, timeout: 50 });
+      await cb.execute(fail).catch(() => {});   // CLOSED → OPEN
+      await new Promise((r) => setTimeout(r, 60)); // wait for 50ms timeout to elapse
+      cb.getState();                             // OPEN → HALF_OPEN
+      await cb.execute(fail).catch(() => {});   // HALF_OPEN → OPEN (re-open timeout resets to 50ms)
+      expect(cb.getState()).toBe('OPEN');        // safe: 50ms window won't expire in assertion
     });
   });
 
