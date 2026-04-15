@@ -53,8 +53,14 @@ export const missionKernelManifest: PluginManifest = {
       {
         op: 'mission.start',
         handler: async (req) => {
-          const { missionsService } = await import('../../modules/missions/missions.service');
-          return missionsService.start(req.params.id as string);
+          const { enqueueMission } = await import('./queue');
+          const { ok } = await import('../../core/result');
+          // Agents fire-and-forget: enqueue the mission and return immediately.
+          // The mission-kernel:run BullMQ worker picks it up and calls missionsService.start().
+          return ok(await enqueueMission({
+            missionId: req.params.id as string,
+            workspaceId: req.context.workspaceId,
+          }));
         },
       },
       {
