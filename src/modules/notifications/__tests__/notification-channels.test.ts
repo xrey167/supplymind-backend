@@ -10,7 +10,7 @@ const _realRepo = require('../notifications.repo');
 mock.module('../notifications.repo', () => ({
   ..._realRepo,
   notificationsRepo: {
-    create: mockCreate,
+    createNotification: mockCreate,
     list: mock(() => Promise.resolve([])),
     markRead: mock(() => Promise.resolve(null as any)),
     markAllRead: mock(() => Promise.resolve()),

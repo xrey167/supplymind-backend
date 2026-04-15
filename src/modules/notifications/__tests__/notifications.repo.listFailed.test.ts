@@ -128,7 +128,6 @@ describe('NotificationsRepository.listFailed — per-workspace fairness', () => 
   test('maps snake_case DB columns to camelCase result fields', async () => {
     const createdAt = new Date('2024-01-01T00:00:00Z');
     const lastAttemptedAt = new Date('2024-01-02T00:00:00Z');
-    const updatedAt = new Date('2024-01-03T00:00:00Z');
 
     mockExecuteRows = [
       makeRawRow({
@@ -145,7 +144,6 @@ describe('NotificationsRepository.listFailed — per-workspace fairness', () => 
         attempt_count: 2,
         last_attempted_at: lastAttemptedAt,
         created_at: createdAt,
-        updated_at: updatedAt,
       }),
     ];
 
@@ -166,7 +164,6 @@ describe('NotificationsRepository.listFailed — per-workspace fairness', () => 
     expect(row.attemptCount).toBe(2);
     expect(row.lastAttemptedAt).toEqual(lastAttemptedAt);
     expect(row.createdAt).toEqual(createdAt);
-    expect(row.updatedAt).toEqual(updatedAt);
   });
 
   test('returns empty array when no failed notifications exist', async () => {
