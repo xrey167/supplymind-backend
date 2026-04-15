@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach } from 'bun:test';
 import type { Session, SessionMessage } from '../sessions.types';
 
 const now = new Date();
@@ -121,3 +121,5 @@ describe('sessionsService.getTranscript', () => {
     expect(repoMocks.getMessagePage).toHaveBeenCalledWith('sess-1', { cursor: 'msg-3', limit: 2 });
   });
 });
+
+afterAll(() => mock.restore());

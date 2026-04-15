@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 import type { McpServerRow } from '../mcp.repo';
 
 // ---------- Helpers ----------
@@ -244,3 +244,5 @@ describe('McpService', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

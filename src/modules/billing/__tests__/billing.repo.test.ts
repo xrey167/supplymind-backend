@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, mock } from 'bun:test';
+import { describe, test, expect, beforeEach, mock, afterAll } from 'bun:test';
 
 // Mock drizzle-orm to prevent actual DB calls
 const mockRows: any[] = [];
@@ -74,3 +74,5 @@ describe('BillingRepository', () => {
     expect(typeof repo.getCustomerByStripeId).toBe('function');
   });
 });
+
+afterAll(() => mock.restore());

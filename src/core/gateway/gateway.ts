@@ -312,8 +312,12 @@ export async function execute(req: GatewayRequest): Promise<GatewayResult> {
       return plan ? ok(plan) : err(new NotFoundError('Plan not found: ' + id));
     }
 
-    default:
+    default: {
+      const { pluginContributionRegistry } = await import('../../modules/plugins/plugin-contribution-registry');
+      const handler = pluginContributionRegistry.findGatewayHandler(op);
+      if (handler) return handler(req);
       return err(new Error(`Unknown gateway op: ${op}`));
+    }
   }
 }
 

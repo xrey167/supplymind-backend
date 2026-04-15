@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach, setSystemTime } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach, setSystemTime } from 'bun:test';
 import type { CreateNotificationInput, Notification } from '../notifications.types';
 
 // --- Mock all transitive deps that fail in test context ---
@@ -240,3 +240,5 @@ describe('NotificationsService', () => {
     setSystemTime(); // restore real clock
   });
 });
+
+afterAll(() => mock.restore());

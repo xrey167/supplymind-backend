@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 // --- Fixtures ---
 
@@ -373,3 +373,5 @@ describe('ImprovementPipeline', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

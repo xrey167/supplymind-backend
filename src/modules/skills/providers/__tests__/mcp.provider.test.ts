@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach } from 'bun:test';
 import { McpSkillProvider } from '../mcp.provider';
 import { ok, err } from '../../../../core/result';
 import type { McpServerConfig, McpToolManifest } from '../../../../infra/mcp/types';
@@ -288,3 +288,5 @@ describe('McpSkillProvider', () => {
     expect(skills[0].name).not.toContain('my-custom-name');
   });
 });
+
+afterAll(() => mock.restore());

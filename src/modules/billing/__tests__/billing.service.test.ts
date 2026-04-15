@@ -298,3 +298,5 @@ describe('BillingService', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

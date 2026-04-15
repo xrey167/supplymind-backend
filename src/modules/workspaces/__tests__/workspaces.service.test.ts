@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock, spyOn } from 'bun:test';
+import { describe, it, expect, beforeEach, mock, afterAll, spyOn } from 'bun:test';
 
 // ── Mock heavy infra before any service import ────────────────────────────────
 
@@ -310,3 +310,5 @@ describe('WorkspacesService', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

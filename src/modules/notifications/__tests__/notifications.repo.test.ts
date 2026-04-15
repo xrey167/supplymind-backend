@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 // Mock the DB client
 const mockSelect = mock();
@@ -140,3 +140,5 @@ describe('NotificationsRepository.listFailed — per-workspace fairness', () => 
     expect(mockExecute).toHaveBeenCalledTimes(1);
   });
 });
+
+afterAll(() => mock.restore());

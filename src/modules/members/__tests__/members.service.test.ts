@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, mock, afterAll } from 'bun:test';
 
 // --- Mock modules before importing service ---
 
@@ -290,3 +290,5 @@ describe('MembersService', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

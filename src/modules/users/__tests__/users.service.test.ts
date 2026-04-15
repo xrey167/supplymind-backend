@@ -148,3 +148,5 @@ describe('UsersService.syncFromClerk', () => {
     expect(mockPublish).not.toHaveBeenCalled();
   });
 });
+
+afterAll(() => mock.restore());

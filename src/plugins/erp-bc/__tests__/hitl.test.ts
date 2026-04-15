@@ -1,4 +1,4 @@
-import { describe, it, expect, mock } from 'bun:test';
+import { describe, it, expect, mock, afterAll } from 'bun:test';
 
 const createdPlans: any[] = [];
 
@@ -35,3 +35,5 @@ describe('createApprovalGateForWriteAction', () => {
     expect(plan.policy.approvalMode).toBe('required');
   });
 });
+
+afterAll(() => mock.restore());

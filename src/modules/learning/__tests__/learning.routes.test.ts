@@ -1,4 +1,4 @@
-import { mock, describe, it, expect, beforeEach } from 'bun:test';
+import { mock, afterAll, describe, it, expect, beforeEach } from 'bun:test';
 
 // --- Mock functions ---
 
@@ -367,3 +367,5 @@ describe('learning.routes', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

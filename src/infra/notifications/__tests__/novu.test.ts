@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 const mockTrigger = mock((_opts: any) => Promise.resolve({ acknowledged: true }));
 mock.module('@novu/api', () => ({
@@ -37,3 +37,5 @@ describe('Novu provider', () => {
     expect(NovuWorkflows.TASK_COMPLETED).toBe('task-completed');
   });
 });
+
+afterAll(() => mock.restore());

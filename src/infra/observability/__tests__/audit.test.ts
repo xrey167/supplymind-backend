@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 // Mock logger before importing audit — stable mock references for assertions
 const _realLogger = require('../../../config/logger');
@@ -124,3 +124,5 @@ describe('audit()', () => {
     expect(entry.metadata).toBeUndefined();
   });
 });
+
+afterAll(() => mock.restore());

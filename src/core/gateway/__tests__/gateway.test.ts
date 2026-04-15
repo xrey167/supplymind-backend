@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 import type { GatewayContext, GatewayRequest } from '../gateway.types';
 
 /**
@@ -70,3 +70,5 @@ describe('Gateway', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

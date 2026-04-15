@@ -103,3 +103,5 @@ describe('PluginManager', () => {
     // No error
   });
 });
+
+afterAll(() => mock.restore());

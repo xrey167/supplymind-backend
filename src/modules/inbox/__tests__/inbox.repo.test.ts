@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, mock } from 'bun:test';
+import { describe, test, expect, beforeEach, mock, afterAll } from 'bun:test';
 
 // Mock the db client before importing the repo
 const mockReturning = mock(() => Promise.resolve([{
@@ -31,7 +31,9 @@ const mockDb = {
 };
 
 mock.module('../../../infra/db/client', () => ({ db: mockDb }));
+const _realSchema = require('../../../infra/db/schema');
 mock.module('../../../infra/db/schema', () => ({
+  ..._realSchema,
   inboxItems: {
     id: 'id',
     workspaceId: 'workspace_id',
@@ -140,3 +142,5 @@ describe('InboxRepository', () => {
     expect(typeof count).toBe('number');
   });
 });
+
+afterAll(() => mock.restore());

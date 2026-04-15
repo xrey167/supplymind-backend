@@ -36,3 +36,5 @@ describe('sync job', () => {
     await expect(runSync()).resolves.toBeUndefined();
   });
 });
+
+afterAll(() => mock.restore());

@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -385,3 +385,5 @@ describe('NotificationsRepository.listFailed — per-workspace fairness', () => 
     }
   });
 });
+
+afterAll(() => mock.restore());

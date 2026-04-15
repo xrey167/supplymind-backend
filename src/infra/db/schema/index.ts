@@ -949,3 +949,5 @@ export const gateAuditLog = pgTable('gate_audit_log', {
   index('gate_audit_orch_idx').on(t.orchestrationId),
   index('gate_audit_workspace_created_idx').on(t.workspaceId, t.createdAt),
 ]);
+
+export * from './missions.schema';

@@ -261,3 +261,5 @@ describe('A2A public route', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

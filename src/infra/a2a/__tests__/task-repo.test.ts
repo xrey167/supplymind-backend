@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, mock } from 'bun:test';
+import { describe, test, expect, beforeEach, mock, afterAll } from 'bun:test';
 
 // Mock the DB module before importing task-repo
 // queryResult builds a thenable that also supports .orderBy().limit() for paginated queries
@@ -179,3 +179,5 @@ describe('taskRepo.findById', () => {
     expect(result?.status.state).toBe('completed');
   });
 });
+
+afterAll(() => mock.restore());

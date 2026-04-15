@@ -4,7 +4,7 @@
  * Uses a lightweight mock of db that captures calls and returns configurable
  * results, without hitting a real database.
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // Mock the Drizzle db client before any imports that pull it in transitively
@@ -66,7 +66,9 @@ mock.module('../../client', () => ({
 }));
 
 // Mock drizzle-orm eq to be a simple identity-preserving stub
+const _realDrizzle = require('drizzle-orm');
 mock.module('drizzle-orm', () => ({
+  ..._realDrizzle,
   eq: (col: any, val: any) => ({ col, val, _type: 'eq' }),
   and: (...args: any[]) => ({ args, _type: 'and' }),
   isNull: (col: any) => ({ col, _type: 'isNull' }),
@@ -179,3 +181,5 @@ describe('BaseRepo', () => {
     expect(result).toBe(false);
   });
 });
+
+afterAll(() => mock.restore());
