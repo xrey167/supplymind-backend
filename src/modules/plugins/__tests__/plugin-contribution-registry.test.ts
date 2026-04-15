@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, mock } from 'bun:test';
+import { describe, test, expect, beforeEach, mock, afterAll } from 'bun:test';
 
 // Stub bullmq Worker so we don't need a real Redis connection
 const mockWorkerClose = mock(() => Promise.resolve());
@@ -281,3 +281,5 @@ describe('PluginContributionRegistry', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());

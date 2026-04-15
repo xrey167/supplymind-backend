@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test';
 import type { A2ATask, A2AMessage } from '../../../infra/a2a/types';
 
 // --- Mock state ---
@@ -139,3 +139,5 @@ describe('TasksService', () => {
     }
   });
 });
+
+afterAll(() => mock.restore());

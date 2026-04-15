@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test';
 
 // --- mock modules BEFORE importing the module under test ---
 
@@ -371,3 +371,5 @@ describe('ToolsService', () => {
     });
   });
 });
+
+afterAll(() => mock.restore());
