@@ -21,10 +21,7 @@ class GateAuditRepository extends BaseRepo<typeof gateAuditLog, Row, NewRow> {
 
   async insert(record: GateAuditRecord): Promise<void> {
     await db.insert(gateAuditLog).values({
-      orchestrationId: record.orchestrationId,
-      stepId: record.stepId,
-      workspaceId: record.workspaceId,
-      outcome: record.outcome,
+      ...record,
       decidedBy: record.decidedBy ?? null,
       reason: record.reason ?? null,
       prompt: record.prompt ?? null,

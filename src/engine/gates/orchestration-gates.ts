@@ -10,6 +10,29 @@ function redis() {
   return getSharedRedisClient();
 }
 
+function redisGateKey(orchestrationId: string, stepId: string): string {
+  return `gate:${orchestrationId}:${stepId}`;
+}
+
+function parseGateRaw(raw: string | null): Record<string, unknown> | null {
+  if (!raw) return null;
+  try { return JSON.parse(raw) as Record<string, unknown>; } catch { return null; }
+}
+
+// NOTE: GET-then-SET with KEEPTTL has a narrow TOCTOU race — if the key expires
+// between GET and SET, the SET recreates it without TTL. Acceptable for observability-
+// only data; gate resolution correctness uses the in-memory path.
+async function mutateGateMetadata(
+  key: string,
+  mutate: (parsed: Record<string, unknown>) => Record<string, unknown> | null,
+): Promise<void> {
+  const parsed = parseGateRaw(await redis().get(key));
+  if (!parsed) return;
+  const next = mutate(parsed);
+  if (!next) return;
+  await redis().set(key, JSON.stringify(next), 'KEEPTTL');
+}
+
 interface PendingGate {
   resolve: (approved: boolean) => void;
   timer: ReturnType<typeof setTimeout>;
@@ -61,20 +84,10 @@ export function createGateRequest(
       logger.warn({ orchestrationId, stepId, workspaceId }, 'Orchestration gate timed out — denying');
       resolve(false);
 
-      // NOTE: GET-then-SET with KEEPTTL has a narrow TOCTOU race — if the key expires
-      // between GET and SET, the SET recreates it without TTL. Acceptable for observability-
-      // only data; gate resolution correctness uses the in-memory path.
       // Update Redis status to 'timeout' (fire-and-forget)
-      redis().get(`gate:${orchestrationId}:${stepId}`).then(raw => {
-        if (!raw) return;
-        let parsed: Record<string, unknown>;
-        try { parsed = JSON.parse(raw); } catch { return; }
-        if (parsed.status !== 'pending') return;
-        return redis().set(
-          `gate:${orchestrationId}:${stepId}`,
-          JSON.stringify({ ...parsed, status: 'timeout', decidedAt: new Date().toISOString(), decidedBy: 'system' }),
-          'KEEPTTL',
-        );
+      mutateGateMetadata(redisGateKey(orchestrationId, stepId), (parsed) => {
+        if (parsed.status !== 'pending') return null;
+        return { ...parsed, status: 'timeout', decidedAt: new Date().toISOString(), decidedBy: 'system' };
       }).catch(() => {});
 
       // Persist audit record (fire-and-forget)
@@ -96,7 +109,7 @@ export function createGateRequest(
     // Write gate metadata to Redis (fire-and-forget)
     const redisTtlSec = Math.ceil(timeoutMs / 1000) + 10;
     redis().set(
-      `gate:${orchestrationId}:${stepId}`,
+      redisGateKey(orchestrationId, stepId),
       JSON.stringify({
         workspaceId, prompt, orchestrationId, stepId,
         createdAt: new Date().toISOString(),
@@ -136,20 +149,13 @@ export function resolveGate(
   pendingGates.delete(key);
   pending.resolve(approved);
 
-  // NOTE: GET-then-SET with KEEPTTL has a narrow TOCTOU race — if the key expires
-  // between GET and SET, the SET recreates it without TTL. Acceptable for observability-
-  // only data; gate resolution correctness uses the in-memory path.
   // Update Redis status (fire-and-forget)
-  redis().get(`gate:${orchestrationId}:${stepId}`).then(raw => {
-    if (!raw) return;
-    let parsed: Record<string, unknown>;
-    try { parsed = JSON.parse(raw); } catch { return; }
-    return redis().set(
-      `gate:${orchestrationId}:${stepId}`,
-      JSON.stringify({ ...parsed, status: approved ? 'approved' : 'rejected', decidedAt: new Date().toISOString(), decidedBy: callerId }),
-      'KEEPTTL',
-    );
-  }).catch((err: unknown) => logger.warn({ err }, 'Failed to update gate status in Redis'));
+  mutateGateMetadata(redisGateKey(orchestrationId, stepId), (parsed) => ({
+    ...parsed,
+    status: approved ? 'approved' : 'rejected',
+    decidedAt: new Date().toISOString(),
+    decidedBy: callerId,
+  })).catch((err: unknown) => logger.warn({ err }, 'Failed to update gate status in Redis'));
 
   // Persist audit record (fire-and-forget)
   gateAuditRepo.insert({
@@ -184,10 +190,8 @@ export async function recoverPendingGates(): Promise<void> {
     cursor = nextCursor;
     for (const key of keys) {
       const raw = await redis().get(key).catch(() => null);
-      if (!raw) continue;
-      let parsed: Record<string, unknown>;
-      try { parsed = JSON.parse(raw); } catch { continue; }
-      if (parsed.status !== 'pending') continue;
+      const parsed = parseGateRaw(raw);
+      if (!parsed || parsed.status !== 'pending') continue;
       logger.warn({ ...parsed }, 'Gate was pending at restart — marking timeout');
       await redis().set(
         key,
@@ -227,10 +231,8 @@ export async function listPendingGates(workspaceId?: string): Promise<GateMetada
     cursor = nextCursor;
     for (const key of keys) {
       const raw = await redis().get(key).catch(() => null);
-      if (!raw) continue;
-      let parsed: GateMetadata;
-      try { parsed = JSON.parse(raw) as GateMetadata; } catch { continue; }
-      if (parsed.status !== 'pending') continue;
+      const parsed = parseGateRaw(raw) as GateMetadata | null;
+      if (!parsed || parsed.status !== 'pending') continue;
       if (workspaceId && parsed.workspaceId !== workspaceId) continue;
       results.push(parsed);
     }

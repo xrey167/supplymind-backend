@@ -11,7 +11,9 @@ mock.module('../../../infra/observability/sentry', () => ({
   Sentry: {},
 }));
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: {
     info: mock(() => {}),
     error: mock(() => {}),

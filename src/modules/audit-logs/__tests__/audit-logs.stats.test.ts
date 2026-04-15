@@ -19,7 +19,9 @@ function makeChain(data: any[]): any {
 let _selectQueue: any[][] = [];
 let _deleteCount = 0;
 
+const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
   db: {
     select: () => makeChain(_selectQueue.shift() ?? []),
     delete: () => ({

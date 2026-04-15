@@ -2,7 +2,9 @@ import { describe, it, expect, mock, afterAll } from 'bun:test';
 
 const createdPlans: any[] = [];
 
+const _realExecSvc = require('../../../modules/execution/execution.service');
 mock.module('../../../modules/execution/execution.service', () => ({
+  ..._realExecSvc,
   executionService: {
     create: async (_wsId: string, _caller: string, data: any) => {
       createdPlans.push(data);

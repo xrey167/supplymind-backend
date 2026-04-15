@@ -11,7 +11,9 @@ const mockInsert = mock(() => ({ values: mockValues }));
 const mockDeleteWhere = mock(() => Promise.resolve());
 const mockDelete = mock(() => ({ where: mockDeleteWhere }));
 
+const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
   db: {
     insert: mockInsert,
     delete: mockDelete,
@@ -19,7 +21,9 @@ mock.module('../../../infra/db/client', () => ({
 }));
 
 // Schema mock — return plain objects for the table so eq/and can reference them
+const _realDbSchema = require('../../../infra/db/schema');
 mock.module('../../../infra/db/schema', () => ({
+  ..._realDbSchema,
   prompts: {
     workspaceId: 'prompts.workspaceId',
     pluginSource: 'prompts.pluginSource',
@@ -27,7 +31,9 @@ mock.module('../../../infra/db/schema', () => ({
 }));
 
 // drizzle-orm mock — eq/and just return their args for assertion purposes
+const _realDrizzle = require('drizzle-orm');
 mock.module('drizzle-orm', () => ({
+  ..._realDrizzle,
   eq: (col: unknown, val: unknown) => ({ col, val }),
   and: (...conds: unknown[]) => ({ conds }),
 }));
@@ -111,6 +117,10 @@ describe('removePluginPrompts', () => {
   beforeEach(() => {
     mockDelete.mockClear();
     mockDeleteWhere.mockClear();
+  });
+
+  afterAll(() => {
+    mock.restore();
   });
 
   it('calls delete with workspaceId and pluginSource condition', async () => {

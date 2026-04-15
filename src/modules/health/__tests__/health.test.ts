@@ -1,7 +1,9 @@
 import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 
 const mockExecute = mock(() => Promise.resolve([{ '?column?': 1 }]));
+const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
   db: { execute: mockExecute },
 }));
 

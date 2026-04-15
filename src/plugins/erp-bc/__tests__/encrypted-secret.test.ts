@@ -94,34 +94,47 @@ const mockValidatePluginConfig = mock(() => ({ valid: true as const }));
 const mockCheckPermissions = mock(() => ({ allowed: true as const, missing: [] }));
 
 // Set up module mocks before importing the service
+const _realCredentialsService = require('../../../modules/credentials/credentials.service');
 mock.module('../../../modules/credentials/credentials.service', () => ({
+  ..._realCredentialsService,
   credentialsService: mockCredentialsService,
 }));
 
+const _realPluginCatalogRepo = require('../../../modules/plugins/plugins.catalog.repo');
 mock.module('../../../modules/plugins/plugins.catalog.repo', () => ({
+  ..._realPluginCatalogRepo,
   pluginCatalogRepo: mockPluginCatalogRepo,
 }));
 
+const _realPluginInstallationRepo = require('../../../modules/plugins/plugins.installation.repo');
 mock.module('../../../modules/plugins/plugins.installation.repo', () => ({
+  ..._realPluginInstallationRepo,
   pluginInstallationRepo: mockPluginInstallationRepo,
 }));
 
+const _realPluginHealthRepo = require('../../../modules/plugins/plugins.health.repo');
 mock.module('../../../modules/plugins/plugins.health.repo', () => ({
+  ..._realPluginHealthRepo,
   pluginHealthRepo: {},
 }));
 
+const _realFeatureFlagsService = require('../../../modules/feature-flags/feature-flags.service');
 mock.module('../../../modules/feature-flags/feature-flags.service', () => ({
+  ..._realFeatureFlagsService,
   featureFlagsService: mockFeatureFlagsService,
 }));
 
+const _realPluginManifestValidator = require('../../../modules/plugins/plugins.manifest-validator');
 mock.module('../../../modules/plugins/plugins.manifest-validator', () => ({
+  ..._realPluginManifestValidator,
   validatePluginConfig: mockValidatePluginConfig,
   checkPermissions: mockCheckPermissions,
 }));
 
 const mockLoggerWarn = mock(() => {});
-
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: {
     info: () => {},
     warn: mockLoggerWarn,

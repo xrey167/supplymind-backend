@@ -25,7 +25,9 @@ const mockWhereUpdate = mock(async () => {});
 const mockSet = mock(() => ({ where: mockWhereUpdate }));
 const mockUpdate = mock(() => ({ set: mockSet }));
 
+const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
   db: {
     select: mockSelect,
     insert: mockInsert,

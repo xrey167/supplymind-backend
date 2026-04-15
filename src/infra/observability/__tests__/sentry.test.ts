@@ -15,7 +15,9 @@ const scopeMock = {
 
 mock.module('@sentry/node', () => sentryMock);
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: {
     info: mock(() => {}),
     error: mock(() => {}),

@@ -69,7 +69,9 @@ mock.module('../billing.events', () => ({
 }));
 
 // Mock logger
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
 }));
 

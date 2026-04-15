@@ -3,7 +3,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 // Mock logger before importing module under test
 import { mock, afterAll } from 'bun:test';
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { warn: mock(() => {}), error: mock(() => {}), info: mock(() => {}), debug: mock(() => {}) },
 }));
 

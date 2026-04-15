@@ -45,7 +45,9 @@ mock.module('../../../../infra/db/schema', () => ({
   learningObservations: Symbol('learningObservations'),
   skillPerformanceMetrics: { id: 'id', workspaceId: 'workspaceId', skillId: 'skillId', windowStart: 'windowStart' },
 }));
+const _realLogger = require('../../../../config/logger');
 mock.module('../../../../config/logger', () => ({
+  ..._realLogger,
   logger: { warn: mock(), info: mock(), error: mock(), debug: mock() },
 }));
 

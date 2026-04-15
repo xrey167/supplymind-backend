@@ -59,7 +59,9 @@ mock.module('../../../infra/queue/bullmq', () => ({
   enqueueAgentRun: async (data: any) => { lastEnqueued = data; return { id: 'job-1' }; },
 }));
 
+const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
   db: { transaction: async (fn: any) => fn({ select: () => ({ from: () => [] }), insert: () => ({ values: () => {} }) }) },
 }));
 
@@ -69,7 +71,9 @@ mock.module('../../../infra/db/schema', () => ({
   taskDependencies: {},
 }));
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { info: () => {}, debug: () => {}, warn: () => {}, error: () => {} },
 }));
 

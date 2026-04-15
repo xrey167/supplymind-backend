@@ -14,7 +14,9 @@ mock.module('../user-settings.repo', () => ({
   },
 }));
 
+const _realLogger = require('../../../../config/logger');
 mock.module('../../../../config/logger', () => ({
+  ..._realLogger,
   logger: {
     warn: mock(() => {}),
     info: mock(() => {}),

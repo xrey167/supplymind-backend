@@ -29,7 +29,9 @@ mock.module('../../../modules/notifications/notifications.service', () => ({
   dispatchChannel: mockDispatchChannel,
 }));
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { info: mock(() => {}), warn: mock(() => {}), error: mock(() => {}) },
 }));
 

@@ -60,7 +60,8 @@ const mockLogger = {
   debug: mock(() => {}),
 };
 
-mock.module('../../../config/logger', () => ({ logger: mockLogger }));
+const _realLogger = require('../../../config/logger');
+mock.module('../../../config/logger', () => ({ ..._realLogger, logger: mockLogger }));
 
 process.env.STRIPE_SECRET_KEY = 'sk_test_fake';
 process.env.STRIPE_PRICE_STARTER = 'price_starter_123';

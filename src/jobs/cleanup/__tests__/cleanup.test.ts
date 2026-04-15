@@ -8,7 +8,9 @@ const mockDeleteExpiredKeys = mock(() => Promise.resolve(0));
 mock.module('../../../modules/api-keys/api-keys.repo', () => ({
   apiKeysRepo: { deleteExpired: mockDeleteExpiredKeys },
 }));
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { info: () => {}, warn: () => {}, error: () => {} },
 }));
 

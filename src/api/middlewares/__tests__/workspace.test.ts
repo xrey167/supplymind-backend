@@ -1,7 +1,9 @@
 import { describe, it, expect, mock, afterAll, beforeEach } from 'bun:test';
 import { Hono } from 'hono';
 
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: {
     info: mock(() => {}),
     warn: mock(() => {}),

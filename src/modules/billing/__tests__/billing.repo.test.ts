@@ -16,7 +16,9 @@ const mockOnConflict = mock(() => ({ returning: mockReturning }));
 const mockValues = mock(() => ({ onConflictDoUpdate: mockOnConflict, returning: mockReturning }));
 const mockInsert = mock(() => ({ values: mockValues }));
 
+const _realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
+  ..._realDbClient,
   db: {
     select: mockSelect,
     insert: mockInsert,

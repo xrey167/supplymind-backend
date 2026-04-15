@@ -66,7 +66,9 @@ const mockSend = mock(async (_opts: any) => {});
 const mockTaskManager = { send: mockSend } as any;
 
 // ---- logger mock ----
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { info: mock(() => {}), error: mock(() => {}), warn: mock(() => {}), debug: mock(() => {}) },
 }));
 

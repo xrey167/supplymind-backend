@@ -44,7 +44,8 @@ const fakeDb = {
 const mockPublish = mock(() => Promise.resolve({ id: 'evt-1' }));
 
 // Wire mocks before any import of the service module -------------------------
-mock.module('../../../infra/db/client', () => ({ db: fakeDb }));
+const _realDbClient = require('../../../infra/db/client');
+mock.module('../../../infra/db/client', () => ({ ..._realDbClient, db: fakeDb }));
 const _realSchema = require('../../../infra/db/schema');
 mock.module('../../../infra/db/schema', () => ({
   ..._realSchema,
@@ -66,11 +67,15 @@ mock.module('drizzle-orm', () => ({
   eq: (...args: any[]) => args,
   and: (...args: any[]) => args,
 }));
+const _realLogger = require('../../../config/logger');
 mock.module('../../../config/logger', () => ({
+  ..._realLogger,
   logger: { warn: mock(), info: mock(), error: mock(), debug: mock() },
 }));
+const _realBus = require('../../../events/bus');
 mock.module('../../../events/bus', () => ({
-  eventBus: { publish: mockPublish, subscribe: mock(() => 'sub-id') },
+  ..._realBus,
+  eventBus: { ..._realBus.eventBus, publish: mockPublish, subscribe: mock(() => 'sub-id') },
 }));
 
 // ---------------------------------------------------------------------------
