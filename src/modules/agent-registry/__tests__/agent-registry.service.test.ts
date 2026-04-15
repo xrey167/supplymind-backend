@@ -28,7 +28,7 @@ const mockRemove = mock((_url: string) => {});
 const mockWorkerRegistry = { discover: mockDiscover, load: mockLoad, remove: mockRemove } as any;
 
 // Mock the repo
-const mockCreate = mock(async (data: Parameters<typeof import('../agent-registry.repo').agentRegistryRepo.create>[0]): Promise<RegisteredAgent> => ({
+const mockCreate = mock(async (data: Parameters<typeof import('../agent-registry.repo').agentRegistryRepo.registerAgent>[0]): Promise<RegisteredAgent> => ({
   id: 'agent-uuid-1',
   workspaceId: data.workspaceId,
   url: data.url,
@@ -79,13 +79,13 @@ const mockUpdateDiscoveredAt = mock(async (id: string): Promise<RegisteredAgent 
 
 // Use direct DI for the repo mock too (no mock.module needed)
 const mockAgentRegistryRepo = {
-  create: mockCreate,
+  registerAgent: mockCreate,
   findByWorkspace: mockFindByWorkspace,
   findByWorkspaceAndUrl: mockFindByWorkspaceAndUrl,
-  findById: mockFindById,
+  findAgentById: mockFindById,
   remove: mockRepoRemove,
   updateDiscoveredAt: mockUpdateDiscoveredAt,
-  findAll: mock(async () => []),
+  listRegistered: mock(async () => []),
   disable: mock(async () => {}),
 } as any;
 

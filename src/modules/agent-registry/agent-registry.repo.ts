@@ -1,10 +1,14 @@
 import { and, eq } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { registeredAgents } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { RegisteredAgent } from './agent-registry.types';
 import type { AgentCard } from '../../engine/a2a/types';
 
-function toRegisteredAgent(row: typeof registeredAgents.$inferSelect): RegisteredAgent {
+type Row = typeof registeredAgents.$inferSelect;
+type NewRow = typeof registeredAgents.$inferInsert;
+
+function toRegisteredAgent(row: Row): RegisteredAgent {
   return {
     id: row.id,
     workspaceId: row.workspaceId,
@@ -17,8 +21,10 @@ function toRegisteredAgent(row: typeof registeredAgents.$inferSelect): Registere
   };
 }
 
-export class AgentRegistryRepo {
-  async create(data: {
+export class AgentRegistryRepo extends BaseRepo<typeof registeredAgents, Row, NewRow> {
+  constructor() { super(registeredAgents); }
+
+  async registerAgent(data: {
     workspaceId: string;
     url: string;
     agentCard: Record<string, unknown>;
@@ -45,17 +51,17 @@ export class AgentRegistryRepo {
     return rows.map(toRegisteredAgent);
   }
 
-  async findAll(): Promise<RegisteredAgent[]> {
-    const rows = await db.select().from(registeredAgents);
+  async listRegistered(filters?: Partial<Row>): Promise<RegisteredAgent[]> {
+    const rows = await super.findAll(filters);
     return rows.map(toRegisteredAgent);
   }
 
-  async findById(id: string): Promise<RegisteredAgent | undefined> {
+  async findAgentById(id: string): Promise<RegisteredAgent | null> {
     const rows = await db
       .select()
       .from(registeredAgents)
       .where(eq(registeredAgents.id, id));
-    return rows[0] ? toRegisteredAgent(rows[0]) : undefined;
+    return rows[0] ? toRegisteredAgent(rows[0]) : null;
   }
 
   async findByWorkspaceAndUrl(workspaceId: string, url: string): Promise<RegisteredAgent | undefined> {
@@ -90,10 +96,6 @@ export class AgentRegistryRepo {
       .update(registeredAgents)
       .set({ enabled: false, updatedAt: new Date() })
       .where(eq(registeredAgents.id, id));
-  }
-
-  async remove(id: string): Promise<void> {
-    await db.delete(registeredAgents).where(eq(registeredAgents.id, id));
   }
 }
 

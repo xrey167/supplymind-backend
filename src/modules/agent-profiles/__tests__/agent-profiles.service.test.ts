@@ -18,11 +18,11 @@ const mockProfile = {
 };
 
 const mockRepo = {
-  create: mock(async () => mockProfile),
-  findById: mock(async (id: string) => (id === 'ap-1' ? mockProfile : null)),
+  createProfile: mock(async () => mockProfile),
+  findProfileById: mock(async (id: string) => (id === 'ap-1' ? mockProfile : null)),
   findByWorkspace: mock(async () => [mockProfile]),
   findDefault: mock(async () => mockProfile),
-  update: mock(async (id: string) => (id === 'ap-1' ? { ...mockProfile, name: 'Updated' } : null)),
+  updateProfile: mock(async (id: string) => (id === 'ap-1' ? { ...mockProfile, name: 'Updated' } : null)),
   remove: mock(async () => undefined),
 };
 

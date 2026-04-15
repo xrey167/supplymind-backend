@@ -1,9 +1,15 @@
 import { eq, and, desc, sql, lt } from 'drizzle-orm';
 import { db } from '../../infra/db/client';
 import { inboxItems } from '../../infra/db/schema';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { CreateInboxItemInput, InboxFilter, InboxItem } from './inbox.types';
 
-export class InboxRepository {
+type InboxRow = typeof inboxItems.$inferSelect;
+type NewInboxRow = typeof inboxItems.$inferInsert;
+
+export class InboxRepository extends BaseRepo<typeof inboxItems, InboxRow, NewInboxRow> {
+  constructor() { super(inboxItems); }
+
   async create(input: CreateInboxItemInput): Promise<InboxItem> {
     const rows = await db.insert(inboxItems).values({
       workspaceId: input.workspaceId,

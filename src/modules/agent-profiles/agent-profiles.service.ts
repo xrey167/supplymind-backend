@@ -19,7 +19,7 @@ export class AgentProfilesService {
   }
 
   async create(workspaceId: string, input: CreateAgentProfileInput): Promise<Result<AgentProfile>> {
-    const profile = await this.repo.create(workspaceId, input);
+    const profile = await this.repo.createProfile(workspaceId, input);
     this.bus.publish(MissionTopics.AGENT_PROFILE_CREATED, {
       workspaceId,
       profileId: profile.id,
@@ -30,7 +30,7 @@ export class AgentProfilesService {
   }
 
   async get(id: string): Promise<Result<AgentProfile>> {
-    const profile = await this.repo.findById(id);
+    const profile = await this.repo.findProfileById(id);
     if (!profile) return err(new NotFoundError('Agent profile not found'));
     return ok(profile);
   }
@@ -40,7 +40,7 @@ export class AgentProfilesService {
   }
 
   async update(id: string, input: UpdateAgentProfileInput): Promise<Result<AgentProfile>> {
-    const profile = await this.repo.update(id, input);
+    const profile = await this.repo.updateProfile(id, input);
     if (!profile) return err(new NotFoundError('Agent profile not found'));
     this.bus.publish(MissionTopics.AGENT_PROFILE_UPDATED, {
       workspaceId: profile.workspaceId,
@@ -51,7 +51,7 @@ export class AgentProfilesService {
   }
 
   async remove(id: string): Promise<Result<void>> {
-    const profile = await this.repo.findById(id);
+    const profile = await this.repo.findProfileById(id);
     if (!profile) return err(new NotFoundError('Agent profile not found'));
     await this.repo.remove(id);
     this.bus.publish(MissionTopics.AGENT_PROFILE_DELETED, {

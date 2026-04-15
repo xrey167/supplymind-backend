@@ -1,7 +1,11 @@
 import { eq, and } from 'drizzle-orm';
 import { db } from '../../../infra/db/client';
 import { notificationPreferences } from '../../../infra/db/schema';
+import { BaseRepo } from '../../../infra/db/repositories/base.repo';
 import type { NotificationChannel, QuietHours } from '../notifications.types';
+
+type PrefRow = typeof notificationPreferences.$inferSelect;
+type NewPref = typeof notificationPreferences.$inferInsert;
 
 export interface UpsertPreferenceInput {
   userId: string;
@@ -12,7 +16,9 @@ export interface UpsertPreferenceInput {
   quietHours?: QuietHours | null;
 }
 
-export class NotificationPreferencesRepository {
+export class NotificationPreferencesRepository extends BaseRepo<typeof notificationPreferences, PrefRow, NewPref> {
+  constructor() { super(notificationPreferences); }
+
   async get(userId: string, workspaceId: string, type: string) {
     const rows = await db.select()
       .from(notificationPreferences)

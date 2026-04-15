@@ -1,8 +1,14 @@
 import { eq, and } from 'drizzle-orm';
 import { db } from '../../../infra/db/client';
 import { userSettings } from '../../../infra/db/schema';
+import { BaseRepo } from '../../../infra/db/repositories/base.repo';
 
-export class UserSettingsRepository {
+type SettingRow = typeof userSettings.$inferSelect;
+type NewSetting = typeof userSettings.$inferInsert;
+
+export class UserSettingsRepository extends BaseRepo<typeof userSettings, SettingRow, NewSetting> {
+  constructor() { super(userSettings); }
+
   async get(userId: string, key: string): Promise<unknown | null> {
     const rows = await db
       .select()

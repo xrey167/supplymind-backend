@@ -32,7 +32,7 @@ mock.module('../../../config/logger', () => ({
 mock.module('../credentials.repo', () => ({
   CredentialsRepository: class {},
   credentialsRepo: {
-    create: async (input: any) => {
+    createCredential: async (input: any) => {
       const row: Credential = {
         id: 'cred-' + String(mockRows.size + 1).padStart(3, '0'),
         workspaceId: input.workspaceId,
@@ -57,7 +57,7 @@ mock.module('../credentials.repo', () => ({
         .filter((r) => r.workspaceId === workspaceId)
         .map(({ encryptedValue, iv, tag, ...rest }: any) => rest);
     },
-    update: async (id: string, data: any) => {
+    updateCredential: async (id: string, data: any) => {
       const existing = mockRows.get(id);
       if (!existing) return null;
       const updated = { ...existing, ...data, updatedAt: new Date() };
