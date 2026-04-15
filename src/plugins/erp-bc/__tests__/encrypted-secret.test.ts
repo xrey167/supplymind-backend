@@ -143,7 +143,9 @@ mock.module('../../../config/logger', () => ({
   },
 }));
 
-const { pluginsService } = await import('../../../modules/plugins/plugins.service');
+// Force a fresh module load so prior test files' caches don't contaminate this one.
+const _pluginsServiceMod = await import('../../../modules/plugins/plugins.service?fresh=erp' as unknown as string);
+const pluginsService = _pluginsServiceMod.pluginsService;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

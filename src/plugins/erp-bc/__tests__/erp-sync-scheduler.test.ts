@@ -72,8 +72,9 @@ mock.module('../../../config/logger', () => ({
 // Now import the module under test (after all mocks are set up)
 // --------------------------------------------------------------------------
 
-const { bootstrapErpSyncSchedules, upsertSyncSchedule, removeSyncSchedule } =
-  await import('../sync/erp-sync-scheduler');
+// Force a fresh module load so prior test files' caches don't contaminate this one.
+const _syncSchedulerMod = await import('../sync/erp-sync-scheduler?fresh=1' as unknown as string);
+const { bootstrapErpSyncSchedules, upsertSyncSchedule, removeSyncSchedule } = _syncSchedulerMod;
 
 // --------------------------------------------------------------------------
 // Tests
