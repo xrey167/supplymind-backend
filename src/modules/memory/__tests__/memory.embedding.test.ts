@@ -16,5 +16,3 @@ describe('memory.embedding', () => {
     expect(typeof mod.getEmbeddingProvider).toBe('function');
   });
 });
-
-afterAll(() => mock.restore());
