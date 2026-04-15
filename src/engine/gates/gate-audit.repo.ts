@@ -1,6 +1,10 @@
 import { db } from '../../infra/db/client';
 import { gateAuditLog } from '../../infra/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
+
+type Row = typeof gateAuditLog.$inferSelect;
+type NewRow = typeof gateAuditLog.$inferInsert;
 
 export interface GateAuditRecord {
   orchestrationId: string;
@@ -12,7 +16,9 @@ export interface GateAuditRecord {
   prompt?: string;
 }
 
-export const gateAuditRepo = {
+class GateAuditRepository extends BaseRepo<typeof gateAuditLog, Row, NewRow> {
+  constructor() { super(gateAuditLog); }
+
   async insert(record: GateAuditRecord): Promise<void> {
     await db.insert(gateAuditLog).values({
       orchestrationId: record.orchestrationId,
@@ -23,12 +29,13 @@ export const gateAuditRepo = {
       reason: record.reason ?? null,
       prompt: record.prompt ?? null,
     });
-  },
+  }
 
-  async listByOrchestration(orchestrationId: string): Promise<typeof gateAuditLog.$inferSelect[]> {
+  async listByOrchestration(orchestrationId: string): Promise<Row[]> {
     return db.select().from(gateAuditLog)
       .where(eq(gateAuditLog.orchestrationId, orchestrationId))
       .orderBy(desc(gateAuditLog.decidedAt));
-  },
-};
+  }
+}
 
+export const gateAuditRepo = new GateAuditRepository();

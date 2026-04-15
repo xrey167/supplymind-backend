@@ -1,6 +1,7 @@
 import { db } from '../../infra/db/client';
 import { executionPlans, executionRuns } from '../../infra/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
+import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type {
   ExecutionPlanRow,
   ExecutionRunRow,
@@ -10,7 +11,12 @@ import type {
   ExecutionPlanStatus,
 } from './execution.types';
 
-export const executionRepo = {
+type PlanRow = typeof executionPlans.$inferSelect;
+type NewPlanRow = typeof executionPlans.$inferInsert;
+
+class ExecutionRepository extends BaseRepo<typeof executionPlans, PlanRow, NewPlanRow> {
+  constructor() { super(executionPlans); }
+
   async createPlan(data: {
     workspaceId: string;
     name?: string;
@@ -28,13 +34,13 @@ export const executionRepo = {
       createdBy: data.createdBy,
     }).returning();
     return row as unknown as ExecutionPlanRow;
-  },
+  }
 
   async getPlan(id: string): Promise<ExecutionPlanRow | undefined> {
     const [row] = await db.select().from(executionPlans)
       .where(eq(executionPlans.id, id)).limit(1);
     return row as unknown as ExecutionPlanRow | undefined;
-  },
+  }
 
   async updatePlanStatus(
     id: string,
@@ -48,14 +54,14 @@ export const executionRepo = {
         ...(intent !== undefined && { intent }),
       })
       .where(eq(executionPlans.id, id));
-  },
+  }
 
   async listPlans(workspaceId: string, limit = 20): Promise<ExecutionPlanRow[]> {
     return db.select().from(executionPlans)
       .where(eq(executionPlans.workspaceId, workspaceId))
       .orderBy(desc(executionPlans.createdAt))
       .limit(limit) as unknown as Promise<ExecutionPlanRow[]>;
-  },
+  }
 
   async createRun(data: {
     planId: string;
@@ -72,19 +78,19 @@ export const executionRepo = {
       status: data.status ?? 'running',
     }).returning();
     return row as unknown as ExecutionRunRow;
-  },
+  }
 
   async getRun(id: string): Promise<ExecutionRunRow | undefined> {
     const [row] = await db.select().from(executionRuns)
       .where(eq(executionRuns.id, id)).limit(1);
     return row as unknown as ExecutionRunRow | undefined;
-  },
+  }
 
   async getRunsByPlan(planId: string): Promise<ExecutionRunRow[]> {
     return db.select().from(executionRuns)
       .where(eq(executionRuns.planId, planId))
       .orderBy(desc(executionRuns.startedAt)) as unknown as Promise<ExecutionRunRow[]>;
-  },
+  }
 
   async listPlansByStatus(workspaceId: string, status: ExecutionPlanStatus): Promise<ExecutionPlanRow[]> {
     return db.select().from(executionPlans)
@@ -93,7 +99,7 @@ export const executionRepo = {
         eq(executionPlans.status, status),
       ))
       .orderBy(desc(executionPlans.createdAt)) as unknown as Promise<ExecutionPlanRow[]>;
-  },
+  }
 
   async updateRunStatus(id: string, status: string, orchestrationId?: string): Promise<void> {
     await db.update(executionRuns)
@@ -103,5 +109,7 @@ export const executionRepo = {
         ...(status !== 'running' && { completedAt: new Date() }),
       })
       .where(eq(executionRuns.id, id));
-  },
-};
+  }
+}
+
+export const executionRepo = new ExecutionRepository();

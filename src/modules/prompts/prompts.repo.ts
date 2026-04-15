@@ -80,6 +80,11 @@ export class PromptsRepository extends BaseRepo<typeof prompts, PromptRow, NewPr
     return toPrompt(rows[0]!);
   }
 
+  // Keep legacy service contract stable while BaseRepo exposes `remove`.
+  async delete(id: string): Promise<boolean> {
+    return this.remove(id);
+  }
+
   async findByName(workspaceId: string, name: string): Promise<Prompt | null> {
     const rows = await db.select().from(prompts)
       .where(and(
