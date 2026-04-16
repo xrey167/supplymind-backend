@@ -7,7 +7,12 @@ const QUEUE_NAME = 'oauth-token-refresh';
 /** Refresh tokens expiring within the next 30 minutes */
 const REFRESH_WINDOW_MS = 30 * 60 * 1000;
 
-export const tokenRefreshQueue = new Queue(QUEUE_NAME, { connection: redisClient });
+// Lazy singleton — do NOT connect to Redis at module load time (breaks tests)
+let _queue: Queue | null = null;
+function getQueue(): Queue {
+  if (!_queue) _queue = new Queue(QUEUE_NAME, { connection: redisClient });
+  return _queue;
+}
 
 export function startTokenRefreshWorker() {
   const worker = new Worker(
@@ -29,7 +34,7 @@ export function startTokenRefreshWorker() {
 /** Schedule recurring refresh — call once at startup */
 export async function scheduleTokenRefresh() {
   // Run every 15 minutes
-  await tokenRefreshQueue.add('refresh', {}, {
+  await getQueue().add('refresh', {}, {
     repeat: { every: 15 * 60 * 1000 },
     removeOnComplete: { count: 10 },
     removeOnFail: { count: 50 },
