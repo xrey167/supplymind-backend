@@ -12,6 +12,8 @@ import {
   eventsQuerySchema,
   analyticsQuerySchema,
   runCostParamSchema,
+  approveBodySchema,
+  inputBodySchema,
 } from './missions.schemas';
 
 const jsonRes = { content: { 'application/json': { schema: z.object({}).passthrough() } } };
@@ -111,6 +113,36 @@ const runCostRoute = createRoute({
   responses: { 200: { description: 'Run cost breakdown', ...jsonRes }, 400: errRes('Bad request'), 404: errRes('Not found'), 409: errRes('Conflict'), 500: errRes('Internal error') },
 });
 
+const approveRoute = createRoute({
+  method: 'post', path: '/{missionId}/approve',
+  request: {
+    params: missionIdParamSchema,
+    body: { content: { 'application/json': { schema: approveBodySchema } } },
+  },
+  responses: {
+    200: { description: 'Mission approved or rejected', ...jsonRes },
+    400: errRes('Bad request'),
+    404: errRes('Not found'),
+    409: errRes('Conflict'),
+    500: errRes('Internal error'),
+  },
+});
+
+const inputRoute = createRoute({
+  method: 'post', path: '/{missionId}/input',
+  request: {
+    params: missionIdParamSchema,
+    body: { content: { 'application/json': { schema: inputBodySchema } } },
+  },
+  responses: {
+    200: { description: 'External input received', ...jsonRes },
+    400: errRes('Bad request'),
+    404: errRes('Not found'),
+    409: errRes('Conflict'),
+    500: errRes('Internal error'),
+  },
+});
+
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
 export const MissionsRoutes = new OpenAPIHono<AppEnv>();
@@ -181,9 +213,10 @@ MissionsRoutes.openapi(createArtifactRoute, async (c) => {
 });
 
 MissionsRoutes.openapi(listEventsRoute, async (c) => {
+  const workspaceId = c.get('workspaceId');
   const { missionId } = c.req.valid('param');
   const { limit } = c.req.valid('query');
-  const events = await missionEventsRepo.listByMissionRun(missionId, limit);
+  const events = await missionEventsRepo.listByMissionRun(missionId, workspaceId, limit);
   return c.json({ data: events });
 });
 
@@ -191,4 +224,20 @@ MissionsRoutes.openapi(runCostRoute, async (c) => {
   const { runId } = c.req.valid('param');
   const result = await missionsService.getRunCost(runId);
   return c.json({ data: result });
+});
+
+MissionsRoutes.openapi(approveRoute, async (c) => {
+  const { missionId } = c.req.valid('param');
+  const { approved, comment } = c.req.valid('json');
+  const r = await missionsService.approve(missionId, approved, comment);
+  if (!r.ok) return c.json({ error: r.error.message }, errorStatus(r.error));
+  return c.json({ data: r.value });
+});
+
+MissionsRoutes.openapi(inputRoute, async (c) => {
+  const { missionId } = c.req.valid('param');
+  const { payload } = c.req.valid('json');
+  const r = await missionsService.input(missionId, payload);
+  if (!r.ok) return c.json({ error: r.error.message }, errorStatus(r.error));
+  return c.json({ data: r.value });
 });

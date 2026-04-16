@@ -35,6 +35,15 @@ export const runCostParamSchema = z.object({
   runId: z.string().uuid(),
 });
 
+export const approveBodySchema = z.object({
+  approved: z.boolean(),
+  comment: z.string().max(1000).optional(),
+});
+
+export const inputBodySchema = z.object({
+  payload: z.record(z.string(), z.unknown()),
+});
+
 export const createArtifactSchema = z.object({
   kind: z.enum(ARTIFACT_KINDS),
   title: z.string().optional(),

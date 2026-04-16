@@ -155,7 +155,9 @@ describe('executeMission', () => {
   });
 
   describe('orchestration plan', () => {
-    it('calls coordinatorMode.run with phases grouped by worker.phase', async () => {
+    it('calls coordinatorMode.run once per phase with correct workspaceId', async () => {
+      // Two workers in different phases → 2 phase groups → 2 separate run() calls,
+      // each receiving a single-phase array (phases: [phase]).
       const run = makeRun();
       const workers = [
         makeWorker({ id: 'w-1', phase: 'plan' }),
@@ -163,10 +165,10 @@ describe('executeMission', () => {
       ];
       await executeMission(run, { kind: 'orchestration' } as MissionPlan, workers);
 
-      expect(mockRunPhases).toHaveBeenCalledTimes(1);
-      const arg = (mockRunPhases.mock.calls as any[][])[0][0];
-      expect(arg.workspaceId).toBe('ws-1');
-      expect(arg.phases).toHaveLength(2);
+      expect(mockRunPhases).toHaveBeenCalledTimes(2);
+      const firstArg = (mockRunPhases.mock.calls as any[][])[0][0];
+      expect(firstArg.workspaceId).toBe('ws-1');
+      expect(firstArg.phases).toHaveLength(1);
     });
   });
 
@@ -194,6 +196,55 @@ describe('executeMission', () => {
       await executeMission(run, { kind: 'task' } as MissionPlan, [makeWorker()]);
 
       expect(mockExecute).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('collaboration — budget exhaustion (task #15)', () => {
+    it('does not dispatch any worker and sets run to paused when budget is exhausted', async () => {
+      // Collaboration does one pre-flight checkBudget before dispatching all workers.
+      // When spentCents >= budgetCents the check returns false and execution stops.
+      mockFindRunById.mockImplementationOnce(async (id) =>
+        makeRun({ id, budgetCents: 200, spentCents: 200 }),
+      );
+      const run = makeRun({ budgetCents: 200, spentCents: 200 });
+      const workers = [makeWorker({ id: 'w-1' }), makeWorker({ id: 'w-2' })];
+
+      await executeMission(run, { kind: 'collaboration' } as MissionPlan, workers);
+
+      // No agent dispatch — neither worker should have been sent
+      expect(mockExecute).not.toHaveBeenCalled();
+      // checkBudget publishes the budget exceeded event and pauses the run
+      expect(mockPublish).toHaveBeenCalledWith(
+        expect.stringContaining('budget'),
+        expect.any(Object),
+      );
+      expect(mockUpdateRunStatus).toHaveBeenCalledWith('run-1', 'paused');
+      // Must NOT be marked completed or failed
+      expect(mockUpdateRunStatus).not.toHaveBeenCalledWith('run-1', 'completed');
+      expect(mockUpdateRunStatus).not.toHaveBeenCalledWith('run-1', 'failed');
+    });
+  });
+
+  describe('orchestration — resolveAgentId failure (task #16)', () => {
+    it('rejects and does not call updateRunStatus when findByWorkspace throws', async () => {
+      // In orchestration mode the phase-building step is not wrapped in try-catch.
+      // If resolveAgentId throws, executeMission itself rejects.
+      mockFindByWorkspace.mockImplementationOnce(async () => {
+        throw new Error('no agents');
+      });
+
+      const run = makeRun();
+      const workers = [
+        makeWorker({ id: 'w-1', phase: 'plan' }),
+        makeWorker({ id: 'w-2', phase: 'plan' }),
+      ];
+
+      await expect(
+        executeMission(run, { kind: 'orchestration' } as MissionPlan, workers),
+      ).rejects.toThrow('no agents');
+
+      // No status update should have been attempted
+      expect(mockUpdateRunStatus).not.toHaveBeenCalled();
     });
   });
 });

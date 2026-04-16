@@ -1,7 +1,7 @@
 import type { AgentCategory } from '../agent-profiles/agent-profiles.types';
 
 export type MissionMode = 'assist' | 'interview' | 'advisor' | 'team' | 'autopilot' | 'discipline';
-export type MissionStatus = 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+export type MissionStatus = 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'rejected';
 export type MissionWorkerStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
 export type MissionArtifactKind = 'plan' | 'summary' | 'review' | 'verification' | 'diff' | 'table' | 'json' | 'approval' | 'question' | 'metrics';
 export type MissionTemplateStatus = 'draft' | 'active' | 'archived';

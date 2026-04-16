@@ -29,17 +29,21 @@ export function registerMissionBudgetTracker(): () => void {
         if (!updated) return;
 
         if (updated.budgetCents != null && updated.spentCents >= updated.budgetCents) {
-          logger.info(
+          logger.warn(
             { missionRunId, spentCents: updated.spentCents, budgetCents: updated.budgetCents },
             'Mission budget exceeded — pausing run',
           );
-          await eventBus.publish(MissionTopics.MISSION_BUDGET_EXCEEDED, {
-            workspaceId: updated.workspaceId,
-            missionRunId,
-            budgetCents: updated.budgetCents,
-            spentCents: updated.spentCents,
-          });
           await missionsRepo.updateRunStatus(missionRunId, 'paused');
+          await eventBus
+            .publish(MissionTopics.MISSION_BUDGET_EXCEEDED, {
+              workspaceId: updated.workspaceId,
+              missionRunId,
+              budgetCents: updated.budgetCents,
+              spentCents: updated.spentCents,
+            })
+            .catch((err: unknown) =>
+              logger.error({ err, missionRunId }, 'failed to publish budget exceeded event'),
+            );
         }
       } catch (err) {
         logger.error({ missionRunId, err }, 'budget-tracker: failed to update run spent');

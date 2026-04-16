@@ -88,7 +88,7 @@ async function dispatchWorker(
     missionRunId: run.id,
     workerId: worker.id,
     role: worker.role,
-  }).catch(() => undefined);
+  }).catch((err: unknown) => logger.error({ err, topic: MissionTopics.MISSION_WORKER_STARTED, workerId: worker.id }, 'event publish failed'));
 
   try {
     const message = buildWorkerMessage(run, worker, systemPrompt);
@@ -108,7 +108,7 @@ async function dispatchWorker(
       missionRunId: run.id,
       workerId: worker.id,
       role: worker.role,
-    }).catch(() => undefined);
+    }).catch((err: unknown) => logger.error({ err, topic: MissionTopics.MISSION_WORKER_COMPLETED, workerId: worker.id }, 'event publish failed'));
   } catch (err) {
     await missionsRepo.updateWorkerStatus(worker.id, 'failed');
     eventBus.publish(MissionTopics.MISSION_WORKER_FAILED, {
@@ -117,7 +117,7 @@ async function dispatchWorker(
       workerId: worker.id,
       role: worker.role,
       error: err instanceof Error ? err.message : String(err),
-    }).catch(() => undefined);
+    }).catch((publishErr: unknown) => logger.error({ err: publishErr, topic: MissionTopics.MISSION_WORKER_FAILED, workerId: worker.id }, 'event publish failed'));
     throw err;
   }
 }
@@ -156,9 +156,11 @@ export async function executeMission(
     }
 
     case 'collaboration': {
+      // Single pre-flight check for the entire batch — avoids N concurrent reads
+      // all passing before any cost is recorded.
+      if (!(await checkBudget(run))) return;
       const results = await Promise.allSettled(
         workers.map(async (worker) => {
-          if (!(await checkBudget(run))) return;
           const agentId = await resolveAgentId(run.workspaceId, worker);
           if (!agentId) {
             logger.error({ missionRunId: run.id, role: worker.role }, 'executeMission: no agent for worker');
@@ -208,9 +210,11 @@ export async function executeMission(
         }),
       );
 
-      if (!(await checkBudget(run))) return;
-
-      await coordinatorMode.run({ workspaceId: run.workspaceId, phases });
+      // Run phases one-by-one so budget can be re-checked between phases.
+      for (const phase of phases) {
+        if (!(await checkBudget(run))) return;
+        await coordinatorMode.run({ workspaceId: run.workspaceId, phases: [phase] });
+      }
       await missionsRepo.updateRunStatus(run.id, 'completed');
       break;
     }

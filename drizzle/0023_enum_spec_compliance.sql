@@ -24,6 +24,7 @@ CREATE TYPE "public"."mission_artifact_kind" AS ENUM(
 ALTER TABLE "agent_profiles"
   ALTER COLUMN "category" TYPE "public"."agent_category"
   USING CASE category::text
+    WHEN NULL          THEN NULL::agent_category
     WHEN 'executor'    THEN 'executor'::agent_category
     WHEN 'planner'     THEN 'planner'::agent_category
     WHEN 'researcher'  THEN 'researcher'::agent_category
@@ -38,6 +39,7 @@ ALTER TABLE "agent_profiles"
 ALTER TABLE "mission_workers"
   ALTER COLUMN "role" TYPE "public"."agent_category"
   USING CASE role::text
+    WHEN NULL          THEN NULL::agent_category
     WHEN 'executor'    THEN 'executor'::agent_category
     WHEN 'planner'     THEN 'planner'::agent_category
     WHEN 'researcher'  THEN 'researcher'::agent_category
@@ -49,14 +51,19 @@ ALTER TABLE "mission_workers"
   END;
 --> statement-breakpoint
 
+-- Artifact kind migration rationale:
+-- 'plan', 'review', 'summary', 'json' → direct equivalents
+-- 'text' → 'summary' (closest semantic match)
+-- 'file', 'image', 'code', 'report' → 'json' (safe neutral default; data should be reviewed post-migration)
 ALTER TABLE "mission_artifacts"
   ALTER COLUMN "kind" TYPE "public"."mission_artifact_kind"
   USING CASE kind::text
+    WHEN NULL     THEN NULL::mission_artifact_kind
     WHEN 'json'   THEN 'json'::mission_artifact_kind
     WHEN 'text'   THEN 'summary'::mission_artifact_kind
-    WHEN 'file'   THEN 'table'::mission_artifact_kind
-    WHEN 'image'  THEN 'metrics'::mission_artifact_kind
-    WHEN 'code'   THEN 'diff'::mission_artifact_kind
+    WHEN 'file'   THEN 'json'::mission_artifact_kind
+    WHEN 'image'  THEN 'json'::mission_artifact_kind
+    WHEN 'code'   THEN 'json'::mission_artifact_kind
     WHEN 'report' THEN 'summary'::mission_artifact_kind
     ELSE 'summary'::mission_artifact_kind
   END;

@@ -117,9 +117,15 @@ export class MissionsRepository extends BaseRepo<typeof missionRuns, RunRow, New
     return rows.map(toRun);
   }
 
+  async updateRunInput(id: string, payload: Record<string, unknown>): Promise<void> {
+    await db.update(missionRuns)
+      .set({ input: payload, updatedAt: new Date() })
+      .where(eq(missionRuns.id, id));
+  }
+
   async updateRunStatus(id: string, status: MissionStatus): Promise<MissionRun | null> {
     const set: Partial<typeof missionRuns.$inferInsert> = { status, updatedAt: new Date() };
-    if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+    if (status === 'completed' || status === 'failed' || status === 'cancelled' || status === 'rejected') {
       set.completedAt = new Date();
     }
     const rows = await db.update(missionRuns).set(set).where(eq(missionRuns.id, id)).returning();

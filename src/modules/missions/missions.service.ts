@@ -90,7 +90,7 @@ export class MissionsService {
   async cancel(id: string): Promise<Result<MissionRun>> {
     const mission = await this.repo.findRunById(id);
     if (!mission) return err(new NotFoundError('Mission not found'));
-    if (mission.status === 'completed' || mission.status === 'failed' || mission.status === 'cancelled') {
+    if (mission.status === 'completed' || mission.status === 'failed' || mission.status === 'cancelled' || mission.status === 'rejected') {
       return err(new AppError('Mission is already terminal', 409, 'CONFLICT'));
     }
 
@@ -121,13 +121,13 @@ export class MissionsService {
       }).catch(() => undefined);
       return ok(updated!);
     } else {
-      const updated = await this.repo.updateRunStatus(id, 'failed');
-      this.bus.publish(MissionTopics.MISSION_FAILED, {
+      const updated = await this.repo.updateRunStatus(id, 'rejected');
+      this.bus.publish(MissionTopics.MISSION_REJECTED, {
         workspaceId: mission.workspaceId,
         missionId: id,
         reason: 'approval_rejected',
         comment,
-        failedAt: new Date().toISOString(),
+        rejectedAt: new Date().toISOString(),
       }).catch(() => undefined);
       return ok(updated!);
     }
@@ -140,6 +140,7 @@ export class MissionsService {
       return err(new AppError('Only paused missions can receive external input', 409, 'CONFLICT'));
     }
 
+    await this.repo.updateRunInput(id, payload);
     const updated = await this.repo.updateRunStatus(id, 'running');
     this.bus.publish(MissionTopics.MISSION_RESUMED, {
       workspaceId: mission.workspaceId,

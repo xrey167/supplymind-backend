@@ -147,4 +147,34 @@ describe('registerMissionBudgetTracker', () => {
 
     expect(mockUpdateRunStatus).not.toHaveBeenCalled();
   });
+
+  describe('cost rounding + pause status assertion (task #17)', () => {
+    it('calls updateRunSpent with 0 when costUsd = 0.001 rounds to zero cents', async () => {
+      // 0.001 > 0 so it passes the costUsd <= 0 guard, but Math.round(0.001 * 100) = 0.
+      // There is NO costCents <= 0 guard in the implementation, so updateRunSpent
+      // is still called with 0. This test documents that behaviour.
+      mockUpdateRunSpent.mockImplementationOnce(async () =>
+        makeRun({ spentCents: 0, budgetCents: null }),
+      );
+      registerMissionBudgetTracker();
+      await fireTaskCompleted({ missionRunId: 'run-1', costUsd: 0.001 });
+
+      expect(mockUpdateRunSpent).toHaveBeenCalledWith('run-1', 0);
+    });
+
+    it('calls updateRunStatus with exactly "paused" when budget is exceeded', async () => {
+      mockUpdateRunSpent.mockImplementationOnce(async () =>
+        makeRun({ spentCents: 150, budgetCents: 100 }),
+      );
+      registerMissionBudgetTracker();
+      await fireTaskCompleted({ missionRunId: 'run-1', costUsd: 0.50 });
+
+      // Assert the exact arguments — second arg must be the string 'paused'
+      expect(mockUpdateRunStatus).toHaveBeenCalledWith('run-1', 'paused');
+      expect((mockUpdateRunStatus.mock.calls as [string, string][][])[0]).toEqual([
+        'run-1',
+        'paused',
+      ]);
+    });
+  });
 });

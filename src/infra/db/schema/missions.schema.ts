@@ -16,8 +16,9 @@ export const missionModeEnum = pgEnum('mission_mode', [
   'assist', 'interview', 'advisor', 'team', 'autopilot', 'discipline'
 ]);
 
+// TODO: run `bun run db:generate` after this change to generate a migration for the new 'rejected' value
 export const missionStatusEnum = pgEnum('mission_status', [
-  'pending', 'running', 'paused', 'completed', 'failed', 'cancelled'
+  'pending', 'running', 'paused', 'completed', 'failed', 'cancelled', 'rejected'
 ]);
 
 export const missionWorkerStatusEnum = pgEnum('mission_worker_status', [

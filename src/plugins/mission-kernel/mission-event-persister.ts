@@ -2,6 +2,13 @@ import { eventBus } from '../../events/bus';
 import { missionEventsRepo } from '../../modules/missions/mission-events.repo';
 import { logger } from '../../config/logger';
 
+function deriveResourceType(topic: string): string {
+  if (topic.includes('worker')) return 'mission_worker';
+  if (topic.includes('artifact')) return 'mission_artifact';
+  if (topic.includes('gate') || topic.includes('approval')) return 'mission_gate';
+  return 'mission_run';
+}
+
 /**
  * Subscribes to all `mission.#` events and persists them to the
  * `mission_events` table for audit trail and replay.
@@ -24,7 +31,7 @@ export function registerMissionEventPersister(): () => void {
         await missionEventsRepo.insert({
           workspaceId,
           eventType: event.topic,
-          resourceType: 'mission_run',
+          resourceType: deriveResourceType(event.topic),
           resourceId: missionRunId,
           payload: data,
         });

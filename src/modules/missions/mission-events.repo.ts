@@ -1,6 +1,6 @@
 import { db } from '../../infra/db/client';
 import { missionEvents } from '../../infra/db/schema';
-import { eq, or, desc } from 'drizzle-orm';
+import { and, eq, or, desc } from 'drizzle-orm';
 import { BaseRepo } from '../../infra/db/repositories/base.repo';
 import type { MissionEvent } from './missions.types';
 
@@ -41,16 +41,20 @@ class MissionEventsRepository extends BaseRepo<typeof missionEvents, Row, NewRow
     });
   }
 
-  async listByMissionRun(missionRunId: string, limit = 50): Promise<MissionEvent[]> {
+  async listByMissionRun(missionRunId: string, workspaceId: string, limit = 50): Promise<MissionEvent[]> {
+    const safeLimit = Math.min(Math.max(limit, 1), 200);
     const rows = await db.select().from(missionEvents)
       .where(
-        or(
-          eq(missionEvents.resourceId, missionRunId),
-          eq(missionEvents.parentResourceId, missionRunId),
-        )!,
+        and(
+          eq(missionEvents.workspaceId, workspaceId),
+          or(
+            eq(missionEvents.resourceId, missionRunId),
+            eq(missionEvents.parentResourceId, missionRunId),
+          )!,
+        ),
       )
       .orderBy(desc(missionEvents.createdAt))
-      .limit(limit);
+      .limit(safeLimit);
     return rows.map(toEvent);
   }
 
