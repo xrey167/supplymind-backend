@@ -13,6 +13,27 @@ export const erpBcManifest: PluginManifest = {
   version: '1.0.0',
   description: 'Synchronise Business Central entities and execute approved write actions',
   author: 'SupplyMind',
+  domainPack: {
+    defaultPermissionMode: 'ask',
+    agentProfiles: [
+      {
+        name: 'ERP BC Executor',
+        category: 'executor',
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-6',
+        systemPrompt:
+          'You are a Business Central ERP execution agent. You can read entity data and execute approved write actions against the Business Central OData v4 API. All destructive operations require explicit human approval before execution. Always confirm entity IDs and action payloads before proceeding.',
+        permissionMode: 'ask',
+        isDefault: false,
+        metadata: { plugin: 'erp-bc' },
+      },
+    ],
+    approvalGates: [
+      { toolPattern: 'erp-bc:post-action', riskLevel: 'critical' },
+      { toolPattern: 'erp-bc:sync-now',    riskLevel: 'low' },
+    ],
+  },
+
   contributions: {
     workers: [
       {

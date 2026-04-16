@@ -30,6 +30,7 @@ export const usageService = {
       agentId: input.agentId ?? null,
       sessionId: input.sessionId ?? null,
       taskId: input.taskId ?? null,
+      missionRunId: input.missionRunId ?? null,
       model: input.model,
       provider,
       inputTokens: input.inputTokens,

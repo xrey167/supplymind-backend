@@ -1,4 +1,4 @@
-import type { TaskState, ToolCallStatus } from '../a2a/types';
+import type { TaskState, ToolCallStatus } from '../../engine/a2a/types';
 import type { OrchestrationStatus } from '../../modules/orchestration/orchestration.types';
 export type { TaskState };
 

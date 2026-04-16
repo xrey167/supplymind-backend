@@ -53,7 +53,7 @@ export interface AgentJobData {
   agentId: string;
   workspaceId: string;
   callerId: string;
-  message: import('../a2a/types').A2AMessage;
+  message: import('../../engine/a2a/types').A2AMessage;
   sessionId?: string;
 }
 

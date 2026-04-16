@@ -24,7 +24,7 @@ const listRoute = createRoute({
 const getRoute = createRoute({
   method: 'get', path: '/{profileId}',
   request: { params: agentProfileIdParamSchema },
-  responses: { 200: { description: 'Agent profile', ...jsonRes }, 404: errRes('Not found') },
+  responses: { 200: { description: 'Agent profile', ...jsonRes }, 404: errRes('Not found'), 500: errRes('Internal error') },
 });
 
 const createProfileRoute = createRoute({
@@ -39,13 +39,13 @@ const updateRoute = createRoute({
     params: agentProfileIdParamSchema,
     body: { content: { 'application/json': { schema: updateAgentProfileSchema } } },
   },
-  responses: { 200: { description: 'Updated', ...jsonRes }, 404: errRes('Not found') },
+  responses: { 200: { description: 'Updated', ...jsonRes }, 404: errRes('Not found'), 500: errRes('Internal error') },
 });
 
 const deleteRoute = createRoute({
   method: 'delete', path: '/{profileId}',
   request: { params: agentProfileIdParamSchema },
-  responses: { 204: { description: 'Deleted' }, 404: errRes('Not found') },
+  responses: { 204: { description: 'Deleted' }, 404: errRes('Not found'), 500: errRes('Internal error') },
 });
 
 export const AgentProfilesRoutes = new OpenAPIHono<AppEnv>();

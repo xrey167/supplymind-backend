@@ -100,7 +100,7 @@ export class BcClient {
       if (mergeAttempt >= 3) throw new PermanentError(`Conflict unresolvable after 3 merge attempts on ${entitySet}(${id})`);
       // Fetch current server state with fresh ETag
       const current = await this.get(entitySet, id);
-      const currentEtag = (current as Record<string, unknown>)['@odata.etag'] as string ?? '*';
+      const currentEtag = (current as unknown as Record<string, unknown>)['@odata.etag'] as string ?? '*';
       const systemFields = SYSTEM_FIELDS[entitySet];
       // Build merged body: overlay our non-system changes onto server state
       const merged: Partial<BcEntityMap[K]> = {};

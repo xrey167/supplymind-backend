@@ -55,7 +55,7 @@ modules/<name>/
   __tests__/           # Unit tests (bun:test)
 ```
 
-**All modules (30):** agent-registry, agents, api-keys, audit-logs, auth, billing, collaboration, computer-use, context, credentials, execution, feature-flags, health, inbox, mcp, members, memory, notifications, orchestration, plugins, prompts, sessions, settings, skills, tasks, tools, usage, users, workflows, workspaces.
+**All modules (39):** agent-profiles, agent-registry, agents, alert-rules, approvals, api-keys, audit-logs, auth, billing, collab-intel, collaboration, commands, computer-use, context, credentials, domain-knowledge, execution, feature-flags, health, inbox, learning, mcp, members, memory, missions, notifications, orchestration, plugins, prompts, sessions, settings, skills, tasks, tools, usage, users, webhooks, workflows, workspaces.
 
 ## Key Architecture Layers
 
@@ -114,11 +114,18 @@ myRoutes.openapi(myRoute, async (c) => {
 
 ```bash
 bun run infra:up           # start PostgreSQL + Redis via Docker
+bun run infra:down         # stop Docker services
+bun run db:setup           # migrate dev + test DBs and seed after fresh clone
+bun run db:studio          # open Drizzle Studio
 bun run test              # unit tests
 bun run test:integration  # integration tests (needs DB + Redis)
 bun run test:e2e          # e2e tests (needs DB + Redis)
 bunx tsc --noEmit         # type check (must be 0 errors)
+bun run build             # build to dist/
+bun run start             # run the built server
 bun run infra:logs        # tail Docker service logs when debugging infra-backed tests
+bun run seed              # seed dev data
+bun run create-admin      # create an admin user
 ```
 
 ## Common Gotchas

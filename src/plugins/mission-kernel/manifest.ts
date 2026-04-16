@@ -13,6 +13,12 @@ export const missionKernelManifest: PluginManifest = {
   author: 'SupplyMind',
   contributions: {
     topics: { ...MissionTopics },
+    onBootstrap: async () => {
+      const { registerMissionBudgetTracker } = await import('./budget-tracker');
+      const { registerMissionEventPersister } = await import('./mission-event-persister');
+      registerMissionBudgetTracker();
+      registerMissionEventPersister();
+    },
     workers: [
       {
         name: 'mission-kernel:run',
@@ -81,6 +87,29 @@ export const missionKernelManifest: PluginManifest = {
             cursor: req.params.cursor as string | undefined,
           });
           return ok(missions);
+        },
+      },
+      {
+        op: 'mission.approve',
+        handler: async (req) => {
+          const { missionsService } = await import('../../modules/missions/missions.service');
+          const { id, approved, comment } = req.params as {
+            id: string;
+            approved: boolean;
+            comment?: string;
+          };
+          return missionsService.approve(id, approved, comment);
+        },
+      },
+      {
+        op: 'mission.input',
+        handler: async (req) => {
+          const { missionsService } = await import('../../modules/missions/missions.service');
+          const { id, input } = req.params as {
+            id: string;
+            input: Record<string, unknown>;
+          };
+          return missionsService.input(id, input);
         },
       },
       {

@@ -1,0 +1,180 @@
+import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import type { MissionRun } from '../../../modules/missions/missions.types';
+
+// ---------------------------------------------------------------------------
+// Mocks
+// ---------------------------------------------------------------------------
+
+const mockUpdateRunSpent  = mock(async (_id: string, _cents: number) => null as MissionRun | null);
+const mockUpdateRunStatus = mock(async () => null);
+const mockPublish         = mock(async () => undefined);
+
+let subscriberHandler: ((event: { data: unknown }) => Promise<void>) | null = null;
+let capturedSubscriptionName: string | null = null;
+
+const mockSubscribe = mock((topic: string, handler: (event: { data: unknown }) => Promise<void>, opts?: { name?: string }) => {
+  subscriberHandler = handler;
+  capturedSubscriptionName = opts?.name ?? null;
+  return 'sub-id-1';
+});
+
+const mockUnsubscribe = mock((_id: string) => undefined);
+
+mock.module('../../../modules/missions/missions.repo', () => ({
+  missionsRepo: {
+    updateRunSpent:  mockUpdateRunSpent,
+    updateRunStatus: mockUpdateRunStatus,
+  },
+}));
+
+mock.module('../../../events/bus', () => ({
+  eventBus: {
+    subscribe:   mockSubscribe,
+    unsubscribe: mockUnsubscribe,
+    publish:     mockPublish,
+  },
+}));
+
+const _realTopics = require('../../../plugins/mission-kernel/topics');
+mock.module('../../../plugins/mission-kernel/topics', () => ({
+  ..._realTopics,
+  MissionTopics: { ..._realTopics.MissionTopics, MISSION_BUDGET_EXCEEDED: 'mission.budget_exceeded' },
+}));
+
+mock.module('../../../config/logger', () => ({
+  logger: { info: mock(() => undefined), warn: mock(() => undefined), error: mock(() => undefined) },
+}));
+
+const { registerMissionBudgetTracker } = await import('../budget-tracker');
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeRun(overrides: Partial<MissionRun> = {}): MissionRun {
+  return {
+    id: 'run-1', workspaceId: 'ws-1', name: 'Test', mode: 'autopilot', status: 'running',
+    input: {}, metadata: {}, disciplineMaxRetries: 3,
+    spentCents: 0, costBreakdown: {}, budgetCents: null,
+    createdAt: new Date(), updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+async function fireTaskCompleted(data: Record<string, unknown>): Promise<void> {
+  if (!subscriberHandler) throw new Error('No subscriber registered');
+  await subscriberHandler({ data });
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('registerMissionBudgetTracker', () => {
+  beforeEach(() => {
+    mockUpdateRunSpent.mockClear();
+    mockUpdateRunStatus.mockClear();
+    mockPublish.mockClear();
+    subscriberHandler = null;
+  });
+
+  it('subscribes to task.completed events', () => {
+    registerMissionBudgetTracker();
+    expect(mockSubscribe).toHaveBeenCalledWith(
+      'task.completed',
+      expect.any(Function),
+      expect.objectContaining({ name: 'mission-budget-tracker' }),
+    );
+  });
+
+  it('returns unsubscribe function', () => {
+    const unsubscribe = registerMissionBudgetTracker();
+    expect(typeof unsubscribe).toBe('function');
+    unsubscribe();
+    expect(mockUnsubscribe).toHaveBeenCalled();
+  });
+
+  it('ignores events without missionRunId', async () => {
+    registerMissionBudgetTracker();
+    await fireTaskCompleted({ costUsd: 1.5 });
+    expect(mockUpdateRunSpent).not.toHaveBeenCalled();
+  });
+
+  it('ignores events with zero or negative cost', async () => {
+    registerMissionBudgetTracker();
+    await fireTaskCompleted({ missionRunId: 'run-1', costUsd: 0 });
+    expect(mockUpdateRunSpent).not.toHaveBeenCalled();
+  });
+
+  it('increments spentCents by costUsd converted to cents', async () => {
+    mockUpdateRunSpent.mockImplementationOnce(async () => makeRun({ spentCents: 50, budgetCents: null }));
+    registerMissionBudgetTracker();
+    await fireTaskCompleted({ missionRunId: 'run-1', costUsd: 0.50 });
+    expect(mockUpdateRunSpent).toHaveBeenCalledWith('run-1', 50);
+  });
+
+  it('publishes MISSION_BUDGET_EXCEEDED and pauses run when budget is hit', async () => {
+    mockUpdateRunSpent.mockImplementationOnce(async () =>
+      makeRun({ spentCents: 100, budgetCents: 100 }),
+    );
+    registerMissionBudgetTracker();
+    await fireTaskCompleted({ missionRunId: 'run-1', costUsd: 0.30 });
+
+    expect(mockPublish).toHaveBeenCalledWith(
+      'mission.budget_exceeded',
+      expect.objectContaining({ missionRunId: 'run-1' }),
+    );
+    expect(mockUpdateRunStatus).toHaveBeenCalledWith('run-1', 'paused');
+  });
+
+  it('does not pause when spent is still below budget', async () => {
+    mockUpdateRunSpent.mockImplementationOnce(async () =>
+      makeRun({ spentCents: 50, budgetCents: 200 }),
+    );
+    registerMissionBudgetTracker();
+    await fireTaskCompleted({ missionRunId: 'run-1', costUsd: 0.50 });
+
+    expect(mockPublish).not.toHaveBeenCalled();
+    expect(mockUpdateRunStatus).not.toHaveBeenCalled();
+  });
+
+  it('does not pause when run has no budget', async () => {
+    mockUpdateRunSpent.mockImplementationOnce(async () =>
+      makeRun({ spentCents: 999, budgetCents: null }),
+    );
+    registerMissionBudgetTracker();
+    await fireTaskCompleted({ missionRunId: 'run-1', costUsd: 9.99 });
+
+    expect(mockUpdateRunStatus).not.toHaveBeenCalled();
+  });
+
+  describe('cost rounding + pause status assertion (task #17)', () => {
+    it('calls updateRunSpent with 0 when costUsd = 0.001 rounds to zero cents', async () => {
+      // 0.001 > 0 so it passes the costUsd <= 0 guard, but Math.round(0.001 * 100) = 0.
+      // There is NO costCents <= 0 guard in the implementation, so updateRunSpent
+      // is still called with 0. This test documents that behaviour.
+      mockUpdateRunSpent.mockImplementationOnce(async () =>
+        makeRun({ spentCents: 0, budgetCents: null }),
+      );
+      registerMissionBudgetTracker();
+      await fireTaskCompleted({ missionRunId: 'run-1', costUsd: 0.001 });
+
+      expect(mockUpdateRunSpent).toHaveBeenCalledWith('run-1', 0);
+    });
+
+    it('calls updateRunStatus with exactly "paused" when budget is exceeded', async () => {
+      mockUpdateRunSpent.mockImplementationOnce(async () =>
+        makeRun({ spentCents: 150, budgetCents: 100 }),
+      );
+      registerMissionBudgetTracker();
+      await fireTaskCompleted({ missionRunId: 'run-1', costUsd: 0.50 });
+
+      // Assert the exact arguments — second arg must be the string 'paused'
+      expect(mockUpdateRunStatus).toHaveBeenCalledWith('run-1', 'paused');
+      expect((mockUpdateRunStatus.mock.calls as [string, string][][])[0]).toEqual([
+        'run-1',
+        'paused',
+      ]);
+    });
+  });
+});

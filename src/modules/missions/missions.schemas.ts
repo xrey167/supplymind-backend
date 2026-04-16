@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const MISSION_MODES = ['assist', 'interview', 'advisor', 'team', 'autopilot', 'discipline'] as const;
-const ARTIFACT_KINDS = ['text', 'json', 'file', 'image', 'code', 'report'] as const;
+const ARTIFACT_KINDS = ['plan', 'summary', 'review', 'verification', 'diff', 'table', 'json', 'approval', 'question', 'metrics'] as const;
 
 export const createMissionSchema = z.object({
   name: z.string().min(1).max(255),
@@ -18,6 +18,30 @@ export const missionIdParamSchema = z.object({
 export const listMissionsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   cursor: z.string().optional(),
+});
+
+export const eventsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).optional().default(50),
+});
+
+export const analyticsQuerySchema = z.object({
+  period: z.enum(['day', 'week', 'month', 'all']).optional().default('month'),
+  since: z.string().datetime().optional(),
+  until: z.string().datetime().optional(),
+});
+
+export const runCostParamSchema = z.object({
+  missionId: z.string().uuid(),
+  runId: z.string().uuid(),
+});
+
+export const approveBodySchema = z.object({
+  approved: z.boolean(),
+  comment: z.string().max(1000).optional(),
+});
+
+export const inputBodySchema = z.object({
+  payload: z.record(z.string(), z.unknown()),
 });
 
 export const createArtifactSchema = z.object({

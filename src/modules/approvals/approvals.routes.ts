@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
+import type { AppEnv } from '../../core/types';
 import { approvalsService } from './approvals.service';
 import { listApprovalsQuerySchema, approvalIdParamSchema, approvalActionSchema } from './approvals.schemas';
 
@@ -26,7 +27,7 @@ const actRoute = createRoute({
   },
 });
 
-export const approvalsRoutes = new OpenAPIHono();
+export const approvalsRoutes = new OpenAPIHono<AppEnv>();
 
 approvalsRoutes.openapi(listRoute, async (c) => {
   const workspaceId = c.get('workspaceId') as string;
@@ -35,7 +36,7 @@ approvalsRoutes.openapi(listRoute, async (c) => {
     status: query.status,
     kind: query.kind,
   });
-  return c.json(items);
+  return c.json({ data: items });
 });
 
 approvalsRoutes.openapi(actRoute, async (c) => {
@@ -45,7 +46,7 @@ approvalsRoutes.openapi(actRoute, async (c) => {
   const { action, reason } = c.req.valid('json');
   try {
     const result = await approvalsService.act(workspaceId, kind, id, action, userId, reason);
-    if (!result.ok) return c.json({ error: result.detail }, 400);
+    if (!result.ok) return c.json({ error: result.detail ?? 'Bad request' }, 400);
     return c.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -3,6 +3,7 @@ export interface InsertUsageRecord {
   agentId?: string | null;
   sessionId?: string | null;
   taskId?: string | null;
+  missionRunId?: string | null;
   model: string;
   provider: 'anthropic' | 'openai' | 'google';
   inputTokens: number;
@@ -16,6 +17,7 @@ export interface RecordUsageInput {
   agentId?: string;
   sessionId?: string;
   taskId?: string;
+  missionRunId?: string | null;
   model: string;
   inputTokens: number;
   outputTokens: number;

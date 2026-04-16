@@ -13,6 +13,7 @@ import {
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core';
+import { missionRuns } from './missions.schema';
 
 const vector = customType<{ data: number[]; driverParam: string }>({
   dataType(config) { return `vector(${(config as any)?.dimensions ?? 1536})`; },
@@ -318,6 +319,7 @@ export const usageRecords = pgTable('usage_records', {
   agentId: uuid('agent_id').references(() => agentConfigs.id, { onDelete: 'set null' }),
   sessionId: uuid('session_id').references(() => sessions.id, { onDelete: 'set null' }),
   taskId: uuid('task_id').references(() => a2aTasks.id, { onDelete: 'set null' }),
+  missionRunId: uuid('mission_run_id').references(() => missionRuns.id, { onDelete: 'set null' }),
   model: text('model').notNull(),
   provider: aiProviderEnum('provider').notNull(),
   inputTokens: integer('input_tokens').notNull().default(0),
@@ -329,6 +331,7 @@ export const usageRecords = pgTable('usage_records', {
   index('ur_workspace_created_idx').on(t.workspaceId, t.createdAt),
   index('ur_agent_idx').on(t.agentId),
   index('ur_task_idx').on(t.taskId),
+  index('ur_mission_run_idx').on(t.missionRunId),
 ]);
 
 // Billing

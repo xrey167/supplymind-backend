@@ -62,12 +62,17 @@ jobs:
           #   after missions.service.test.ts which caches missions.repo; dynamic import returns stale
           #   module, MissionsRepository is undefined. Same root cause as gate-audit.repo.test.ts.
           # - agent-profiles.repo.test.ts: same bare-mock pattern as missions.repo.test.ts
+          # - plugin-manifest.domainpack.test.ts: bare mock.module() calls for skills.registry,
+          #   db/client, db/schema, result, hooks, agent-profiles.service, tool-approvals, etc.
+          #   mock.restore() does not reset mock.module() entries in bun v1.3.4 — contamination
+          #   persists into command-parser.test.ts, tools.registry.test.ts, dispatch.gates.test.ts
           bun test $(find src -name '*.test.ts' \
             -not -path '*/learning/__tests__/*' \
             -not -path '*/learning/analyzers/__tests__/*' \
             -not -path '*/learning/generators/__tests__/*' \
             -not -path '*/engine/a2a/__tests__/task-manager.test.ts' \
             -not -path '*/plugins/__tests__/plugin-manifest.test.ts' \
+            -not -path '*/plugins/__tests__/plugin-manifest.domainpack.test.ts' \
             -not -path '*/settings/workspace-settings/__tests__/workspace-settings.service.test.ts' \
             -not -path '*/infra/mcp/__tests__/client-pool.test.ts' \
             -not -path '*/engine/gates/__tests__/gate-audit.repo.test.ts' \
@@ -79,7 +84,7 @@ jobs:
             -not -path '*/engine/billing/__tests__/budget-counter.test.ts' \
             -not -path '*/missions/__tests__/missions.repo.test.ts' \
             -not -path '*/agent-profiles/__tests__/agent-profiles.repo.test.ts')
-          # Remaining isolated steps (13 total):
+          # Remaining isolated steps (14 total):
           # - learning: engine, analyzers, and generators each in separate steps
           # - generators batched as one directory (each file has afterAll(() => mock.restore()))
           bun test src/modules/learning/__tests__/
@@ -95,6 +100,7 @@ jobs:
           bun test src/engine/billing/__tests__/budget-counter.test.ts
           bun test src/modules/missions/__tests__/missions.repo.test.ts
           bun test src/modules/agent-profiles/__tests__/agent-profiles.repo.test.ts
+          bun test src/modules/plugins/__tests__/plugin-manifest.domainpack.test.ts
         env:
           CREDENTIALS_ENCRYPTION_KEY: ci-test-key-for-unit-tests-32bytes
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
