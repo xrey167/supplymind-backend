@@ -35,14 +35,14 @@ mock.module('../../../events/bus', () => ({
   },
 }));
 
+const _realTopics = require('../../../plugins/mission-kernel/topics');
 mock.module('../../../plugins/mission-kernel/topics', () => ({
-  MissionTopics: {
-    MISSION_BUDGET_EXCEEDED: 'mission.budget_exceeded',
-  },
+  ..._realTopics,
+  MissionTopics: { ..._realTopics.MissionTopics, MISSION_BUDGET_EXCEEDED: 'mission.budget_exceeded' },
 }));
 
 mock.module('../../../config/logger', () => ({
-  logger: { info: mock(() => undefined), warn: mock(() => undefined) },
+  logger: { info: mock(() => undefined), warn: mock(() => undefined), error: mock(() => undefined) },
 }));
 
 const { registerMissionBudgetTracker } = await import('../budget-tracker');

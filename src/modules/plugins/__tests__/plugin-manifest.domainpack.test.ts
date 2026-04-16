@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 import type { PluginManifest } from '../plugin-manifest';
 
 // ---------------------------------------------------------------------------
@@ -14,8 +14,10 @@ const mockRegisterGate   = mock((_wid: string, _pattern: string, _level: string)
 const mockUnregisterGate = mock((_wid: string, _pattern: string) => undefined);
 
 // Minimal stubs to satisfy PluginManager.install() without hitting real DB
+const _realSkillsRegistry = require('../../../modules/skills/skills.registry');
 mock.module('../../../modules/skills/skills.registry', () => ({
-  skillRegistry: { register: mock(() => undefined), unregister: mock(() => undefined) },
+  ..._realSkillsRegistry,
+  skillRegistry: { register: mock(() => undefined), unregister: mock(() => undefined), clear: mock(() => undefined) },
 }));
 mock.module('../../result', () => ({ ok: (v: unknown) => ({ ok: true, value: v }) }));
 mock.module('../../../core/hooks/hook-registry', () => ({
@@ -71,6 +73,8 @@ const { PluginManager } = await import('../plugin-manifest');
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+afterAll(() => mock.restore());
 
 describe('PluginManager.install() — domainPack', () => {
   let manager: InstanceType<typeof PluginManager>;

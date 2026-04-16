@@ -31,7 +31,9 @@ mock.module('../../../modules/agents/agents.repo', () => ({
   agentsRepo: { findByWorkspace: mockFindByWorkspace },
 }));
 
+const _realAgentProfiles = require('../../../modules/agent-profiles/agent-profiles.service');
 mock.module('../../../modules/agent-profiles/agent-profiles.service', () => ({
+  ..._realAgentProfiles,
   agentProfilesService: { resolveForCategory: mockResolveForCategory },
 }));
 
