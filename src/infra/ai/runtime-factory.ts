@@ -104,18 +104,18 @@ export function withDomainContext(
   };
 }
 
-export function createRuntime(provider: AIProvider, mode: AgentMode): AgentRuntime {
+export function createRuntime(provider: AIProvider, mode: AgentMode, apiKey?: string): AgentRuntime {
   let runtime: AgentRuntime;
   if (mode === 'agent-sdk') {
-    if (provider === 'anthropic') runtime = new AnthropicAgentSdkRuntime();
-    else if (provider === 'openai') runtime = new OpenAIAgentSdkRuntime();
+    if (provider === 'anthropic') runtime = new AnthropicAgentSdkRuntime(apiKey);
+    else if (provider === 'openai') runtime = new OpenAIAgentSdkRuntime(apiKey);
     else throw new Error(`No agent-sdk runtime for provider: ${provider}`);
   } else if (provider === 'anthropic') {
-    runtime = new AnthropicRawRuntime();
+    runtime = new AnthropicRawRuntime(apiKey);
   } else if (provider === 'openai') {
-    runtime = new OpenAIRawRuntime();
+    runtime = new OpenAIRawRuntime(apiKey);
   } else if (provider === 'google') {
-    runtime = new GoogleRawRuntime();
+    runtime = new GoogleRawRuntime(apiKey);
   } else {
     throw new Error(`No raw runtime for provider: ${provider}`);
   }

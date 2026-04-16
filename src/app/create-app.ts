@@ -17,6 +17,7 @@ import { invitationRoutes } from '../api/routes/invitations';
 import { initSubsystems, destroySubsystems } from './bootstrap';
 import { healthService } from '../modules/health/health.service';
 import { pluginCatalogRoutes } from '../modules/plugins/plugins.catalog.routes';
+import { oauthConnectionsRoutes } from '../modules/oauth-connections/oauth-connections.routes';
 
 export async function createApp(opts?: { skipSubsystems?: boolean }) {
   const app = new OpenAPIHono<AppEnv>({
@@ -82,6 +83,9 @@ export async function createApp(opts?: { skipSubsystems?: boolean }) {
   app.route('/api/v1/workspace-management', WorkspacesRoutes);
   app.route('/api/v1/invitations', invitationRoutes);
   app.route('/api/v1/plugin-catalog', pluginCatalogRoutes);
+
+  // OAuth provider connection routes (authorize, exchange, device-code, poll, status, disconnect)
+  app.route('/api/oauth', oauthConnectionsRoutes);
 
   // Workspace-scoped routes (auth required): /api/v1/workspaces/:workspaceId/*
   app.route('/api/v1/workspaces/:workspaceId', workspaceRoutes);

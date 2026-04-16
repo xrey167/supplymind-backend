@@ -169,6 +169,13 @@
       "when": 1744758000000,
       "tag": "0023_enum_spec_compliance",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1776366697136,
+      "tag": "0024_dizzy_katie_power",
+      "breakpoints": true
     }
   ]
 }

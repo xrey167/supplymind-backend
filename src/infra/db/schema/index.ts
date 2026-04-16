@@ -442,6 +442,42 @@ export const credentials = pgTable('credentials', {
   index('credentials_workspace_id_idx').on(t.workspaceId),
 ]);
 
+// OAuth provider connections (tokens from OAuth flows, not static API keys)
+export const oauthProviderEnum = pgEnum('oauth_provider', ['claude', 'google', 'openai', 'github']);
+export const oauthConnectionStatusEnum = pgEnum('oauth_connection_status', ['active', 'error', 'expired']);
+
+export const oauthConnections = pgTable('oauth_connections', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  provider: oauthProviderEnum('provider').notNull(),
+  email: text('email'),
+  displayName: text('display_name'),
+  // Access token (encrypted)
+  encryptedAccessToken: text('encrypted_access_token').notNull(),
+  accessTokenIv: text('access_token_iv').notNull(),
+  accessTokenTag: text('access_token_tag').notNull(),
+  // Refresh token (encrypted, nullable — not all providers issue one)
+  encryptedRefreshToken: text('encrypted_refresh_token'),
+  refreshTokenIv: text('refresh_token_iv'),
+  refreshTokenTag: text('refresh_token_tag'),
+  // Expiry
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  scope: text('scope'),
+  // Health tracking
+  status: oauthConnectionStatusEnum('status').notNull().default('active'),
+  lastError: text('last_error'),
+  lastRefreshedAt: timestamp('last_refreshed_at', { withTimezone: true }),
+  // Extra data (e.g. workspaceId for multi-workspace OpenAI accounts)
+  providerData: jsonb('provider_data').default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  // One active connection per workspace+provider+email combo
+  uniqueIndex('oc_workspace_provider_email_idx').on(t.workspaceId, t.provider, t.email),
+  index('oc_workspace_provider_idx').on(t.workspaceId, t.provider),
+  index('oc_expires_at_idx').on(t.expiresAt),
+]);
+
 // Audit logs (append-only)
 export const auditLogs = pgTable('audit_logs', {
   id: uuid('id').primaryKey().defaultRandom(),
