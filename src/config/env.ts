@@ -48,6 +48,15 @@ export const envSchema = z.object({
     .string()
     .default('true')
     .transform(v => v !== 'false'),
+  // Credentials encryption (used for both static API keys and OAuth tokens)
+  CREDENTIALS_ENCRYPTION_KEY: z.string().optional(),
+  // OAuth provider client IDs (public — PKCE provides security; no secrets for PKCE providers)
+  CLAUDE_OAUTH_CLIENT_ID: z.string().optional(),
+  CLAUDE_OAUTH_REDIRECT_URI: z.string().url().optional(),
+  GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),   // Google requires client_secret
+  OPENAI_OAUTH_CLIENT_ID: z.string().optional(),
+  GITHUB_OAUTH_CLIENT_ID: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

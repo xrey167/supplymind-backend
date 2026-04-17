@@ -52,6 +52,25 @@ describe('createRuntime', () => {
   test('unknown provider throws', () => {
     expect(() => createRuntime('unknown' as any, 'raw')).toThrow();
   });
+
+  test('accepts optional apiKey — still returns runtime with run/stream', () => {
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-oauth-injected';
+    const rt = createRuntime('anthropic', 'raw', 'sk-ant-oauth-injected');
+    expect(typeof rt.run).toBe('function');
+    expect(typeof rt.stream).toBe('function');
+  });
+
+  test('accepts optional apiKey for openai', () => {
+    process.env.OPENAI_API_KEY = 'sk-openai-oauth';
+    const rt = createRuntime('openai', 'raw', 'sk-openai-oauth');
+    expect(typeof rt.run).toBe('function');
+  });
+
+  test('accepts optional apiKey for agent-sdk', () => {
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-sdk';
+    const rt = createRuntime('anthropic', 'agent-sdk', 'sk-ant-sdk');
+    expect(typeof rt.run).toBe('function');
+  });
 });
 
 // ---------------------------------------------------------------------------

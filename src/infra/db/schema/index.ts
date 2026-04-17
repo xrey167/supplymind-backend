@@ -442,6 +442,42 @@ export const credentials = pgTable('credentials', {
   index('credentials_workspace_id_idx').on(t.workspaceId),
 ]);
 
+// OAuth provider connections (tokens from OAuth flows, not static API keys)
+export const oauthProviderEnum = pgEnum('oauth_provider', ['claude', 'google', 'openai', 'github']);
+export const oauthConnectionStatusEnum = pgEnum('oauth_connection_status', ['active', 'error', 'expired']);
+
+export const oauthConnections = pgTable('oauth_connections', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  provider: oauthProviderEnum('provider').notNull(),
+  email: text('email'),
+  displayName: text('display_name'),
+  // Access token (encrypted)
+  encryptedAccessToken: text('encrypted_access_token').notNull(),
+  accessTokenIv: text('access_token_iv').notNull(),
+  accessTokenTag: text('access_token_tag').notNull(),
+  // Refresh token (encrypted, nullable — not all providers issue one)
+  encryptedRefreshToken: text('encrypted_refresh_token'),
+  refreshTokenIv: text('refresh_token_iv'),
+  refreshTokenTag: text('refresh_token_tag'),
+  // Expiry
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  scope: text('scope'),
+  // Health tracking
+  status: oauthConnectionStatusEnum('status').notNull().default('active'),
+  lastError: text('last_error'),
+  lastRefreshedAt: timestamp('last_refreshed_at', { withTimezone: true }),
+  // Extra data (e.g. workspaceId for multi-workspace OpenAI accounts)
+  providerData: jsonb('provider_data').default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  // One active connection per workspace+provider+email combo
+  uniqueIndex('oc_workspace_provider_email_idx').on(t.workspaceId, t.provider, t.email),
+  index('oc_workspace_provider_idx').on(t.workspaceId, t.provider),
+  index('oc_expires_at_idx').on(t.expiresAt),
+]);
+
 // Audit logs (append-only)
 export const auditLogs = pgTable('audit_logs', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -951,6 +987,41 @@ export const gateAuditLog = pgTable('gate_audit_log', {
 }, (t) => [
   index('gate_audit_orch_idx').on(t.orchestrationId),
   index('gate_audit_workspace_created_idx').on(t.workspaceId, t.createdAt),
+]);
+
+// ── Workspace Policies ────────────────────────────────────────────────────────
+
+export const policyTypeEnum = pgEnum('policy_type', ['access', 'budget', 'routing']);
+
+export const workspacePolicies = pgTable('workspace_policies', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  type: policyTypeEnum('type').notNull(),
+  enabled: boolean('enabled').notNull().default(true),
+  priority: integer('priority').notNull().default(10),
+  conditions: jsonb('conditions').notNull().default({}),
+  actions: jsonb('actions').notNull().default({}),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('workspace_policies_workspace_idx').on(t.workspaceId),
+  index('workspace_policies_type_idx').on(t.type),
+]);
+
+// ── Workspace Routing Configs ─────────────────────────────────────────────────
+
+export const routingStrategyEnum = pgEnum('routing_strategy', ['priority', 'round-robin', 'weighted', 'cost-optimized']);
+
+export const workspaceRoutingConfigs = pgTable('workspace_routing_configs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().unique(),
+  strategy: routingStrategyEnum('strategy').notNull().default('priority'),
+  providers: jsonb('providers').notNull().default([]),
+  roundRobinCounter: integer('round_robin_counter').notNull().default(0),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('workspace_routing_configs_ws_idx').on(t.workspaceId),
 ]);
 
 export * from './missions.schema';
