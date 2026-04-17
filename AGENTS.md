@@ -108,7 +108,8 @@ myRoutes.openapi(myRoute, async (c) => {
 3. Run `bun run db:generate` to generate a migration
 4. Run `bun run db:migrate` to apply it to dev DB
 5. Run `bun run db:migrate:test` to apply it to test DB
-6. If host port access to Postgres is broken but Docker is up, run `bun run db:migrate:docker`
+6. For dev-only schema syncs without a migration file, run `bun run db:push`
+7. If host port access to Postgres is broken but Docker is up, run `bun run db:migrate:docker`
 
 ## Running Checks
 
@@ -132,6 +133,7 @@ bun run create-admin      # create an admin user
 
 - **Port 5434**: Docker maps PostgreSQL to port 5434 on the host, not 5432
 - **Clerk in dev**: Leave `CLERK_SECRET_KEY` blank for insecure dev-mode JWT decode
+- **Unit test isolation**: `bunfig.toml` sets `smol = false` so Bun runs test files in isolated workers; CI still splits several mock-sensitive suites into separate `bun test <path>` steps
 - **Feature flags**: Stored in `workspace_settings` with `feature-flag:` key prefix, cached 60s
 - **Event system**: 50+ topics across 14 categories — use `EventBus.publish()` not direct emitters
 - **AI providers**: Always use the factory/runtime abstractions in `src/infra/ai/`, never import SDKs directly in modules
