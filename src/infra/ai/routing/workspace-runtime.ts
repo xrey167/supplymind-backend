@@ -37,7 +37,9 @@ export async function buildWorkspaceRuntime(opts: WorkspaceRuntimeOptions): Prom
   }
 
   // Build fallback chain: primary target + remaining providers in priority order
-  const fallbackEntries = config.providers.filter((p) => p.provider !== primary.provider);
+  const fallbackEntries = config.providers.filter(
+    (p) => p.provider !== primary.provider && !excluded.has(p.provider),
+  );
   if (fallbackEntries.length === 0) {
     return createRuntime(primary.provider, primary.mode ?? 'raw');
   }
