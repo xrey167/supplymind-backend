@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
 import type { AppEnv } from '../../core/types';
 import { workspacePolicyService } from './workspace-policy.service';
+import type { Policy } from './workspace-policy.types';
 import {
   createPolicySchema,
   updatePolicySchema,
@@ -83,13 +84,8 @@ const deleteRoute = createRoute({
   },
 });
 
-function toResponse(policy: { id: string; workspaceId: string; name: string; type: string; enabled: boolean; priority: number; conditions: object; actions: object; createdAt: Date; updatedAt: Date }) {
-  return {
-    ...policy,
-    type: policy.type as 'access' | 'budget' | 'routing',
-    createdAt: policy.createdAt.toISOString(),
-    updatedAt: policy.updatedAt.toISOString(),
-  };
+function toResponse(policy: Policy) {
+  return { ...policy, createdAt: policy.createdAt.toISOString(), updatedAt: policy.updatedAt.toISOString() };
 }
 
 export const workspacePolicyRoutes = new OpenAPIHono<AppEnv>();

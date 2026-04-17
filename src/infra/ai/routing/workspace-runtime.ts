@@ -3,11 +3,9 @@ import { StrategyRouter } from './strategy-router';
 import { routingConfigService } from '../../../modules/routing-config/routing-config.service';
 import { routingConfigRepo } from '../../../modules/routing-config/routing-config.repo';
 import type { AgentRuntime } from '../types';
-import type { IntentTier } from '../../../core/ai/types';
 
 export interface WorkspaceRuntimeOptions {
   workspaceId: string;
-  tier: IntentTier;
   excludedProviders?: string[];
 }
 

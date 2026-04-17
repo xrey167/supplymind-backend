@@ -1,15 +1,17 @@
 import { z } from 'zod';
 
+const aiProviderEnum = z.enum(['anthropic', 'openai', 'google']);
+
 export const policyConditionsSchema = z.object({
   model_pattern: z.string().optional(),
-  provider: z.string().optional(),
+  provider: aiProviderEnum.optional(),
 });
 
 export const policyActionsSchema = z.object({
   block: z.boolean().optional(),
   max_monthly_tokens: z.number().int().positive().optional(),
   max_daily_tokens: z.number().int().positive().optional(),
-  prefer_providers: z.array(z.string()).optional(),
+  prefer_providers: z.array(aiProviderEnum).optional(),
 });
 
 export const createPolicySchema = z.object({
