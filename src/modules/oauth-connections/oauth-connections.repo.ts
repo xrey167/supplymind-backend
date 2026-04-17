@@ -4,12 +4,20 @@ import { oauthConnections } from '../../infra/db/schema';
 import { encryptToken, decryptToken } from '../../infra/oauth/token-encrypt';
 import type { OAuthConnection, StoreTokenInput } from './oauth-connections.types';
 
+/**
+ * Sentinel email for providers that don't return an email (e.g. token_import providers).
+ * PostgreSQL treats NULL != NULL in unique indexes, so a sentinel ensures the
+ * UNIQUE(workspace_id, provider, email) constraint still prevents duplicate connections.
+ * Translated back to null in toPublic().
+ */
+const NO_EMAIL_SENTINEL = '__imported__';
+
 function toPublic(row: typeof oauthConnections.$inferSelect): OAuthConnection {
   return {
     id: row.id,
     workspaceId: row.workspaceId,
     provider: row.provider as OAuthConnection['provider'],
-    email: row.email,
+    email: row.email === NO_EMAIL_SENTINEL ? null : row.email,
     displayName: row.displayName,
     scope: row.scope,
     status: row.status as OAuthConnection['status'],
@@ -39,7 +47,7 @@ export const oauthConnectionsRepo = {
     const values = {
       workspaceId: input.workspaceId,
       provider: input.provider as typeof oauthConnections.$inferInsert['provider'],
-      email: input.email ?? null,
+      email: input.email ?? NO_EMAIL_SENTINEL,
       displayName: input.displayName ?? null,
       encryptedAccessToken: ea,
       accessTokenIv: ia,

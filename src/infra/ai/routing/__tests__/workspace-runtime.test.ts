@@ -8,12 +8,29 @@ const mockCreateRuntime = mock((provider: string, mode: string) => ({
 }));
 
 const mockWithFallbackRuntime = mock((runtimes: unknown[]) => (runtimes[0] as any));
+const mockWithHealthTracking = mock((runtime: unknown) => runtime);
 const mockGetConfig = mock(async () => null as any);
 const mockIncrementRoundRobinCounter = mock(async () => {});
 
 mock.module('../../runtime-factory', () => ({
   createRuntime: mockCreateRuntime,
   withFallbackRuntime: mockWithFallbackRuntime,
+  withHealthTracking: mockWithHealthTracking,
+}));
+
+mock.module('../../circuit-breaker', () => ({
+  getOpenProviders: async () => [],
+}));
+
+mock.module('../../health-store', () => ({
+  getAllHealth: async () => new Map(),
+}));
+
+mock.module('../usage-counter', () => ({
+  getUsageCounts: async () => new Map(),
+  incrementUsage: async () => {},
+  setLastKnownGood: async () => {},
+  getLastKnownGood: async () => null,
 }));
 
 mock.module('../../../../modules/routing-config/routing-config.service', () => ({
@@ -24,12 +41,14 @@ mock.module('../../../../modules/routing-config/routing-config.repo', () => ({
   routingConfigRepo: { incrementRoundRobinCounter: mockIncrementRoundRobinCounter },
 }));
 
+await import('../strategies');
 const { buildWorkspaceRuntime } = await import('../workspace-runtime');
 
 describe('buildWorkspaceRuntime', () => {
   beforeEach(() => {
     mockCreateRuntime.mockClear();
     mockWithFallbackRuntime.mockClear();
+    mockWithHealthTracking.mockClear();
     mockGetConfig.mockReset();
     mockIncrementRoundRobinCounter.mockClear();
   });

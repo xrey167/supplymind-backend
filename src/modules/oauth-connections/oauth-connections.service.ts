@@ -45,6 +45,10 @@ export const oauthConnectionsService = {
   async refreshConnection(connection: OAuthConnection): Promise<Result<OAuthConnection>> {
     try {
       const provider = getProvider(connection.provider);
+      if (provider.supportsRefresh === false) {
+        await oauthConnectionsRepo.updateStatus(connection.id, 'expired', 'Provider does not support token refresh');
+        return err(new Error(`Provider ${connection.provider} does not support token refresh`));
+      }
       if (!provider.refreshAccessToken) {
         return err(new Error(`Provider ${connection.provider} does not support token refresh`));
       }
@@ -85,6 +89,8 @@ export const oauthConnectionsService = {
   async refreshExpiringSoon(windowMs = 15 * 60 * 1000): Promise<void> {
     const expiring = await oauthConnectionsRepo.listExpiringSoon(windowMs);
     for (const conn of expiring) {
+      const provider = getProvider(conn.provider);
+      if (provider.supportsRefresh === false) continue;
       const result = await this.refreshConnection(conn);
       if (!result.ok) {
         logger.warn({ err: result.error, connectionId: conn.id, provider: conn.provider }, 'Proactive token refresh failed');

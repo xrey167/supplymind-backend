@@ -270,9 +270,25 @@ export async function initSubsystems(app?: import('@hono/zod-openapi').OpenAPIHo
     // Run plugin bootstrap callbacks (e.g. ERP sync schedule registration)
     pluginContributionRegistry.runBootstrapCallbacks();
 
+    // Register contributed OAuth providers into the global registry
+    const { oauthProviderRegistry } = await import('../infra/oauth/registry');
+    for (const { provider } of pluginContributionRegistry.getProviderConnectors()) {
+      oauthProviderRegistry.register(provider);
+    }
+
+    // Register contributed routing strategies into the global strategy registry
+    // Side-effect import: ensures built-in strategies are registered first
+    await import('../infra/ai/routing/strategies');
+    const { strategyRegistry } = await import('../infra/ai/routing/strategy-registry');
+    for (const { name, select } of pluginContributionRegistry.getRoutingStrategies()) {
+      strategyRegistry.register(name, select);
+    }
+
     const cmdCount = pluginContributionRegistry.getCommands().length;
     const hookCount = pluginContributionRegistry.getHooks().length;
-    logger.info({ workerCount: contribWorkers.length, cmdCount, hookCount }, 'Step 12.5: Plugin contributions applied');
+    const providerCount = pluginContributionRegistry.getProviderConnectors().length;
+    const strategyCount = pluginContributionRegistry.getRoutingStrategies().length;
+    logger.info({ workerCount: contribWorkers.length, cmdCount, hookCount, providerCount, strategyCount }, 'Step 12.5: Plugin contributions applied');
   } catch (err) {
     logger.warn({ err }, 'Step 12.5: Plugin contributions failed — non-critical');
     // Time-box the quit — maxRetriesPerRequest: null means commands wait indefinitely,

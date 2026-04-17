@@ -23,6 +23,8 @@ import type { GatewayRequest, GatewayResult } from '../../core/gateway/gateway.t
 import type { Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
 import type { HookEvent, HookHandler } from '../../core/hooks/hook-registry';
+import type { OAuthProvider as OAuthProviderDef } from '../../infra/oauth/types';
+import type { StrategyFn } from '../../infra/ai/routing/strategy-registry';
 
 // ---------------------------------------------------------------------------
 // Contribution types
@@ -88,6 +90,18 @@ export interface GatewayOpContribution {
   handler: (req: GatewayRequest) => Promise<GatewayResult>;
 }
 
+/** An OAuth provider contributed by a plugin — registered into the global OAuthProviderRegistry. */
+export interface OAuthProviderContribution {
+  provider: OAuthProviderDef;
+}
+
+/** A routing strategy contributed by a plugin — registered into the global StrategyRegistry. */
+export interface RoutingStrategyContribution {
+  /** Unique strategy name, e.g. 'my-plugin:custom-strategy'. Must be globally unique. */
+  name: string;
+  select: StrategyFn;
+}
+
 /** All contribution types a plugin manifest can declare. */
 export interface PluginContributions {
   topics?: PluginTopicContributions;
@@ -103,6 +117,10 @@ export interface PluginContributions {
   gatewayOps?: GatewayOpContribution[];
   /** Called once at app startup after all contributions are applied (e.g. seed scheduler state from DB). */
   onBootstrap?: () => Promise<void>;
+  /** OAuth providers registered into the global OAuthProviderRegistry at startup. */
+  providerConnectors?: OAuthProviderContribution[];
+  /** Routing strategies registered into the global StrategyRegistry at startup. */
+  routingStrategies?: RoutingStrategyContribution[];
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +217,24 @@ export class PluginContributionRegistry {
           result.push({ pluginId: id, template });
         }
       }
+    }
+    return result;
+  }
+
+  /** OAuth provider contributions from all registered plugins. */
+  getProviderConnectors(): OAuthProviderContribution[] {
+    const result: OAuthProviderContribution[] = [];
+    for (const contrib of this.contributions.values()) {
+      if (contrib.providerConnectors) result.push(...contrib.providerConnectors);
+    }
+    return result;
+  }
+
+  /** Routing strategy contributions from all registered plugins. */
+  getRoutingStrategies(): RoutingStrategyContribution[] {
+    const result: RoutingStrategyContribution[] = [];
+    for (const contrib of this.contributions.values()) {
+      if (contrib.routingStrategies) result.push(...contrib.routingStrategies);
     }
     return result;
   }

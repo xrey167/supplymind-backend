@@ -443,7 +443,11 @@ export const credentials = pgTable('credentials', {
 ]);
 
 // OAuth provider connections (tokens from OAuth flows, not static API keys)
-export const oauthProviderEnum = pgEnum('oauth_provider', ['claude', 'google', 'openai', 'github']);
+export const oauthProviderEnum = pgEnum('oauth_provider', [
+  'claude', 'google', 'openai', 'github',
+  'codex', 'kiro', 'kilocode', 'cline',
+  'kimi-coding', 'cursor', 'antigravity',
+]);
 export const oauthConnectionStatusEnum = pgEnum('oauth_connection_status', ['active', 'error', 'expired']);
 
 export const oauthConnections = pgTable('oauth_connections', {
@@ -1011,7 +1015,11 @@ export const workspacePolicies = pgTable('workspace_policies', {
 
 // ── Workspace Routing Configs ─────────────────────────────────────────────────
 
-export const routingStrategyEnum = pgEnum('routing_strategy', ['priority', 'round-robin', 'weighted', 'cost-optimized']);
+export const routingStrategyEnum = pgEnum('routing_strategy', [
+  'priority', 'round-robin', 'weighted', 'cost-optimized',
+  'random', 'strict-random', 'fill-first', 'least-used',
+  'p2c', 'auto', 'lkgp',
+]);
 
 export const workspaceRoutingConfigs = pgTable('workspace_routing_configs', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -1019,6 +1027,7 @@ export const workspaceRoutingConfigs = pgTable('workspace_routing_configs', {
   strategy: routingStrategyEnum('strategy').notNull().default('priority'),
   providers: jsonb('providers').notNull().default([]),
   roundRobinCounter: integer('round_robin_counter').notNull().default(0),
+  strictRandomDeck: jsonb('strict_random_deck'),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('workspace_routing_configs_ws_idx').on(t.workspaceId),

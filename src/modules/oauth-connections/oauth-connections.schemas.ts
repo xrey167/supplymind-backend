@@ -10,4 +10,10 @@ export const exchangeCodeSchema = z.object({
 
 export const pollTokenSchema = z.object({
   deviceCode: z.string().min(1),
+  /** Provider-specific data needed for polling (e.g. Kiro clientId/clientSecret). */
+  extraData: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const importTokenSchema = z.object({
+  accessToken: z.string().min(1),
 });

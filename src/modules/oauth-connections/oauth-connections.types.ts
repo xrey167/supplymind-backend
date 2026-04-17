@@ -1,4 +1,7 @@
-export type OAuthProvider = 'claude' | 'google' | 'openai' | 'github';
+export type OAuthProvider =
+  | 'claude' | 'google' | 'openai' | 'github'
+  | 'codex' | 'kiro' | 'kilocode' | 'cline'
+  | 'kimi-coding' | 'cursor' | 'antigravity';
 export type OAuthConnectionStatus = 'active' | 'error' | 'expired';
 
 export interface OAuthConnection {

@@ -1,6 +1,8 @@
 import { describe, test, expect } from 'bun:test';
 import { StrategyRouter } from '../strategy-router';
 import type { RoutingConfig } from '../types';
+// Side-effect import: ensures all built-in strategies are registered
+import '../strategies';
 
 const config: RoutingConfig = {
   id: 'rc-1',
@@ -15,36 +17,36 @@ const config: RoutingConfig = {
 };
 
 describe('StrategyRouter.select', () => {
-  test('priority strategy returns first provider', () => {
+  test('priority strategy returns first provider', async () => {
     const router = new StrategyRouter(config);
-    expect(router.select().provider).toBe('anthropic');
+    expect((await router.select()).provider).toBe('anthropic');
   });
 
-  test('priority strategy excludes provider and falls back', () => {
+  test('priority strategy excludes provider and falls back', async () => {
     const router = new StrategyRouter(config);
-    expect(router.select(new Set(['anthropic'])).provider).toBe('openai');
+    expect((await router.select(new Set(['anthropic']))).provider).toBe('openai');
   });
 
-  test('round-robin increments counter and cycles', () => {
+  test('round-robin increments counter and cycles', async () => {
     const router = new StrategyRouter({ ...config, strategy: 'round-robin', roundRobinCounter: 0 });
-    expect(router.select().provider).toBe('anthropic');
-    expect(router.select().provider).toBe('openai');
-    expect(router.select().provider).toBe('anthropic'); // wraps
+    expect((await router.select()).provider).toBe('anthropic');
+    expect((await router.select()).provider).toBe('openai');
+    expect((await router.select()).provider).toBe('anthropic'); // wraps
   });
 
-  test('cost-optimized picks openai (cheaper)', () => {
+  test('cost-optimized picks openai (cheaper)', async () => {
     const router = new StrategyRouter({ ...config, strategy: 'cost-optimized' });
-    expect(router.select().provider).toBe('openai');
+    expect((await router.select()).provider).toBe('openai');
   });
 
-  test('weighted returns a valid provider', () => {
+  test('weighted returns a valid provider', async () => {
     const router = new StrategyRouter({ ...config, strategy: 'weighted' });
-    const target = router.select();
+    const target = await router.select();
     expect(['anthropic', 'openai']).toContain(target.provider);
   });
 
-  test('throws when all providers excluded', () => {
+  test('throws when all providers excluded', async () => {
     const router = new StrategyRouter(config);
-    expect(() => router.select(new Set(['anthropic', 'openai']))).toThrow('No available provider');
+    await expect(router.select(new Set(['anthropic', 'openai']))).rejects.toThrow('No available provider');
   });
 });
