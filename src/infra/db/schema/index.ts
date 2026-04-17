@@ -1009,4 +1009,19 @@ export const workspacePolicies = pgTable('workspace_policies', {
   index('workspace_policies_type_idx').on(t.type),
 ]);
 
+// ── Workspace Routing Configs ─────────────────────────────────────────────────
+
+export const routingStrategyEnum = pgEnum('routing_strategy', ['priority', 'round-robin', 'weighted', 'cost-optimized']);
+
+export const workspaceRoutingConfigs = pgTable('workspace_routing_configs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().unique(),
+  strategy: routingStrategyEnum('strategy').notNull().default('priority'),
+  providers: jsonb('providers').notNull().default([]),
+  roundRobinCounter: integer('round_robin_counter').notNull().default(0),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('workspace_routing_configs_ws_idx').on(t.workspaceId),
+]);
+
 export * from './missions.schema';
