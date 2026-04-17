@@ -37,6 +37,7 @@ import { CommandsRoutes } from '../../../modules/commands/commands.routes';
 import { MissionsRoutes } from '../../../modules/missions/missions.routes';
 import { AgentProfilesRoutes } from '../../../modules/agent-profiles/agent-profiles.routes';
 import { workspacePolicyRoutes } from '../../../modules/workspace-policy/workspace-policy.routes';
+import { routingConfigRoutes } from '../../../modules/routing-config/routing-config.routes';
 
 const workspaceRoutes = new OpenAPIHono<AppEnv>();
 
@@ -80,5 +81,6 @@ workspaceRoutes.route('/commands', CommandsRoutes);
 workspaceRoutes.route('/missions', MissionsRoutes);
 workspaceRoutes.route('/agent-profiles', AgentProfilesRoutes);
 workspaceRoutes.route('/policies', workspacePolicyRoutes);
+workspaceRoutes.route('/routing-config', routingConfigRoutes);
 
 export { workspaceRoutes };
