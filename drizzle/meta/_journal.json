@@ -173,8 +173,15 @@
     {
       "idx": 24,
       "version": "7",
-      "when": 1776366697136,
+      "when": 1744857600000,
       "tag": "0024_dizzy_katie_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1776413403378,
+      "tag": "0025_talented_roughhouse",
       "breakpoints": true
     }
   ]

@@ -989,4 +989,24 @@ export const gateAuditLog = pgTable('gate_audit_log', {
   index('gate_audit_workspace_created_idx').on(t.workspaceId, t.createdAt),
 ]);
 
+// ── Workspace Policies ────────────────────────────────────────────────────────
+
+export const policyTypeEnum = pgEnum('policy_type', ['access', 'budget', 'routing']);
+
+export const workspacePolicies = pgTable('workspace_policies', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  type: policyTypeEnum('type').notNull(),
+  enabled: boolean('enabled').notNull().default(true),
+  priority: integer('priority').notNull().default(10),
+  conditions: jsonb('conditions').notNull().default({}),
+  actions: jsonb('actions').notNull().default({}),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('workspace_policies_workspace_idx').on(t.workspaceId),
+  index('workspace_policies_type_idx').on(t.type),
+]);
+
 export * from './missions.schema';
