@@ -26,6 +26,21 @@ function rowToPolicy(row: typeof workspacePolicies.$inferSelect): Policy {
   };
 }
 
+function normalizeCachedPolicy(raw: Partial<Policy>): Policy {
+  return {
+    id: raw.id as string,
+    workspaceId: raw.workspaceId as string,
+    name: raw.name as string,
+    type: raw.type as PolicyType,
+    enabled: raw.enabled as boolean,
+    priority: raw.priority as number,
+    conditions: (raw.conditions ?? {}) as Policy['conditions'],
+    actions: (raw.actions ?? {}) as Policy['actions'],
+    createdAt: raw.createdAt instanceof Date ? raw.createdAt : new Date(raw.createdAt as string),
+    updatedAt: raw.updatedAt instanceof Date ? raw.updatedAt : new Date(raw.updatedAt as string),
+  };
+}
+
 async function invalidateCache(workspaceId: string): Promise<void> {
   try {
     await getSharedRedisClient().del(cacheKey(workspaceId));
@@ -39,7 +54,10 @@ export const workspacePolicyRepo = {
     const redis = getSharedRedisClient();
     try {
       const cached = await redis.get(cacheKey(workspaceId));
-      if (cached) return JSON.parse(cached) as Policy[];
+      if (cached) {
+        const parsed = JSON.parse(cached) as Array<Partial<Policy>>;
+        return parsed.map(normalizeCachedPolicy);
+      }
     } catch { /* fall through to DB on cache miss */ }
 
     const rows = await db
