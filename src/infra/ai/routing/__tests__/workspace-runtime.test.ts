@@ -11,6 +11,8 @@ const mockWithFallbackRuntime = mock((runtimes: unknown[]) => (runtimes[0] as an
 const mockWithHealthTracking = mock((runtime: unknown) => runtime);
 const mockGetConfig = mock(async () => null as any);
 const mockIncrementRoundRobinCounter = mock(async () => {});
+const mockUpdateStrictRandomDeck = mock(async () => {});
+const mockListForWorkspace = mock(async () => [] as any[]);
 
 mock.module('../../runtime-factory', () => ({
   createRuntime: mockCreateRuntime,
@@ -19,7 +21,7 @@ mock.module('../../runtime-factory', () => ({
 }));
 
 mock.module('../../circuit-breaker', () => ({
-  getOpenProviders: async () => [],
+  getOpenProviders: async () => new Set<string>(),
 }));
 
 mock.module('../../health-store', () => ({
@@ -38,11 +40,30 @@ mock.module('../../../../modules/routing-config/routing-config.service', () => (
 }));
 
 mock.module('../../../../modules/routing-config/routing-config.repo', () => ({
-  routingConfigRepo: { incrementRoundRobinCounter: mockIncrementRoundRobinCounter },
+  routingConfigRepo: {
+    incrementRoundRobinCounter: mockIncrementRoundRobinCounter,
+    updateStrictRandomDeck: mockUpdateStrictRandomDeck,
+  },
+}));
+
+mock.module('../../../../modules/oauth-connections/oauth-connections.repo', () => ({
+  oauthConnectionsRepo: { listForWorkspace: mockListForWorkspace },
 }));
 
 await import('../strategies');
 const { buildWorkspaceRuntime } = await import('../workspace-runtime');
+
+const baseConfig = {
+  id: 'rc-1',
+  workspaceId: 'ws-1',
+  strategy: 'priority' as const,
+  roundRobinCounter: 0,
+  updatedAt: new Date(),
+  providers: [
+    { provider: 'anthropic', model: 'claude-sonnet-4-6', weight: 50, costPer1kTokens: 0.003, mode: 'raw' },
+    { provider: 'openai', model: 'gpt-4o', weight: 50, costPer1kTokens: 0.002, mode: 'raw' },
+  ],
+};
 
 describe('buildWorkspaceRuntime', () => {
   beforeEach(() => {
@@ -51,24 +72,79 @@ describe('buildWorkspaceRuntime', () => {
     mockWithHealthTracking.mockClear();
     mockGetConfig.mockReset();
     mockIncrementRoundRobinCounter.mockClear();
+    mockListForWorkspace.mockReset();
+    mockListForWorkspace.mockResolvedValue([]);
   });
 
-  test('does not include excluded providers in fallback runtimes', async () => {
-    mockGetConfig.mockResolvedValueOnce({
-      id: 'rc-1',
-      workspaceId: 'ws-1',
-      strategy: 'priority',
-      roundRobinCounter: 0,
-      updatedAt: new Date(),
-      providers: [
-        { provider: 'anthropic', model: 'claude', weight: 50, costPer1kTokens: 0.003, mode: 'raw' },
-        { provider: 'openai', model: 'gpt-5', weight: 50, costPer1kTokens: 0.002, mode: 'raw' },
-      ],
-    });
+  test('falls back to anthropic when no routing config exists', async () => {
+    mockGetConfig.mockResolvedValueOnce(null);
+    await buildWorkspaceRuntime({ workspaceId: 'ws-1' });
+    expect(mockCreateRuntime.mock.calls[0][0]).toBe('anthropic');
+  });
 
+  test('selects primary provider from routing config', async () => {
+    mockGetConfig.mockResolvedValueOnce(baseConfig);
+    await buildWorkspaceRuntime({ workspaceId: 'ws-1' });
+    const providers = mockCreateRuntime.mock.calls.map(([p]) => p);
+    expect(providers).toContain('anthropic');
+  });
+
+  test('does not include explicitly excluded providers in fallback runtimes', async () => {
+    mockGetConfig.mockResolvedValueOnce(baseConfig);
     await buildWorkspaceRuntime({ workspaceId: 'ws-1', excludedProviders: ['openai'] });
+    const providers = mockCreateRuntime.mock.calls.map(([p]) => p);
+    expect(providers).not.toContain('openai');
+  });
 
-    const providers = mockCreateRuntime.mock.calls.map(([provider]) => provider);
-    expect(providers).toEqual(['anthropic']);
+  // T2.4 — credential-blocked provider filtering
+  test('excludes providers with error oauth connection', async () => {
+    mockGetConfig.mockResolvedValueOnce(baseConfig);
+    mockListForWorkspace.mockResolvedValueOnce([
+      { provider: 'openai', status: 'error' },
+    ]);
+    await buildWorkspaceRuntime({ workspaceId: 'ws-1' });
+    const providers = mockCreateRuntime.mock.calls.map(([p]) => p);
+    expect(providers).not.toContain('openai');
+    expect(providers).toContain('anthropic');
+  });
+
+  test('excludes providers with expired oauth connection', async () => {
+    mockGetConfig.mockResolvedValueOnce(baseConfig);
+    mockListForWorkspace.mockResolvedValueOnce([
+      { provider: 'openai', status: 'expired' },
+    ]);
+    await buildWorkspaceRuntime({ workspaceId: 'ws-1' });
+    const providers = mockCreateRuntime.mock.calls.map(([p]) => p);
+    expect(providers).not.toContain('openai');
+  });
+
+  test('does not exclude providers with active oauth connection', async () => {
+    mockGetConfig.mockResolvedValueOnce(baseConfig);
+    mockListForWorkspace.mockResolvedValueOnce([
+      { provider: 'openai', status: 'active' },
+    ]);
+    await buildWorkspaceRuntime({ workspaceId: 'ws-1' });
+    const providers = mockCreateRuntime.mock.calls.map(([p]) => p);
+    expect(providers).toContain('openai');
+  });
+
+  test('providers not in oauth_connections are unaffected', async () => {
+    mockGetConfig.mockResolvedValueOnce(baseConfig);
+    // anthropic has no oauth_connection record at all — should still be used
+    mockListForWorkspace.mockResolvedValueOnce([]);
+    await buildWorkspaceRuntime({ workspaceId: 'ws-1' });
+    const providers = mockCreateRuntime.mock.calls.map(([p]) => p);
+    expect(providers).toContain('anthropic');
+  });
+
+  test('falls back to anthropic when all providers are excluded', async () => {
+    mockGetConfig.mockResolvedValueOnce(baseConfig);
+    mockListForWorkspace.mockResolvedValueOnce([
+      { provider: 'anthropic', status: 'error' },
+      { provider: 'openai', status: 'expired' },
+    ]);
+    await buildWorkspaceRuntime({ workspaceId: 'ws-1' });
+    // All providers excluded → strategy select() throws → falls back
+    expect(mockCreateRuntime.mock.calls[0][0]).toBe('anthropic');
   });
 });

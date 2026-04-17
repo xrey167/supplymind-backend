@@ -2,6 +2,7 @@ import { createRuntime, withFallbackRuntime, withHealthTracking } from '../runti
 import { StrategyRouter } from './strategy-router';
 import { routingConfigService } from '../../../modules/routing-config/routing-config.service';
 import { routingConfigRepo } from '../../../modules/routing-config/routing-config.repo';
+import { oauthConnectionsRepo } from '../../../modules/oauth-connections/oauth-connections.repo';
 import { getUsageCounts, incrementUsage, setLastKnownGood, getLastKnownGood } from './usage-counter';
 import { getAllHealth } from '../health-store';
 import { getOpenProviders } from '../circuit-breaker';
@@ -35,9 +36,12 @@ export async function buildWorkspaceRuntime(opts: WorkspaceRuntimeOptions): Prom
 
   const providerKeys = config.providers.map((p) => p.provider);
 
-  // Exclude circuit-open providers
-  const circuitOpen = await getOpenProviders(workspaceId, providerKeys);
-  const excluded = new Set([...excludedProviders, ...circuitOpen]);
+  // Exclude circuit-open providers and providers with non-active oauth connections
+  const [circuitOpen, credBlocked] = await Promise.all([
+    getOpenProviders(workspaceId, providerKeys),
+    getCredentialBlockedProviders(workspaceId, providerKeys),
+  ]);
+  const excluded = new Set([...excludedProviders, ...circuitOpen, ...credBlocked]);
 
   // Fetch Redis-backed context only for strategies that need it
   const ctxExtra = await buildStrategyContext(config, workspaceId);
@@ -89,6 +93,24 @@ export async function buildWorkspaceRuntime(opts: WorkspaceRuntimeOptions): Prom
     ),
   ];
   return withFallbackRuntime(runtimes);
+}
+
+/**
+ * Returns providers whose oauth_connection is non-active (error/expired) for this workspace.
+ * Only excludes providers that actually have a connection record — unconfigured providers pass through.
+ */
+async function getCredentialBlockedProviders(
+  workspaceId: string,
+  providerKeys: string[],
+): Promise<Set<string>> {
+  const connections = await oauthConnectionsRepo.listForWorkspace(workspaceId);
+  const blocked = new Set<string>();
+  for (const conn of connections) {
+    if (conn.status !== 'active' && providerKeys.includes(conn.provider)) {
+      blocked.add(conn.provider);
+    }
+  }
+  return blocked;
 }
 
 async function buildStrategyContext(
