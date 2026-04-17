@@ -104,6 +104,54 @@ export function withDomainContext(
   };
 }
 
+/**
+ * Wraps a runtime to record provider health (success/failure + latency) after each call.
+ * Use this on individual provider runtimes before passing to withFallbackRuntime.
+ */
+export function withHealthTracking(
+  runtime: AgentRuntime,
+  opts: { workspaceId: string; provider: string },
+): AgentRuntime {
+  // Lazy import to avoid circular deps and keep test isolation
+  const getTrackers = () => import('./circuit-breaker').then((m) => ({
+    onSuccess: m.onSuccess,
+    onFailure: m.onFailure,
+  }));
+
+  return {
+    async run(input: RunInput): Promise<Result<RunResult>> {
+      const start = Date.now();
+      const result = await runtime.run(input);
+      const latencyMs = Date.now() - start;
+      const { onSuccess, onFailure } = await getTrackers();
+      if (result.ok) {
+        onSuccess(opts.workspaceId, opts.provider, latencyMs).catch(() => {});
+      } else {
+        onFailure(opts.workspaceId, opts.provider).catch(() => {});
+      }
+      return result;
+    },
+    async *stream(input: RunInput): AsyncIterable<StreamEvent> {
+      const start = Date.now();
+      let failed = false;
+      try {
+        yield* runtime.stream(input);
+      } catch (e) {
+        failed = true;
+        throw e;
+      } finally {
+        const latencyMs = Date.now() - start;
+        const { onSuccess, onFailure } = await getTrackers();
+        if (failed) {
+          onFailure(opts.workspaceId, opts.provider).catch(() => {});
+        } else {
+          onSuccess(opts.workspaceId, opts.provider, latencyMs).catch(() => {});
+        }
+      }
+    },
+  };
+}
+
 export function createRuntime(provider: AIProvider, mode: AgentMode, apiKey?: string): AgentRuntime {
   let runtime: AgentRuntime;
   if (mode === 'agent-sdk') {

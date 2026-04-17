@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { getProvider, listProviders } from '../../infra/oauth/registry';
 import { generatePKCE } from '../../infra/oauth/pkce';
 import { oauthConnectionsService } from './oauth-connections.service';
-import { exchangeCodeSchema, pollTokenSchema } from './oauth-connections.schemas';
+import { exchangeCodeSchema, pollTokenSchema, importTokenSchema } from './oauth-connections.schemas';
 import type { OAuthProvider } from './oauth-connections.types';
 
 export const oauthConnectionsRoutes = new Hono();
@@ -85,14 +85,14 @@ oauthConnectionsRoutes.post(
   zValidator('json', pollTokenSchema),
   async (c) => {
     const { provider, workspaceId } = c.req.param();
-    const { deviceCode } = c.req.valid('json');
+    const { deviceCode, extraData } = c.req.valid('json');
 
     const p = getProvider(provider);
     if (!p.pollToken) {
       return c.json({ error: `Provider ${provider} does not support token polling` }, 400);
     }
 
-    const result = await p.pollToken(deviceCode);
+    const result = await p.pollToken(deviceCode, extraData);
 
     if (result.pending) return c.json({ success: false, pending: true });
     if (!result.success || !result.tokens) {
@@ -107,6 +107,31 @@ oauthConnectionsRoutes.post(
 
     if (!stored.ok) return c.json({ error: stored.error.message }, 500);
     return c.json({ success: true, connectionId: stored.value.id });
+  },
+);
+
+/** POST /oauth/:provider/:workspaceId/import — import a manually provided token (token_import flow) */
+oauthConnectionsRoutes.post(
+  '/:provider/:workspaceId/import',
+  zValidator('json', importTokenSchema),
+  async (c) => {
+    const { provider, workspaceId } = c.req.param();
+    const { accessToken } = c.req.valid('json');
+
+    const p = getProvider(provider);
+    if (p.flowType !== 'token_import' || !p.normalizeImportedToken) {
+      return c.json({ error: `Provider ${provider} does not support token import` }, 400);
+    }
+
+    const tokens = await p.normalizeImportedToken(accessToken);
+    const result = await oauthConnectionsService.storeTokens({
+      workspaceId,
+      provider: provider as OAuthProvider,
+      ...tokens,
+    });
+
+    if (!result.ok) return c.json({ error: result.error.message }, 500);
+    return c.json({ success: true, connectionId: result.value.id });
   },
 );
 

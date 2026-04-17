@@ -1,4 +1,4 @@
-export type OAuthFlowType = 'authorization_code_pkce' | 'device_code';
+export type OAuthFlowType = 'authorization_code_pkce' | 'device_code' | 'token_import';
 export type OAuthConnectionStatus = 'active' | 'error' | 'expired';
 
 export interface TokenSet {
@@ -21,6 +21,8 @@ export interface DeviceCodeResponse {
   interval: number;
   /** seconds */
   expiresIn: number;
+  /** provider-specific extra data needed for polling (e.g. Kiro clientId/clientSecret) */
+  extraData?: Record<string, unknown>;
 }
 
 export interface PollResult {
@@ -37,6 +39,8 @@ export interface OAuthProvider {
   id: string;
   displayName: string;
   flowType: OAuthFlowType;
+  /** Whether this provider supports token refresh. Defaults to true. */
+  supportsRefresh?: boolean;
 
   /** Only for authorization_code_pkce */
   buildAuthUrl?(params: {
@@ -56,12 +60,15 @@ export interface OAuthProvider {
   /** Only for device_code */
   requestDeviceCode?(): Promise<DeviceCodeResponse>;
 
-  /** Only for device_code */
-  pollToken?(deviceCode: string): Promise<PollResult>;
+  /** Only for device_code — extraData carries provider-specific poll credentials */
+  pollToken?(deviceCode: string, extraData?: Record<string, unknown>): Promise<PollResult>;
 
   /** Both flow types — refresh access token using refresh token */
   refreshAccessToken?(params: {
     refreshToken: string;
     providerData?: Record<string, unknown>;
   }): Promise<TokenSet>;
+
+  /** Only for token_import — validate and normalize a user-supplied access token */
+  normalizeImportedToken?(accessToken: string): Promise<TokenSet>;
 }

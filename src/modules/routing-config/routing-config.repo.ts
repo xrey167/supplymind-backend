@@ -10,6 +10,7 @@ function rowToConfig(row: typeof workspaceRoutingConfigs.$inferSelect): RoutingC
     strategy: row.strategy as RoutingStrategy,
     providers: (row.providers ?? []) as ProviderEntry[],
     roundRobinCounter: row.roundRobinCounter,
+    strictRandomDeck: Array.isArray(row.strictRandomDeck) ? (row.strictRandomDeck as string[]) : undefined,
     updatedAt: row.updatedAt,
   };
 }
@@ -39,6 +40,12 @@ export const routingConfigRepo = {
   async incrementRoundRobinCounter(id: string, newCounter: number): Promise<void> {
     await db.update(workspaceRoutingConfigs)
       .set({ roundRobinCounter: newCounter })
+      .where(eq(workspaceRoutingConfigs.id, id));
+  },
+
+  async updateStrictRandomDeck(id: string, deck: string[]): Promise<void> {
+    await db.update(workspaceRoutingConfigs)
+      .set({ strictRandomDeck: deck })
       .where(eq(workspaceRoutingConfigs.id, id));
   },
 };

@@ -190,6 +190,13 @@
       "when": 1776417507695,
       "tag": "0026_whole_lilith",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1745020800000,
+      "tag": "0027_provider_strategy_expansion",
+      "breakpoints": true
     }
   ]
 }
