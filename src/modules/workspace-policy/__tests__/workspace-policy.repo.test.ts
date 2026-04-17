@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { describe, expect, mock, beforeEach, test } from 'bun:test';
 
 const mockRedisGet = mock<() => Promise<string | null>>(async () => null);
 const mockRedisSetex = mock(async () => 'OK');
@@ -8,9 +8,7 @@ const mockDbWhere = mock(async () => []);
 const mockDbFrom = mock(() => ({ where: mockDbWhere }));
 const mockDbSelect = mock(() => ({ from: mockDbFrom }));
 
-const realRedisClient = require('../../../infra/redis/client');
 mock.module('../../../infra/redis/client', () => ({
-  ...realRedisClient,
   getSharedRedisClient: () => ({
     get: mockRedisGet,
     setex: mockRedisSetex,
@@ -18,13 +16,8 @@ mock.module('../../../infra/redis/client', () => ({
   }),
 }));
 
-const realDbClient = require('../../../infra/db/client');
 mock.module('../../../infra/db/client', () => ({
-  ...realDbClient,
-  db: {
-    ...realDbClient.db,
-    select: mockDbSelect,
-  },
+  db: { select: mockDbSelect },
 }));
 
 const { workspacePolicyRepo } = await import('../workspace-policy.repo');
@@ -69,5 +62,3 @@ describe('workspacePolicyRepo.listForWorkspace', () => {
     expect(mockDbSelect).not.toHaveBeenCalled();
   });
 });
-
-afterAll(() => mock.restore());
